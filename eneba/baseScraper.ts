@@ -466,11 +466,17 @@ export class EnebaGiftCardScraper {
    * and extracts the active seller offers.
    */
   async scrapeProductOffers(productUrl: string): Promise<SellerOffer[]> {
-    const res = await this.client.stealthyFetch(productUrl, {
-      extractionType: "markdown",
-      mainContentOnly: true,
-    });
-    return this.parseProductOffersMarkdown(res.text);
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const res = await this.client.stealthyFetch(productUrl, {
+        extractionType: "markdown",
+        mainContentOnly: true,
+      });
+      const offers = this.parseProductOffersMarkdown(res.text);
+      if (offers.length > 0) {
+        return offers;
+      }
+    }
+    return [];
   }
 }
 
