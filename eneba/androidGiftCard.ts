@@ -7,7 +7,7 @@ import {
   parseCliArgs,
   type ScrapeOptions,
 } from "./baseScraper.js";
-import { savePageDealsToDb } from "./db.js";
+import { savePageDealsToDb, saveProductOffersToDb } from "./db.js";
 import {
   analyzePageDeals,
   formatPageStatusReport,
@@ -72,6 +72,18 @@ if (isMain) {
       console.log(
         `[PostgreSQL] Stored ${saved.topDealsInserted} rows (rank 1-${saved.topDealsInserted}) into schema "eneba" at ${saved.scrapedAt} (batch: ${saved.batchId})`,
       );
+    }
+    if (args.withOffers && status.bestEffectiveDeal) {
+      const scraper = new AndroidGiftCardScraper();
+      const offers = await scraper.scrapeProductOffers(status.bestEffectiveDeal.url);
+      const offerRes = await saveProductOffersToDb(status.bestEffectiveDeal.url, offers, {
+        scrapedAt: saved.scrapedAt,
+      });
+      if (!args.json) {
+        console.log(
+          `[PostgreSQL] Stored ${offerRes.offersInserted} seller offers into eneba.sellers & eneba.product_offers`,
+        );
+      }
     }
   }
 }

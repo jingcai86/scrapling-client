@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type pg from "pg";
 import { createPgPool } from "../core/index.js";
+import type { SellerOffer } from "./baseScraper.js";
 import type { PageDealStatus } from "./pageStats.js";
 
 export const ENEBA_SCHEMA_NAME = "eneba";
@@ -70,12 +71,19 @@ CREATE TABLE IF NOT EXISTS eneba.top_deals (
 CREATE TABLE IF NOT EXISTS eneba.sellers (
   id BIGSERIAL PRIMARY KEY,
   seller_name TEXT NOT NULL UNIQUE,
+  seller_slug TEXT,
+  seller_url TEXT,
   rating_pct NUMERIC(5, 2),
+  rating_label TEXT,
   rating_count INTEGER,
   is_verified BOOLEAN NOT NULL DEFAULT FALSE,
   first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE eneba.sellers ADD COLUMN IF NOT EXISTS seller_slug TEXT;
+ALTER TABLE eneba.sellers ADD COLUMN IF NOT EXISTS seller_url TEXT;
+ALTER TABLE eneba.sellers ADD COLUMN IF NOT EXISTS rating_label TEXT;
 
 -- 5. Individual seller offers for a product at a point in time
 CREATE TABLE IF NOT EXISTS eneba.product_offers (
@@ -86,8 +94,11 @@ CREATE TABLE IF NOT EXISTS eneba.product_offers (
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   price NUMERIC(10, 2) NOT NULL,
   cashback_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
+  is_lowest_price BOOLEAN NOT NULL DEFAULT FALSE,
   is_featured_offer BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+ALTER TABLE eneba.product_offers ADD COLUMN IF NOT EXISTS is_lowest_price BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_eneba_scrape_runs_scraped_at
   ON eneba.scrape_runs (scraped_at DESC);
@@ -320,6 +331,136 @@ export async function savePageDealsToDb(
       scrapeRunsInserted,
       topDealsInserted,
     };
+  } finally {
+    if (ownPool) {
+      await pool.end();
+    }
+  }
+}
+
+export interface SaveProductOffersResult {
+  sellersUpserted: number;
+  offersInserted: number;
+}
+
+/**
+ * Persists scraped vendor offers for a given product URL into `eneba.sellers` and `eneba.product_offers`.
+ */
+export async function saveProductOffersToDb(
+  productUrl: string,
+  offers: SellerOffer[],
+  options: {
+    pool?: pg.Pool;
+    scrapedAt?: Date | string;
+  } = {},
+): Promise<SaveProductOffersResult> {
+  if (!offers.length) {
+    return { sellersUpserted: 0, offersInserted: 0 };
+  }
+
+  const ownPool = !options.pool;
+  const pool = options.pool ?? createPgPool();
+  const scrapedAtIso =
+    options.scrapedAt instanceof Date
+      ? options.scrapedAt.toISOString()
+      : typeof options.scrapedAt === "string"
+        ? new Date(options.scrapedAt).toISOString()
+        : new Date().toISOString();
+
+  try {
+    await ensureEnebaSchema(pool);
+    const client = await pool.connect();
+    let sellersUpserted = 0;
+    let offersInserted = 0;
+
+    try {
+      await client.query("BEGIN");
+
+      // Look up product_id (and latest scrape_run_id if available)
+      const prodRes = await client.query<{ id: string }>(
+        `SELECT id FROM eneba.products WHERE url = $1 LIMIT 1`,
+        [productUrl],
+      );
+      if (prodRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return { sellersUpserted: 0, offersInserted: 0 };
+      }
+      const productId = prodRes.rows[0].id;
+
+      const latestDealRes = await client.query<{ scrape_run_id: string }>(
+        `SELECT scrape_run_id FROM eneba.top_deals WHERE product_id = $1 ORDER BY scraped_at DESC LIMIT 1`,
+        [productId],
+      );
+      const scrapeRunId = latestDealRes.rows[0]?.scrape_run_id ?? null;
+
+      for (const offer of offers) {
+        const sellerRes = await client.query<{ id: string }>(
+          `
+          INSERT INTO eneba.sellers (
+            seller_name,
+            seller_slug,
+            seller_url,
+            rating_pct,
+            rating_label,
+            first_seen_at,
+            last_seen_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $6)
+          ON CONFLICT (seller_name) DO UPDATE SET
+            seller_slug = COALESCE(EXCLUDED.seller_slug, eneba.sellers.seller_slug),
+            seller_url = COALESCE(EXCLUDED.seller_url, eneba.sellers.seller_url),
+            rating_pct = COALESCE(EXCLUDED.rating_pct, eneba.sellers.rating_pct),
+            rating_label = COALESCE(EXCLUDED.rating_label, eneba.sellers.rating_label),
+            last_seen_at = EXCLUDED.last_seen_at
+          RETURNING id
+          `,
+          [
+            offer.sellerName,
+            offer.sellerSlug,
+            offer.sellerUrl,
+            offer.ratingScore,
+            offer.ratingLabel,
+            scrapedAtIso,
+          ],
+        );
+        const sellerId = sellerRes.rows[0].id;
+        sellersUpserted++;
+
+        await client.query(
+          `
+          INSERT INTO eneba.product_offers (
+            product_id,
+            seller_id,
+            scrape_run_id,
+            scraped_at,
+            price,
+            cashback_pct,
+            is_lowest_price,
+            is_featured_offer
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `,
+          [
+            productId,
+            sellerId,
+            scrapeRunId,
+            scrapedAtIso,
+            offer.price,
+            offer.cashbackPct,
+            offer.isLowestPrice,
+            offer.isFeaturedOffer,
+          ],
+        );
+        offersInserted++;
+      }
+
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    return { sellersUpserted, offersInserted };
   } finally {
     if (ownPool) {
       await pool.end();

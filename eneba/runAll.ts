@@ -1,8 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ScraplingClient } from "../core/index.js";
-import { parseCliArgs } from "./baseScraper.js";
-import { savePageDealsToDb } from "./db.js";
+import { EnebaGiftCardScraper, parseCliArgs } from "./baseScraper.js";
+import { savePageDealsToDb, saveProductOffersToDb } from "./db.js";
 import { formatPageStatusReport, type PageDealStatus } from "./pageStats.js";
 import { scrapePlayStationGiftCards } from "./playstationGiftCard.js";
 import { scrapeNintendoGiftCards } from "./nintendoGiftCard.js";
@@ -78,6 +78,31 @@ if (isMain) {
       console.log(
         `\n[PostgreSQL] Stored ${saved.topDealsInserted} top deals across ${saved.scrapeRunsInserted} page runs into schema "eneba" (eneba.scrape_runs, eneba.products, eneba.top_deals) at ${saved.scrapedAt} (batch: ${saved.batchId})`,
       );
+    }
+
+    if (args.withOffers) {
+      const offerScraper = new EnebaGiftCardScraper({
+        categoryName: "Offers",
+        categoryUrl: "https://www.eneba.com",
+        client,
+      });
+      let totalSellers = 0;
+      let totalOffers = 0;
+      for (const st of statuses) {
+        const best = st.bestEffectiveDeal || st.bestDeal;
+        if (!best) continue;
+        const offers = await offerScraper.scrapeProductOffers(best.url);
+        const offerRes = await saveProductOffersToDb(best.url, offers, {
+          scrapedAt: saved.scrapedAt,
+        });
+        totalSellers += offerRes.sellersUpserted;
+        totalOffers += offerRes.offersInserted;
+      }
+      if (!args.json) {
+        console.log(
+          `[PostgreSQL] Stored ${totalOffers} competing seller offers (${totalSellers} seller records) into eneba.sellers & eneba.product_offers`,
+        );
+      }
     }
   }
 }

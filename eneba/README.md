@@ -47,3 +47,4 @@ npx tsx eneba/runAll.ts
 - `--stealth`: Use Scrapling's headless Chromium `stealthy_fetch` instead of fast HTTP TLS impersonation
 - `--json`: Output structured JSON instead of the formatted table report
 - `--no-db`: Skip storing results in PostgreSQL even if `DATABASE_URL` is set
+- `--with-offers`: Follow the best deal's product URL with headless Chromium to scrape competing vendor offers and populate `eneba.sellers` & `eneba.product_offers`

@@ -26,6 +26,18 @@ export interface GiftCardListing {
   savingsAmount: number;
 }
 
+export interface SellerOffer {
+  sellerName: string;
+  sellerSlug: string;
+  sellerUrl: string;
+  ratingScore: number | null;
+  ratingLabel: string | null;
+  price: number;
+  cashbackPct: number;
+  isLowestPrice: boolean;
+  isFeaturedOffer: boolean;
+}
+
 export interface ScrapeOptions {
   page?: number;
   useStealth?: boolean;
@@ -37,6 +49,7 @@ export interface CliArgs {
   stealth: boolean;
   json: boolean;
   noDb: boolean;
+  withOffers: boolean;
 }
 
 const FACE_VALUE_PATTERNS: Array<{ regex: RegExp; currency?: string }> = [
@@ -367,10 +380,102 @@ export class EnebaGiftCardScraper {
     }
     return listings;
   }
+
+  /**
+   * Parses vendor offers from an Eneba product detail page Markdown.
+   */
+  parseProductOffersMarkdown(markdown: string): SellerOffer[] {
+    if (!markdown) {
+      return [];
+    }
+
+    const offersSectionIdx = markdown.indexOf("Recommended offers");
+    const relevantMd =
+      offersSectionIdx !== -1 ? markdown.slice(offersSectionIdx) : markdown;
+
+    // Split on vendor avatar image links: [![Vendor](...)](/us/vendor/...)
+    const blocks = relevantMd.split(/(?=\[!\[[^\]]*\]\([^)]+\)\]\([^)]*\/vendor\/[^)]+\))/g);
+    const offers: SellerOffer[] = [];
+
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+      // Match the standalone vendor link: [Vendor Name](/us/vendor/slug)
+      const vendorMatch = block.match(
+        /(?:^|\s)\[([^\][\n]+)\]\(([^)]*\/vendor\/([^)\s/]+))\)/m,
+      );
+      if (!vendorMatch) {
+        continue;
+      }
+
+      const sellerName = vendorMatch[1].trim();
+      const rawHref = vendorMatch[2].trim();
+      const sellerSlug = vendorMatch[3].trim();
+      const sellerUrl = rawHref.startsWith("http")
+        ? rawHref
+        : `${ENEBA_BASE_URL}${rawHref}`;
+
+      // Cut block at "Safe Checkout Guaranteed" or "Gamers also viewed" if it's the last vendor block
+      const cleanBlock = block.split(
+        /Safe Checkout Guaranteed|Gamers also viewed|Product description/i,
+      )[0];
+
+      const priceMatch = cleanBlock.match(/\$\s*(\d+(?:\.\d{1,2})?)/);
+      if (!priceMatch) {
+        continue;
+      }
+      const price = Number.parseFloat(priceMatch[1]);
+      if (!Number.isFinite(price) || price <= 0) {
+        continue;
+      }
+
+      const ratingMatch = cleanBlock.match(
+        /(\d+(?:\.\d+)?)\s*\*\*([^*]+)\*\*\s*rating/i,
+      );
+      const ratingScore = ratingMatch
+        ? Number.parseFloat(ratingMatch[1])
+        : null;
+      const ratingLabel = ratingMatch ? ratingMatch[2].trim() : null;
+
+      const cashbackMatch = cleanBlock.match(/(\d+(?:\.\d+)?)%\s*Cashback/i);
+      const cashbackPct = cashbackMatch
+        ? Number.parseFloat(cashbackMatch[1])
+        : 0;
+
+      const isLowestPrice = /\bLowest price\b/i.test(cleanBlock);
+      const isFeaturedOffer =
+        i <= 1 && !relevantMd.slice(0, relevantMd.indexOf(block)).includes("other offers");
+
+      offers.push({
+        sellerName,
+        sellerSlug,
+        sellerUrl,
+        ratingScore,
+        ratingLabel,
+        price,
+        cashbackPct,
+        isLowestPrice,
+        isFeaturedOffer,
+      });
+    }
+
+    return offers;
+  }
+
+  /**
+   * Fetches a product detail page using headless browser (`stealthyFetch`)
+   * and extracts the active seller offers.
+   */
+  async scrapeProductOffers(productUrl: string): Promise<SellerOffer[]> {
+    const res = await this.client.stealthyFetch(productUrl, {
+      extractionType: "markdown",
+      mainContentOnly: true,
+    });
+    return this.parseProductOffersMarkdown(res.text);
+  }
 }
 
 /**
- * Parses common CLI flags (`--page`, `--top`, `--stealth`, `--json`, `--no-db`) for individual scrapers.
+ * Parses common CLI flags (`--page`, `--top`, `--stealth`, `--json`, `--no-db`, `--with-offers`) for individual scrapers.
  */
 export function parseCliArgs(argv: string[] = process.argv.slice(2)): CliArgs {
   const args: CliArgs = {
@@ -379,6 +484,7 @@ export function parseCliArgs(argv: string[] = process.argv.slice(2)): CliArgs {
     stealth: false,
     json: false,
     noDb: false,
+    withOffers: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -393,6 +499,8 @@ export function parseCliArgs(argv: string[] = process.argv.slice(2)): CliArgs {
       args.json = true;
     } else if (token === "--no-db") {
       args.noDb = true;
+    } else if (token === "--with-offers") {
+      args.withOffers = true;
     }
   }
 
