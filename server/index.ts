@@ -114,8 +114,14 @@ export async function createDashboardServer(options: {
       const pathname = parsedUrl.pathname;
       const method = req.method || "GET";
 
-      // 1. Serve Dashboard UI
-      if (method === "GET" && pathname === "/") {
+      // 1. Serve Dashboard UI (supports /, /eneba, /scraping, /config routes)
+      if (
+        method === "GET" &&
+        (pathname === "/" ||
+          pathname === "/eneba" ||
+          pathname === "/scraping" ||
+          pathname === "/config")
+      ) {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(renderDashboardHtml());
         return;

@@ -4,7 +4,7 @@ export function renderDashboardHtml(): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Scrapling Deal Monitor — Deals, Scraping & Configuration</title>
+  <title>Scrapling Deal Monitor — Home, Eneba, Scraping & Configuration</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -97,7 +97,7 @@ export function renderDashboardHtml(): string {
 
     .nav-tabs {
       display: flex;
-      gap: 0.4rem;
+      gap: 0.35rem;
       flex-wrap: wrap;
       background: var(--bg-panel-alt);
       padding: 0.3rem;
@@ -109,9 +109,9 @@ export function renderDashboardHtml(): string {
       background: transparent;
       color: var(--text-muted);
       border: none;
-      padding: 0.5rem 1rem;
+      padding: 0.5rem 0.95rem;
       border-radius: 7px;
-      font-size: 0.875rem;
+      font-size: 0.86rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.15s ease;
@@ -629,14 +629,15 @@ export function renderDashboardHtml(): string {
         <div class="brand-badge">S</div>
         <div>
           <h1>Scrapling Deal Monitor</h1>
-          <p>Multi-Provider Gift Card Analytics • Randomized Cron • Resend Alerts</p>
+          <p>Multi-Provider Deal Hub • Randomized Cron • Resend Alerts</p>
         </div>
       </div>
 
-      <nav class="nav-tabs" aria-label="Dashboard Navigation">
-        <button type="button" class="tab-btn active" data-tab="overview">📊 Deals Overview</button>
-        <button type="button" class="tab-btn" data-tab="scraping">⚡ Scraping &amp; Targets (<span id="navPagesCount">0</span>)</button>
-        <button type="button" class="tab-btn" data-tab="config">⚙️ Configuration</button>
+      <nav class="nav-tabs" aria-label="Main Navigation">
+        <button type="button" class="tab-btn active" data-tab="home" data-route="/">🏠 Home</button>
+        <button type="button" class="tab-btn" data-tab="eneba" data-route="/eneba">🎮 Eneba</button>
+        <button type="button" class="tab-btn" data-tab="scraping" data-route="/scraping">⚡ Scraping &amp; Targets (<span id="navPagesCount">0</span>)</button>
+        <button type="button" class="tab-btn" data-tab="config" data-route="/config">⚙️ Configuration</button>
       </nav>
     </div>
   </header>
@@ -655,19 +656,19 @@ export function renderDashboardHtml(): string {
     </div>
 
     <!-- =================================================================== -->
-    <!-- TAB 1: DEALS OVERVIEW (PURE VIEW MODE — ALL TABLES SORTABLE)        -->
+    <!-- PAGE 1: HOME (PROVIDER-AGNOSTIC GLOBAL STATUS & BEST DEALS)         -->
     <!-- =================================================================== -->
-    <section id="tab-overview" class="tab-panel active">
+    <section id="tab-home" class="tab-panel active">
       <div class="kpi-grid">
         <div class="kpi-card">
-          <div class="kpi-label">Active Scrape Pages</div>
-          <div class="kpi-value" id="kpiPagesCount">—</div>
-          <div class="kpi-sub" id="kpiProvidersSub">Provider: eneba</div>
+          <div class="kpi-label">Connected Providers</div>
+          <div class="kpi-value" id="kpiProvidersCount">—</div>
+          <div class="kpi-sub" id="kpiPagesSub">0 active scrape pages</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Highest Effective Discount</div>
+          <div class="kpi-label">Best Global Discount</div>
           <div class="kpi-value" style="color:#34d399;" id="kpiMaxDiscount">—</div>
-          <div class="kpi-sub" id="kpiMaxDealTitle">Across all in-stock gift cards</div>
+          <div class="kpi-sub" id="kpiMaxDealTitle">Across all providers</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Next Scheduled Scrape</div>
@@ -675,84 +676,78 @@ export function renderDashboardHtml(): string {
           <div class="kpi-sub" id="kpiCronWindow">Base 19:00 + 0..60m random jitter</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Email Alert &amp; DB Status</div>
+          <div class="kpi-label">Email Alert &amp; Storage</div>
           <div class="kpi-value" style="font-size:1.25rem;" id="kpiAlertThreshold">&ge; 20% Off</div>
-          <div class="kpi-sub" id="kpiDbStatus">PostgreSQL schema: eneba</div>
+          <div class="kpi-sub" id="kpiDbStatus">PostgreSQL + local cache</div>
         </div>
       </div>
 
-      <!-- Table 1: Category Status & Best Deal Summary (Sortable) -->
+      <!-- Home Table 1: Providers Status Summary (Sortable, Provider-Agnostic) -->
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Category Status &amp; #1 Best Deal Comparison</h2>
+            <h2 class="card-title">Providers Status Overview</h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
-              Click any column header to sort ascending or descending.
+              High-level summary across all configured store providers. Click any column header to sort.
             </div>
           </div>
-          <div style="display:flex;gap:0.5rem;align-items:center;">
-            <label for="providerFilter" style="font-size:0.8rem;color:var(--text-muted);">Provider:</label>
-            <select id="providerFilter">
+        </div>
+
+        <div tabindex="0" role="region" aria-labelledby="providers-table-caption" class="table-wrapper">
+          <table id="providersTable" style="--label-2:'Active Pages';--label-3:'Items In Stock';--label-4:'Avg Discount';--label-5:'Top Deal';--label-6:'Last Scraped';--label-7:'Provider Page';">
+            <caption id="providers-table-caption">Summary status by store provider</caption>
+            <thead>
+              <tr>
+                <th class="sortable" data-table="providers" data-sort-key="provider" aria-sort="ascending">Provider <span class="sort-icon">↑</span></th>
+                <th class="sortable" data-table="providers" data-sort-key="activePages" aria-sort="none">Active Pages <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="providers" data-sort-key="inStockTotal" aria-sort="none">Items In Stock <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="providers" data-sort-key="avgDiscount" aria-sort="none">Avg Discount <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="providers" data-sort-key="maxDiscount" aria-sort="none">Best Deal Found <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="providers" data-sort-key="lastScraped" aria-sort="none">Last Updated <span class="sort-icon">↕</span></th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="providersTableBody">
+              <tr><td colspan="7" style="color:var(--text-muted);text-align:center;">Loading providers...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Home Table 2: Global Top Deals Across All Providers (Sortable & Searchable) -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Global Best Deals Across All Providers</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Unified cross-provider deal ranking. Click any column header to sort.
+            </div>
+          </div>
+          <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
+            <input type="search" id="globalSearchInput" placeholder="Search all deals (e.g. Apple, Nintendo)..." style="min-width:230px;" aria-label="Search global deals" />
+            <select id="globalProviderFilter" aria-label="Filter by provider">
               <option value="all">All Providers</option>
               <option value="eneba">Eneba</option>
             </select>
           </div>
         </div>
 
-        <div tabindex="0" role="region" aria-labelledby="summary-table-caption" class="table-wrapper">
-          <table id="summaryTable" style="--label-2:'In Stock';--label-3:'Avg Discount';--label-4:'Avg Effective';--label-5:'Best Deal on Page';--label-6:'Seller Offers';--label-7:'Updated';">
-            <caption id="summary-table-caption">Category status and best deal comparison</caption>
+        <div tabindex="0" role="region" aria-labelledby="global-deals-caption" class="table-wrapper">
+          <table id="globalDealsTable" style="--label-2:'Deal Title';--label-3:'Category';--label-4:'Selling Price';--label-5:'Baseline Price';--label-6:'Total Discount';--label-7:'Scraped At';--label-8:'Link';">
+            <caption id="global-deals-caption">Best deals across all providers</caption>
             <thead>
               <tr>
-                <th class="sortable" data-table="summary" data-sort-key="category" aria-sort="none">Category <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="summary" data-sort-key="inStockCount" aria-sort="none">In Stock <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="summary" data-sort-key="avgDirect" aria-sort="none">Avg Discount <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="summary" data-sort-key="avgEffective" aria-sort="descending">Avg Effective (+CB) <span class="sort-icon">↓</span></th>
-                <th class="sortable" data-table="summary" data-sort-key="bestEffective" aria-sort="none">#1 Best Deal on Page <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="summary" data-sort-key="offersCount" aria-sort="none">Seller Offers <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="summary" data-sort-key="scrapedAt" aria-sort="none">Last Scraped <span class="sort-icon">↕</span></th>
-              </tr>
-            </thead>
-            <tbody id="summaryTableBody">
-              <tr><td colspan="7" style="color:var(--text-muted);text-align:center;">Loading status...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Table 2: Top Ranked Deals Explorer (Sortable + Searchable) -->
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2 class="card-title">Top 10 Ranked Deals Explorer</h2>
-            <div style="font-size:0.8rem;color:var(--text-muted);">
-              Click any column header to sort. Filter by keyword or category.
-            </div>
-          </div>
-          <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
-            <input type="search" id="dealSearchInput" placeholder="Search deals (e.g. Apple 100)..." style="min-width:210px;" aria-label="Search deals by title" />
-            <select id="categoryFilter" aria-label="Filter by category">
-              <option value="all">All Categories</option>
-            </select>
-          </div>
-        </div>
-
-        <div tabindex="0" role="region" aria-labelledby="deals-table-caption" class="table-wrapper">
-          <table id="dealsTable" style="--label-2:'Product Title';--label-3:'Category';--label-4:'Region';--label-5:'Selling Price';--label-6:'Direct Disc';--label-7:'Effective Disc';--label-8:'Action';">
-            <caption id="deals-table-caption">Top ranked gift card deals</caption>
-            <thead>
-              <tr>
-                <th class="sortable" data-table="deals" data-sort-key="rank" aria-sort="none">Rank <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="deals" data-sort-key="title" aria-sort="none">Product Title <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="deals" data-sort-key="category" aria-sort="none">Category <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="deals" data-sort-key="region" aria-sort="none">Region <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="deals" data-sort-key="sellingPrice" aria-sort="none">Selling Price <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="deals" data-sort-key="discountPct" aria-sort="none">Direct Disc <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="deals" data-sort-key="effectiveDiscountPct" aria-sort="descending">Effective (+CB) <span class="sort-icon">↓</span></th>
+                <th class="sortable" data-table="globalDeals" data-sort-key="provider" aria-sort="none">Provider <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="globalDeals" data-sort-key="title" aria-sort="none">Deal Title <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="globalDeals" data-sort-key="category" aria-sort="none">Category <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="globalDeals" data-sort-key="sellingPrice" aria-sort="none">Price <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="globalDeals" data-sort-key="baselinePrice" aria-sort="none">Baseline <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="globalDeals" data-sort-key="effectiveDiscountPct" aria-sort="descending">Total Discount <span class="sort-icon">↓</span></th>
+                <th class="sortable" data-table="globalDeals" data-sort-key="scrapedAt" aria-sort="none">Scraped At <span class="sort-icon">↕</span></th>
                 <th>Link</th>
               </tr>
             </thead>
-            <tbody id="dealsTableBody">
+            <tbody id="globalDealsBody">
               <tr><td colspan="8" style="color:var(--text-muted);text-align:center;">Loading deals...</td></tr>
             </tbody>
           </table>
@@ -761,7 +756,109 @@ export function renderDashboardHtml(): string {
     </section>
 
     <!-- =================================================================== -->
-    <!-- TAB 2: SCRAPING & TARGETS (ALL SCRAPING ACTIONS, SCHEDULE & PAGES)  -->
+    <!-- PAGE 2: DEDICATED ENEBA PAGE (/eneba)                               -->
+    <!-- =================================================================== -->
+    <section id="tab-eneba" class="tab-panel">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Eneba Store Categories</div>
+          <div class="kpi-value" id="enebaKpiCategories">—</div>
+          <div class="kpi-sub">PlayStation, Nintendo, Android, Amazon, Apple</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Eneba Cards In Stock</div>
+          <div class="kpi-value" id="enebaKpiInStock">—</div>
+          <div class="kpi-sub" id="enebaKpiDiscounted">0 with direct discount</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Best Eneba Effective Deal (+CB)</div>
+          <div class="kpi-value" style="color:#34d399;" id="enebaKpiBestPct">—</div>
+          <div class="kpi-sub" id="enebaKpiBestTitle">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Competing Seller Offers</div>
+          <div class="kpi-value" id="enebaKpiOffersCount">—</div>
+          <div class="kpi-sub">Third-party vendor offers on #1 deals</div>
+        </div>
+      </div>
+
+      <!-- Eneba Table 1: Category Status, Cashback & Competing Seller Offers (Sortable) -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Eneba Gift Card Categories — Status, Cashback &amp; Seller Offers</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Eneba-specific metrics including Plus/Cashback effective discounts and competing third-party merchant offers. Click any header to sort.
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button type="button" class="btn btn-sm btn-primary" onclick="triggerScrape({})">▶ Scrape Eneba Pages</button>
+          </div>
+        </div>
+
+        <div tabindex="0" role="region" aria-labelledby="eneba-summary-caption" class="table-wrapper">
+          <table id="enebaSummaryTable" style="--label-2:'In Stock';--label-3:'Avg Direct Disc';--label-4:'Avg Effective (+CB)';--label-5:'#1 Best Deal on Page';--label-6:'Competing Sellers';--label-7:'Last Scraped';">
+            <caption id="eneba-summary-caption">Eneba category status and competing seller offers</caption>
+            <thead>
+              <tr>
+                <th class="sortable" data-table="enebaSummary" data-sort-key="category" aria-sort="none">Eneba Category <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaSummary" data-sort-key="inStockCount" aria-sort="none">In Stock <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaSummary" data-sort-key="avgDirect" aria-sort="none">Avg Direct Disc <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaSummary" data-sort-key="avgEffective" aria-sort="descending">Avg Effective (+CB) <span class="sort-icon">↓</span></th>
+                <th class="sortable" data-table="enebaSummary" data-sort-key="bestEffective" aria-sort="none">#1 Best Deal on Page <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaSummary" data-sort-key="offersCount" aria-sort="none">Competing Sellers <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaSummary" data-sort-key="scrapedAt" aria-sort="none">Last Scraped <span class="sort-icon">↕</span></th>
+              </tr>
+            </thead>
+            <tbody id="enebaSummaryBody">
+              <tr><td colspan="7" style="color:var(--text-muted);text-align:center;">Loading Eneba categories...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Eneba Table 2: Eneba Top 10 Ranked Deals Per Category (Sortable) -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Eneba Top 10 Ranked Gift Card Deals</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Includes region, face value baseline, direct discount %, and Eneba cashback %. Click any column header to sort.
+            </div>
+          </div>
+          <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
+            <input type="search" id="enebaSearchInput" placeholder="Filter Eneba cards (e.g. PSN 100)..." style="min-width:210px;" aria-label="Search Eneba deals" />
+            <select id="enebaCategoryFilter" aria-label="Filter by Eneba category">
+              <option value="all">All Eneba Categories</option>
+            </select>
+          </div>
+        </div>
+
+        <div tabindex="0" role="region" aria-labelledby="eneba-deals-caption" class="table-wrapper">
+          <table id="enebaDealsTable" style="--label-2:'Product Title';--label-3:'Category';--label-4:'Region';--label-5:'Selling Price';--label-6:'Direct Disc';--label-7:'Effective (+CB)';--label-8:'Action';">
+            <caption id="eneba-deals-caption">Eneba top 10 ranked gift card deals</caption>
+            <thead>
+              <tr>
+                <th class="sortable" data-table="enebaDeals" data-sort-key="rank" aria-sort="none">Rank <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaDeals" data-sort-key="title" aria-sort="none">Product Title <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaDeals" data-sort-key="category" aria-sort="none">Category <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaDeals" data-sort-key="region" aria-sort="none">Region <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaDeals" data-sort-key="sellingPrice" aria-sort="none">Selling Price <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaDeals" data-sort-key="discountPct" aria-sort="none">Direct Disc <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="enebaDeals" data-sort-key="effectiveDiscountPct" aria-sort="descending">Effective (+CB) <span class="sort-icon">↓</span></th>
+                <th>Eneba Link</th>
+              </tr>
+            </thead>
+            <tbody id="enebaDealsBody">
+              <tr><td colspan="8" style="color:var(--text-muted);text-align:center;">Loading Eneba deals...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- PAGE 3: SCRAPING & TARGETS (ALL SCRAPING ACTIONS, SCHEDULE & PAGES) -->
     <!-- =================================================================== -->
     <section id="tab-scraping" class="tab-panel">
       <!-- 1. Scraping Actions & Live Console -->
@@ -830,7 +927,7 @@ export function renderDashboardHtml(): string {
           <div>
             <h2 class="card-title">Target Scraping Pages</h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
-              Click any column header to sort. Manage store URLs or trigger a single-page scrape.
+              Click any column header to sort. Manage store URLs across providers or trigger a single-page scrape.
             </div>
           </div>
           <button type="button" class="btn btn-primary" id="btnOpenAddPageDialog">+ Add Scraping Page</button>
@@ -856,7 +953,7 @@ export function renderDashboardHtml(): string {
     </section>
 
     <!-- =================================================================== -->
-    <!-- TAB 3: CONFIGURATION (ALL .ENV, DB, CRON & EMAIL IN ONE PLACE)      -->
+    <!-- PAGE 4: CONFIGURATION (ALL .ENV, DB, CRON & EMAIL IN ONE PLACE)     -->
     <!-- =================================================================== -->
     <section id="tab-config" class="tab-panel">
       <div class="card">
@@ -1206,10 +1303,12 @@ export function renderDashboardHtml(): string {
       if (e.target && e.target.hasAttribute && e.target.hasAttribute('aria-invalid')) syncAria(e.target);
     });
 
-    // 3. Universal Table Sort State & Comparator
+    // 3. Universal Table Sort State & Comparator (All 6 tables sortable)
     const tableSortState = {
-      summary: { key: 'avgEffective', dir: 'desc' },
-      deals: { key: 'effectiveDiscountPct', dir: 'desc' },
+      providers: { key: 'provider', dir: 'asc' },
+      globalDeals: { key: 'effectiveDiscountPct', dir: 'desc' },
+      enebaSummary: { key: 'avgEffective', dir: 'desc' },
+      enebaDeals: { key: 'effectiveDiscountPct', dir: 'desc' },
       pages: { key: 'categoryName', dir: 'asc' },
       config: { key: 'group', dir: 'asc' },
       offers: { key: 'price', dir: 'asc' },
@@ -1284,15 +1383,36 @@ export function renderDashboardHtml(): string {
         .replace(/"/g, '&quot;');
     }
 
-    // Tab switching
-    document.querySelectorAll('.tab-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
-        document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    // Navigation & URL Route Sync (/ , /eneba , /scraping , /config)
+    window.switchTab = (tabName, pushUrl = true) => {
+      document.querySelectorAll('.tab-btn').forEach((b) => {
+        b.classList.toggle('active', b.dataset.tab === tabName);
       });
+      document.querySelectorAll('.tab-panel').forEach((p) => {
+        p.classList.toggle('active', p.id === 'tab-' + tabName);
+      });
+      if (pushUrl) {
+        const btn = document.querySelector('.tab-btn[data-tab="' + tabName + '"]');
+        const route = btn?.dataset?.route || '/';
+        if (window.location.pathname !== route) {
+          window.history.pushState({ tab: tabName }, '', route);
+        }
+      }
+    };
+
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab, true));
     });
+
+    function syncTabFromPath() {
+      const p = window.location.pathname;
+      if (p === '/eneba') switchTab('eneba', false);
+      else if (p === '/scraping') switchTab('scraping', false);
+      else if (p === '/config') switchTab('config', false);
+      else switchTab('home', false);
+    }
+    window.addEventListener('popstate', syncTabFromPath);
+    syncTabFromPath();
 
     async function fetchDashboard() {
       const res = await fetch('/api/dashboard');
@@ -1305,12 +1425,12 @@ export function renderDashboardHtml(): string {
       const { pages, statuses, runner, scheduler, env } = dashboardData;
       const thresholdPct = Number(env.values.ALERT_DISCOUNT_THRESHOLD_PCT || 20);
 
-      // Update Nav count & KPIs
+      // Update Nav count & Global Home KPIs
       document.getElementById('navPagesCount').textContent = pages.length;
       const enabledCount = pages.filter((p) => p.enabled).length;
-      document.getElementById('kpiPagesCount').textContent = enabledCount + ' / ' + pages.length + ' Active';
       const providers = Array.from(new Set(pages.map((p) => p.provider)));
-      document.getElementById('kpiProvidersSub').textContent = 'Providers: ' + (providers.join(', ') || 'eneba');
+      document.getElementById('kpiProvidersCount').textContent = providers.length + (providers.length === 1 ? ' Provider' : ' Providers');
+      document.getElementById('kpiPagesSub').textContent = enabledCount + ' / ' + pages.length + ' active scrape pages (' + providers.join(', ') + ')';
 
       // Highest discount KPI
       let maxDisc = 0;
@@ -1371,17 +1491,12 @@ export function renderDashboardHtml(): string {
         btnScrapeFast.disabled = false;
       }
 
-      // Render Table 1: Sortable Category Status Table
-      renderSummaryTable(statuses);
+      // Render HOME Page Tables (Provider-Agnostic)
+      renderProvidersOverviewTable(pages, statuses);
+      renderGlobalDealsTable(statuses, thresholdPct);
 
-      // Populate Category Filter & Render Table 2: Sortable Top Deals Table
-      const catSelect = document.getElementById('categoryFilter');
-      const currentCat = catSelect.value;
-      const categories = statuses.map((s) => s.category);
-      catSelect.innerHTML = '<option value="all">All Categories (' + statuses.length + ')</option>' +
-        categories.map((c) => '<option value="' + escapeHtml(c) + '"' + (c === currentCat ? ' selected' : '') + '>' + escapeHtml(c) + '</option>').join('');
-
-      renderDealsTable(statuses, catSelect.value, thresholdPct);
+      // Render ENEBA Dedicated Page KPIs & Tables
+      renderEnebaPage(pages, statuses, thresholdPct);
 
       // Render Logs
       const logBox = document.getElementById('logBox');
@@ -1389,71 +1504,220 @@ export function renderDashboardHtml(): string {
         ? runner.recentLogs.map((l) => '<div>' + escapeHtml(l) + '</div>').join('')
         : 'Ready. Waiting for scrape actions.';
 
-      // Render Table 3: Sortable Target Scraping Pages Table
+      // Render Scraping Pages Table
       renderPagesTable(pages);
 
-      // Render Table 4: Configuration View Table (and Edit Form if not actively editing)
+      // Render Configuration Table & Edit Form
       renderConfigTable(env);
       if (!isConfigEditing) {
         renderEnvEditorFields(env);
       }
     }
 
-    function renderSummaryTable(statuses) {
-      const summaryBody = document.getElementById('summaryTableBody');
-      if (!statuses || statuses.length === 0) {
-        summaryBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No scrape results yet. Open "Scraping & Targets" to run a scrape.</td></tr>';
-        return;
-      }
+    // HOME TABLE 1: Provider-Agnostic Summary Table
+    function renderProvidersOverviewTable(pages, statuses) {
+      const tbody = document.getElementById('providersTableBody');
+      const providerNames = Array.from(new Set([...pages.map((p) => p.provider), 'eneba']));
 
-      const sort = tableSortState.summary;
-      const indexed = statuses.map((st, originalIdx) => {
-        const best = st.bestEffectiveDeal || st.bestDeal;
+      const rows = providerNames.map((prov) => {
+        const provPages = pages.filter((p) => p.provider === prov);
+        const activePages = provPages.filter((p) => p.enabled).length;
+        // Currently statuses belong to eneba
+        const provStatuses = prov === 'eneba' ? statuses : [];
+        const inStockTotal = provStatuses.reduce((sum, s) => sum + (s.inStockCount || 0), 0);
+        const avgDiscount = provStatuses.length > 0
+          ? provStatuses.reduce((sum, s) => sum + (s.averageEffectiveDiscountPct || 0), 0) / provStatuses.length
+          : 0;
+
+        let bestDeal = null;
+        let lastScrapedMs = 0;
+        provStatuses.forEach((st) => {
+          const t = new Date(st.scrapedAt).getTime();
+          if (t > lastScrapedMs) lastScrapedMs = t;
+          const b = st.bestEffectiveDeal || st.bestDeal;
+          if (b && (!bestDeal || b.effectiveDiscountPct > bestDeal.effectiveDiscountPct)) {
+            bestDeal = b;
+          }
+        });
+
         return {
-          st,
-          originalIdx,
-          category: st.category,
-          inStockCount: st.inStockCount,
-          avgDirect: st.averageDiscountPctOnDiscounted,
-          avgEffective: st.averageEffectiveDiscountPct,
-          bestEffective: best ? best.effectiveDiscountPct : -1,
-          offersCount: st.bestDealOffers ? st.bestDealOffers.length : 0,
-          scrapedAt: new Date(st.scrapedAt).getTime(),
+          provider: prov,
+          activePages,
+          totalPages: provPages.length,
+          inStockTotal,
+          avgDiscount,
+          maxDiscount: bestDeal ? bestDeal.effectiveDiscountPct : -1,
+          bestDeal,
+          lastScraped: lastScrapedMs,
         };
       });
 
-      indexed.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+      const sort = tableSortState.providers;
+      rows.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
 
-      summaryBody.innerHTML = indexed.map((item) => {
-        const { st, originalIdx } = item;
-        const best = st.bestEffectiveDeal || st.bestDeal;
-        const offersCount = st.bestDealOffers ? st.bestDealOffers.length : 0;
-        const bestHtml = best
-          ? '<a href="' + escapeHtml(best.url) + '" target="_blank" rel="noopener"><strong>-' +
-            best.effectiveDiscountPct.toFixed(2) + '% ($' + (best.sellingPrice?.toFixed(2) ?? 'N/A') + ')</strong> — ' +
-            escapeHtml(best.title) + '</a>'
-          : '<span style="color:var(--text-muted);">None in stock</span>';
+      tbody.innerHTML = rows.map((r) => {
+        const bestHtml = r.bestDeal
+          ? '<a href="' + escapeHtml(r.bestDeal.url) + '" target="_blank" rel="noopener"><strong>-' +
+            r.bestDeal.effectiveDiscountPct.toFixed(2) + '% ($' + (r.bestDeal.sellingPrice?.toFixed(2) ?? 'N/A') + ')</strong> — ' +
+            escapeHtml(r.bestDeal.title) + '</a>'
+          : '<span style="color:var(--text-muted);">No deals scraped yet</span>';
 
         return '<tr>' +
-          '<th><span class="badge badge-provider" style="margin-right:6px;">eneba</span>' + escapeHtml(st.category) + '</th>' +
-          '<td>' + st.inStockCount + ' / ' + st.totalListings + '</td>' +
-          '<td>' + st.averageDiscountPctOnDiscounted.toFixed(2) + '%</td>' +
-          '<td><span class="badge badge-discount">' + st.averageEffectiveDiscountPct.toFixed(2) + '%</span></td>' +
+          '<th><span class="badge badge-provider">' + escapeHtml(r.provider) + '</span></th>' +
+          '<td>' + r.activePages + ' / ' + r.totalPages + ' pages</td>' +
+          '<td>' + r.inStockTotal + ' items</td>' +
+          '<td><span class="badge badge-discount">' + r.avgDiscount.toFixed(2) + '%</span></td>' +
           '<td>' + bestHtml + '</td>' +
-          '<td>' + (offersCount > 0
-            ? '<button type="button" class="btn btn-sm" onclick="openSellerOffers(' + originalIdx + ')">View ' + offersCount + ' Sellers</button>'
-            : '<span style="color:var(--text-muted);">0 offers</span>') + '</td>' +
-          '<td style="color:var(--text-muted);font-size:0.8rem;">' + new Date(st.scrapedAt).toLocaleString() + '</td>' +
+          '<td style="color:var(--text-muted);font-size:0.8rem;">' + (r.lastScraped ? new Date(r.lastScraped).toLocaleString() : 'Never') + '</td>' +
+          '<td>' + (r.provider === 'eneba'
+            ? '<button type="button" class="btn btn-sm btn-primary" onclick="switchTab(\\'eneba\\')">Open Eneba Page →</button>'
+            : '<span class="badge badge-muted">Custom</span>') + '</td>' +
         '</tr>';
       }).join('');
     }
 
-    function renderDealsTable(statuses, selectedCategory, thresholdPct) {
-      const dealsBody = document.getElementById('dealsTableBody');
-      const searchQ = (document.getElementById('dealSearchInput')?.value || '').trim().toLowerCase();
-      const filteredStatuses = selectedCategory === 'all'
+    // HOME TABLE 2: Global Top Deals Across All Providers
+    function renderGlobalDealsTable(statuses, thresholdPct) {
+      const tbody = document.getElementById('globalDealsBody');
+      const searchQ = (document.getElementById('globalSearchInput')?.value || '').trim().toLowerCase();
+      const provFilter = document.getElementById('globalProviderFilter')?.value || 'all';
+
+      const deals = [];
+      statuses.forEach((st) => {
+        const provider = 'eneba';
+        if (provFilter !== 'all' && provFilter !== provider) return;
+
+        (st.rankedDeals || []).slice(0, 10).forEach((deal) => {
+          if (searchQ) {
+            const hay = (deal.title + ' ' + st.category + ' ' + provider).toLowerCase();
+            if (!searchQ.split(/\\s+/).every((tok) => hay.includes(tok))) return;
+          }
+          deals.push({
+            provider,
+            title: deal.title,
+            category: st.category,
+            sellingPrice: deal.sellingPrice ?? 999999,
+            baselinePrice: deal.originalPrice ?? deal.faceValue ?? 0,
+            effectiveDiscountPct: deal.effectiveDiscountPct,
+            scrapedAt: new Date(st.scrapedAt).getTime(),
+            scrapedAtIso: st.scrapedAt,
+            url: deal.url,
+          });
+        });
+      });
+
+      const sort = tableSortState.globalDeals;
+      deals.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+
+      if (deals.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No matching deals found across providers.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = deals.map((d) => {
+        const isAlertMatch = d.effectiveDiscountPct >= thresholdPct;
+        const priceDisplay = d.sellingPrice < 999999 ? '$' + d.sellingPrice.toFixed(2) : 'N/A';
+        const baseDisplay = d.baselinePrice > 0 ? '$' + d.baselinePrice.toFixed(2) : '—';
+        return '<tr>' +
+          '<th><span class="badge badge-provider">' + escapeHtml(d.provider) + '</span></th>' +
+          '<td><strong>' + escapeHtml(d.title) + '</strong>' +
+            (isAlertMatch ? ' <span class="badge badge-alert">🔥 &ge;' + thresholdPct + '%</span>' : '') +
+          '</td>' +
+          '<td>' + escapeHtml(d.category) + '</td>' +
+          '<td><strong>' + priceDisplay + '</strong></td>' +
+          '<td style="color:var(--text-muted);text-decoration:line-through;">' + baseDisplay + '</td>' +
+          '<td><span class="badge badge-discount">-' + d.effectiveDiscountPct.toFixed(2) + '%</span></td>' +
+          '<td style="color:var(--text-muted);font-size:0.8rem;">' + new Date(d.scrapedAtIso).toLocaleString() + '</td>' +
+          '<td><a href="' + escapeHtml(d.url) + '" target="_blank" rel="noopener" class="btn btn-sm">Open Deal ↗</a></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    // DEDICATED ENEBA PAGE RENDERER (/eneba)
+    function renderEnebaPage(pages, statuses, thresholdPct) {
+      const enebaPages = pages.filter((p) => p.provider === 'eneba');
+      document.getElementById('enebaKpiCategories').textContent = statuses.length + ' / ' + enebaPages.length + ' Scraped';
+
+      const totalInStock = statuses.reduce((s, st) => s + (st.inStockCount || 0), 0);
+      const totalDiscounted = statuses.reduce((s, st) => s + (st.discountedCount || 0), 0);
+      document.getElementById('enebaKpiInStock').textContent = totalInStock + ' Cards';
+      document.getElementById('enebaKpiDiscounted').textContent = totalDiscounted + ' with direct discount';
+
+      let bestEneba = null;
+      let totalOffers = 0;
+      statuses.forEach((st) => {
+        totalOffers += st.bestDealOffers ? st.bestDealOffers.length : 0;
+        const b = st.bestEffectiveDeal || st.bestDeal;
+        if (b && (!bestEneba || b.effectiveDiscountPct > bestEneba.effectiveDiscountPct)) {
+          bestEneba = b;
+        }
+      });
+
+      document.getElementById('enebaKpiBestPct').textContent = bestEneba ? '-' + bestEneba.effectiveDiscountPct.toFixed(2) + '%' : '0.00%';
+      document.getElementById('enebaKpiBestTitle').textContent = bestEneba
+        ? bestEneba.title + ' ($' + (bestEneba.sellingPrice?.toFixed(2) ?? 'N/A') + ')'
+        : 'No Eneba deals scraped yet';
+      document.getElementById('enebaKpiOffersCount').textContent = totalOffers + ' Offers';
+
+      // Eneba Summary Table
+      const summaryBody = document.getElementById('enebaSummaryBody');
+      if (!statuses || statuses.length === 0) {
+        summaryBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No Eneba scrape results yet. Click "Scrape Eneba Pages" above.</td></tr>';
+      } else {
+        const sort = tableSortState.enebaSummary;
+        const indexed = statuses.map((st, originalIdx) => {
+          const best = st.bestEffectiveDeal || st.bestDeal;
+          return {
+            st,
+            originalIdx,
+            category: st.category,
+            inStockCount: st.inStockCount,
+            avgDirect: st.averageDiscountPctOnDiscounted,
+            avgEffective: st.averageEffectiveDiscountPct,
+            bestEffective: best ? best.effectiveDiscountPct : -1,
+            offersCount: st.bestDealOffers ? st.bestDealOffers.length : 0,
+            scrapedAt: new Date(st.scrapedAt).getTime(),
+          };
+        });
+
+        indexed.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+
+        summaryBody.innerHTML = indexed.map((item) => {
+          const { st, originalIdx } = item;
+          const best = st.bestEffectiveDeal || st.bestDeal;
+          const offersCount = st.bestDealOffers ? st.bestDealOffers.length : 0;
+          const bestHtml = best
+            ? '<a href="' + escapeHtml(best.url) + '" target="_blank" rel="noopener"><strong>-' +
+              best.effectiveDiscountPct.toFixed(2) + '% ($' + (best.sellingPrice?.toFixed(2) ?? 'N/A') + ')</strong> — ' +
+              escapeHtml(best.title) + '</a>'
+            : '<span style="color:var(--text-muted);">None in stock</span>';
+
+          return '<tr>' +
+            '<th>' + escapeHtml(st.category) + '</th>' +
+            '<td>' + st.inStockCount + ' / ' + st.totalListings + '</td>' +
+            '<td>' + st.averageDiscountPctOnDiscounted.toFixed(2) + '%</td>' +
+            '<td><span class="badge badge-discount">' + st.averageEffectiveDiscountPct.toFixed(2) + '%</span></td>' +
+            '<td>' + bestHtml + '</td>' +
+            '<td>' + (offersCount > 0
+              ? '<button type="button" class="btn btn-sm" onclick="openSellerOffers(' + originalIdx + ')">View ' + offersCount + ' Sellers</button>'
+              : '<span style="color:var(--text-muted);">0 offers</span>') + '</td>' +
+            '<td style="color:var(--text-muted);font-size:0.8rem;">' + new Date(st.scrapedAt).toLocaleString() + '</td>' +
+          '</tr>';
+        }).join('');
+      }
+
+      // Populate Eneba Category Filter & Render Eneba Top 10 Deals Table
+      const catSelect = document.getElementById('enebaCategoryFilter');
+      const currentCat = catSelect.value;
+      const categories = statuses.map((s) => s.category);
+      catSelect.innerHTML = '<option value="all">All Eneba Categories (' + statuses.length + ')</option>' +
+        categories.map((c) => '<option value="' + escapeHtml(c) + '"' + (c === currentCat ? ' selected' : '') + '>' + escapeHtml(c) + '</option>').join('');
+
+      const dealsBody = document.getElementById('enebaDealsBody');
+      const searchQ = (document.getElementById('enebaSearchInput')?.value || '').trim().toLowerCase();
+      const filteredStatuses = catSelect.value === 'all'
         ? statuses
-        : statuses.filter((s) => s.category === selectedCategory);
+        : statuses.filter((s) => s.category === catSelect.value);
 
       const flatDeals = [];
       filteredStatuses.forEach((st) => {
@@ -1479,11 +1743,11 @@ export function renderDashboardHtml(): string {
         });
       });
 
-      const sort = tableSortState.deals;
+      const sort = tableSortState.enebaDeals;
       flatDeals.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
 
       if (flatDeals.length === 0) {
-        dealsBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No matching deals found.</td></tr>';
+        dealsBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No matching Eneba deals found.</td></tr>';
         return;
       }
 
@@ -1504,7 +1768,7 @@ export function renderDashboardHtml(): string {
           '<td><span class="badge badge-discount">-' + deal.effectiveDiscountPct.toFixed(2) + '%</span>' +
             (deal.cashbackPct > 0 ? ' <span style="font-size:0.75rem;color:var(--text-muted);">(+' + deal.cashbackPct.toFixed(1) + '% CB → $' + (deal.effectivePrice?.toFixed(2) ?? '') + ')</span>' : '') +
           '</td>' +
-          '<td><a href="' + escapeHtml(deal.url) + '" target="_blank" rel="noopener" class="btn btn-sm">Open Deal ↗</a></td>' +
+          '<td><a href="' + escapeHtml(deal.url) + '" target="_blank" rel="noopener" class="btn btn-sm">Eneba ↗</a></td>' +
         '</tr>';
       }).join('');
     }
@@ -1589,8 +1853,10 @@ export function renderDashboardHtml(): string {
     }
 
     // Filter listeners
-    document.getElementById('categoryFilter').addEventListener('change', () => renderAll());
-    document.getElementById('dealSearchInput').addEventListener('input', () => renderAll());
+    document.getElementById('globalSearchInput').addEventListener('input', () => renderAll());
+    document.getElementById('globalProviderFilter').addEventListener('change', () => renderAll());
+    document.getElementById('enebaCategoryFilter').addEventListener('change', () => renderAll());
+    document.getElementById('enebaSearchInput').addEventListener('input', () => renderAll());
 
     // Competing seller offers modal (with sortable columns)
     window.openSellerOffers = (statusIdx) => {
@@ -1628,7 +1894,7 @@ export function renderDashboardHtml(): string {
     }
 
     // Scrape triggers
-    async function triggerScrape(payload) {
+    window.triggerScrape = async (payload) => {
       const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1641,11 +1907,11 @@ export function renderDashboardHtml(): string {
       }
       showToast('Scrape started! Live progress is shown at the top.');
       await fetchDashboard();
-    }
+    };
 
-    document.getElementById('btnScrapeAll').addEventListener('click', () => triggerScrape({}));
-    document.getElementById('btnScrapeFast').addEventListener('click', () => triggerScrape({ withOffers: false }));
-    window.scrapeSinglePage = (pageId) => triggerScrape({ pageId });
+    document.getElementById('btnScrapeAll').addEventListener('click', () => window.triggerScrape({}));
+    document.getElementById('btnScrapeFast').addEventListener('click', () => window.triggerScrape({ withOffers: false }));
+    window.scrapeSinglePage = (pageId) => window.triggerScrape({ pageId });
 
     // Add / Edit Scraping Page Modal
     document.getElementById('btnOpenAddPageDialog').addEventListener('click', () => {
