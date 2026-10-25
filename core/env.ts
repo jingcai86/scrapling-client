@@ -21,7 +21,7 @@ export const ENV_SCHEMA: EnvFieldMeta[] = [
     label: "Server Port",
     group: "server",
     description: "HTTP port for the web dashboard and API server.",
-    defaultValue: "3000",
+    defaultValue: "80",
     inputType: "number",
   },
   {

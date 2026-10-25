@@ -59,7 +59,7 @@ scrapling-client/
    npm run dev
    ```
 
-   Open `http://localhost:3000` in your browser.
+   Open `http://localhost` (port `80`) in your browser.
 
 ## Running with Docker Compose
 
@@ -75,16 +75,16 @@ Both `GET /api/deals/search` and `POST /api/deals/search` (also aliased at `/api
 
 ```bash
 # 1. Search by name (e.g., Apple Gift Card)
-curl "http://localhost:3000/api/deals/search?q=apple+gift+card"
+curl "http://localhost/api/deals/search?q=apple+gift+card"
 
 # 2. Get the #1 best deal from yesterday (across all categories)
-curl "http://localhost:3000/api/deals/search?date=yesterday&best=true"
+curl "http://localhost/api/deals/search?date=yesterday&best=true"
 
 # 3. Combine both: Best Apple Gift Card deal from yesterday (or a specific timestamp)
-curl "http://localhost:3000/api/deals/search?q=apple+gift+card&timestamp=yesterday&best=true"
+curl "http://localhost/api/deals/search?q=apple+gift+card&timestamp=yesterday&best=true"
 
 # 4. POST JSON payload (for tool/agent callers)
-curl -X POST "http://localhost:3000/api/deals/search" \
+curl -X POST "http://localhost/api/deals/search" \
   -H "Content-Type: application/json" \
   -d '{"q": "apple gift card", "date": "yesterday", "bestOnly": true}'
 ```
@@ -93,7 +93,7 @@ The response includes a top-level `bestDeal` object (the highest effective disco
 
 ## Scripts
 
-- `npm start`: Start the web dashboard and randomized cron server (`http://localhost:3000`)
+- `npm start`: Start the web dashboard and randomized cron server (`http://localhost` on port `80`)
 - `npm run dev`: Start the server in watch mode
 - `npm test`: Run all unit and integration tests
 - `npm run typecheck`: Run TypeScript type checking

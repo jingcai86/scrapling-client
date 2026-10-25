@@ -13,8 +13,8 @@ COPY server ./server
 RUN mkdir -p /app/data
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=80
 
-EXPOSE 3000
+EXPOSE 80
 
 CMD ["npx", "tsx", "server/index.ts"]

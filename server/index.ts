@@ -369,7 +369,7 @@ export async function createDashboardServer(options: {
   });
 
   const requestedPort =
-    options.port ?? (Number(process.env.PORT ?? "3000") || 3000);
+    options.port ?? (Number(process.env.PORT ?? "80") || 80);
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);

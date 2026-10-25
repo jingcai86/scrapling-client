@@ -6,7 +6,7 @@ services:
     container_name: scrapling-dashboard
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-80}:80"
     env_file:
       - .env
     volumes:
