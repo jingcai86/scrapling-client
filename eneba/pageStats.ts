@@ -1,8 +1,14 @@
 import type { GiftCardListing } from "./baseScraper.js";
 
+export interface RankedGiftCardListing extends GiftCardListing {
+  rank: number;
+}
+
 export interface PageDealStatus {
+  scrapedAt: string;
   category: string;
   pageUrl: string;
+  pageNumber: number;
   totalListings: number;
   inStockCount: number;
   outOfStockCount: number;
@@ -17,12 +23,17 @@ export interface PageDealStatus {
   maxEffectiveDiscountPct: number;
   bestDeal: GiftCardListing | null;
   bestEffectiveDeal: GiftCardListing | null;
+  /** Top N (default 10) deals ranked 1..10 */
+  topDeals: RankedGiftCardListing[];
   rankedDeals: GiftCardListing[];
 }
 
 export interface AnalyzePageOptions {
   category?: string;
   pageUrl?: string;
+  pageNumber?: number;
+  scrapedAt?: Date | string;
+  topN?: number;
 }
 
 export interface FormatReportOptions {
@@ -38,12 +49,21 @@ function mean(values: number[]): number {
 }
 
 /**
- * Computes page-level status metrics and identifies the best deal(s) from scraped listings.
+ * Computes page-level status metrics and identifies the top 10 deals from scraped listings.
  */
 export function analyzePageDeals(
   listings: GiftCardListing[],
-  { category = "Eneba Gift Cards", pageUrl = "" }: AnalyzePageOptions = {},
+  {
+    category = "Eneba Gift Cards",
+    pageUrl = "",
+    pageNumber = 1,
+    scrapedAt = new Date(),
+    topN = 10,
+  }: AnalyzePageOptions = {},
 ): PageDealStatus {
+  const scrapedAtIso =
+    scrapedAt instanceof Date ? scrapedAt.toISOString() : new Date(scrapedAt).toISOString();
+
   const totalListings = listings.length;
   const inStockListings = listings.filter(
     (item) => item.inStock && item.sellingPrice !== null,
@@ -94,9 +114,18 @@ export function analyzePageDeals(
     ? bestEffectiveDeal.effectiveDiscountPct
     : 0;
 
+  const topDeals: RankedGiftCardListing[] = rankedDeals
+    .slice(0, topN)
+    .map((deal, idx) => ({
+      rank: idx + 1,
+      ...deal,
+    }));
+
   return {
+    scrapedAt: scrapedAtIso,
     category,
     pageUrl,
+    pageNumber,
     totalListings,
     inStockCount: inStockListings.length,
     outOfStockCount,
@@ -108,6 +137,7 @@ export function analyzePageDeals(
     maxEffectiveDiscountPct,
     bestDeal,
     bestEffectiveDeal,
+    topDeals,
     rankedDeals,
   };
 }
@@ -124,14 +154,15 @@ function formatPrice(value: number | null | undefined): string {
  */
 export function formatPageStatusReport(
   status: PageDealStatus,
-  { topN = 5 }: FormatReportOptions = {},
+  { topN = 10 }: FormatReportOptions = {},
 ): string {
   const divider = "=".repeat(78);
   const subDivider = "-".repeat(78);
   const lines: string[] = [
     divider,
-    `Category : ${status.category}`,
-    ...(status.pageUrl ? [`Page URL : ${status.pageUrl}`] : []),
+    `Category   : ${status.category}`,
+    ...(status.pageUrl ? [`Page URL   : ${status.pageUrl}`] : []),
+    `Scraped At : ${status.scrapedAt}`,
     subDivider,
     `Page Status Summary:`,
     `  • Total Cards Seen              : ${status.totalListings} (${status.inStockCount} in stock, ${status.outOfStockCount} sold out)`,
@@ -162,19 +193,20 @@ export function formatPageStatusReport(
     lines.push(subDivider, `Best Deal on Page: No in-stock listings found.`);
   }
 
-  const topDeals = status.rankedDeals.slice(0, topN);
-  if (topDeals.length > 0) {
+  const dealsToShow = status.rankedDeals.slice(0, topN);
+  if (dealsToShow.length > 0) {
     lines.push(
       subDivider,
-      `Top ${topDeals.length} Deals (Ranked by Effective Discount %):`,
+      `Top ${dealsToShow.length} Deals (Ranked 1-${dealsToShow.length} by Effective Discount %):`,
     );
-    topDeals.forEach((deal, idx) => {
+    dealsToShow.forEach((deal, idx) => {
+      const rankStr = String(idx + 1).padStart(2);
       const priceStr = formatPrice(deal.sellingPrice).padStart(7);
       const discStr = `${deal.discountPct.toFixed(2)}%`.padStart(7);
       const cbStr = `${deal.cashbackPct.toFixed(1)}%`.padStart(6);
       const effStr = `${deal.effectiveDiscountPct.toFixed(2)}%`.padStart(7);
       lines.push(
-        `  ${idx + 1}. [Eff: ${effStr} | Disc: ${discStr} | CB: ${cbStr}] ${priceStr} — ${deal.title} (${deal.region})`,
+        `  ${rankStr}. [Eff: ${effStr} | Disc: ${discStr} | CB: ${cbStr}] ${priceStr} — ${deal.title} (${deal.region})`,
       );
     });
   }

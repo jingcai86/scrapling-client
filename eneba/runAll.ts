@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ScraplingClient } from "../core/index.js";
 import { parseCliArgs } from "./baseScraper.js";
+import { savePageDealsToDb } from "./db.js";
 import { formatPageStatusReport, type PageDealStatus } from "./pageStats.js";
 import { scrapePlayStationGiftCards } from "./playstationGiftCard.js";
 import { scrapeNintendoGiftCards } from "./nintendoGiftCard.js";
@@ -69,5 +70,14 @@ if (isMain) {
       console.log("");
     }
     console.log(formatCrossCategorySummary(statuses));
+  }
+
+  if (!args.noDb && process.env.DATABASE_URL) {
+    const saved = await savePageDealsToDb(statuses, { maxRank: 10 });
+    if (!args.json) {
+      console.log(
+        `\n[PostgreSQL] Stored ${saved.topDealsInserted} top deals across ${saved.scrapeRunsInserted} page runs into schema "eneba" (eneba.scrape_runs, eneba.products, eneba.top_deals) at ${saved.scrapedAt} (batch: ${saved.batchId})`,
+      );
+    }
   }
 }

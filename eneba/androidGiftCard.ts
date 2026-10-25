@@ -7,6 +7,7 @@ import {
   parseCliArgs,
   type ScrapeOptions,
 } from "./baseScraper.js";
+import { savePageDealsToDb } from "./db.js";
 import {
   analyzePageDeals,
   formatPageStatusReport,
@@ -44,6 +45,7 @@ export async function scrapeAndroidGiftCards({
   return analyzePageDeals(listings, {
     category: scraper.categoryName,
     pageUrl: buildPageUrl(scraper.categoryUrl, page),
+    pageNumber: page,
   });
 }
 
@@ -62,5 +64,14 @@ if (isMain) {
     console.log(JSON.stringify(status, null, 2));
   } else {
     console.log(formatPageStatusReport(status, { topN: args.top }));
+  }
+
+  if (!args.noDb && process.env.DATABASE_URL) {
+    const saved = await savePageDealsToDb(status, { maxRank: 10 });
+    if (!args.json) {
+      console.log(
+        `[PostgreSQL] Stored ${saved.topDealsInserted} rows (rank 1-${saved.topDealsInserted}) into schema "eneba" at ${saved.scrapedAt} (batch: ${saved.batchId})`,
+      );
+    }
   }
 }

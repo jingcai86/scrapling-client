@@ -36,6 +36,7 @@ export interface CliArgs {
   top: number;
   stealth: boolean;
   json: boolean;
+  noDb: boolean;
 }
 
 const FACE_VALUE_PATTERNS: Array<{ regex: RegExp; currency?: string }> = [
@@ -369,14 +370,15 @@ export class EnebaGiftCardScraper {
 }
 
 /**
- * Parses common CLI flags (`--page`, `--top`, `--stealth`, `--json`) for individual scrapers.
+ * Parses common CLI flags (`--page`, `--top`, `--stealth`, `--json`, `--no-db`) for individual scrapers.
  */
 export function parseCliArgs(argv: string[] = process.argv.slice(2)): CliArgs {
   const args: CliArgs = {
     page: 1,
-    top: 5,
+    top: 10,
     stealth: false,
     json: false,
+    noDb: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -384,11 +386,13 @@ export function parseCliArgs(argv: string[] = process.argv.slice(2)): CliArgs {
     if (token === "--page" && argv[i + 1]) {
       args.page = Math.max(1, Number.parseInt(argv[++i], 10) || 1);
     } else if (token === "--top" && argv[i + 1]) {
-      args.top = Math.max(1, Number.parseInt(argv[++i], 10) || 5);
+      args.top = Math.max(1, Number.parseInt(argv[++i], 10) || 10);
     } else if (token === "--stealth") {
       args.stealth = true;
     } else if (token === "--json") {
       args.json = true;
+    } else if (token === "--no-db") {
+      args.noDb = true;
     }
   }
 

@@ -1,19 +1,20 @@
 # scrapling-client
 
-A generic, modular TypeScript / Node.js web scraping client powered by [Scrapling](https://github.com/D4Vinci/Scrapling) over the Model Context Protocol (MCP) Streamable HTTP interface.
+A generic, modular TypeScript / Node.js web scraping client powered by [Scrapling](https://github.com/D4Vinci/Scrapling) over the Model Context Protocol (MCP) Streamable HTTP interface, with optional PostgreSQL persistence.
 
 ## Overview
 
 `scrapling-client` provides a reusable TypeScript client (`core/ScraplingClient`) that connects to a remote or local Scrapling MCP server to fetch pages with TLS fingerprint impersonation, stealthy browser automation, CSS selector scoping, and clean Markdown/HTML/text extraction—without requiring heavy local browser dependencies.
 
-Site-specific scrapers live in their own self-contained subdirectories and build on top of the shared `core/` client.
+Site-specific scrapers live in their own self-contained subdirectories and build on top of the shared `core/` client and database pool helper (`core/createPgPool`).
 
 ## Architecture
 
 ```text
 scrapling-client/
-├── core/                  # Generic Scrapling MCP client & environment loader
+├── core/                  # Generic Scrapling MCP client, DB pool & env loader
 │   ├── client.ts          # ScraplingClient (Streamable HTTP JSON-RPC / SSE handler)
+│   ├── db.ts              # Generic PostgreSQL connection pool helper (DATABASE_URL)
 │   ├── env.ts             # Zero-dependency .env loader
 │   └── index.ts           # Public core exports & TypeScript types
 ├── tests/                 # Unit tests for the core client
@@ -32,7 +33,7 @@ scrapling-client/
 
 2. **Configure environment variables**:
 
-   Copy `.env.example` to `.env` in your local working directory and set your Scrapling MCP server endpoint:
+   Copy `.env.example` to `.env` in your local working directory and set your Scrapling MCP server endpoint (and optional PostgreSQL connection URL):
 
    ```bash
    cp .env.example .env
@@ -43,9 +44,10 @@ scrapling-client/
    ```dotenv
    SCRAPLING_MCP_URL=http://localhost:8000/mcp
    SCRAPLING_TIMEOUT_MS=60000
+   DATABASE_URL=postgresql://postgres:password@localhost:5432/postgres
    ```
 
-   > **Security Note**: `.env` is ignored by Git (`.gitignore`) so private server addresses, hostnames, and credentials are never committed to the repository.
+   > **Security Note**: `.env` is ignored by Git (`.gitignore`) so private server addresses, hostnames, and database credentials are never committed to the repository.
 
 ## Generic Usage
 
