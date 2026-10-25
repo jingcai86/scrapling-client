@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type pg from "pg";
-import { createPgPool } from "../core/index.js";
+import { createPgPool, TerminalSpinner } from "../core/index.js";
 import type { SellerOffer } from "./baseScraper.js";
 import type { PageDealStatus } from "./pageStats.js";
 
@@ -490,6 +490,7 @@ export async function tryPersistScrapeResult(
   options: {
     noDb?: boolean;
     maxRank?: number;
+    showProgress?: boolean;
   } = {},
 ): Promise<DbPersistenceStatus> {
   const statusList = Array.isArray(statuses) ? statuses : [statuses];
@@ -504,6 +505,11 @@ export async function tryPersistScrapeResult(
     }
     return status;
   }
+
+  const spinner = new TerminalSpinner({ silent: options.showProgress === false });
+  spinner.start(
+    `[PostgreSQL] Saving top deals & seller offers to schema "eneba"...`,
+  );
 
   let pool: pg.Pool | null = null;
   try {
@@ -531,6 +537,10 @@ export async function tryPersistScrapeResult(
       }
     }
 
+    spinner.succeed(
+      `[PostgreSQL] Saved ${savedDeals.topDealsInserted} top deals & ${totalOffers} seller offers into schema "eneba"`,
+    );
+
     const dbStatus: DbPersistenceStatus = {
       saved: true,
       skipped: false,
@@ -547,7 +557,7 @@ export async function tryPersistScrapeResult(
     return dbStatus;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(
+    spinner.warn(
       `[PostgreSQL Warn] Database persistence failed (continuing without DB): ${message}`,
     );
     const dbStatus: DbPersistenceStatus = {

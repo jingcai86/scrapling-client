@@ -1,4 +1,5 @@
-import { ScraplingClient } from "../core/index.js";
+import { ScraplingClient, TerminalSpinner } from "../core/index.js";
+import { analyzePageDeals, type PageDealStatus } from "./pageStats.js";
 
 export const ENEBA_BASE_URL = "https://www.eneba.com";
 export const ENEBA_PRODUCT_CARD_SELECTOR = "div.pFaGHa";
@@ -45,6 +46,8 @@ export interface ScrapeOptions {
   useStealth?: boolean;
   /** Scrape competing seller offers on the best deal product page (default: true) */
   withOffers?: boolean;
+  /** Show live terminal spinner / progress on stderr (default: true) */
+  showProgress?: boolean;
 }
 
 export interface CliArgs {
@@ -529,6 +532,63 @@ export class EnebaGiftCardScraper {
       );
       return [];
     }
+  }
+
+  /**
+   * Scrapes the category page, computes page status & top 10 deals, and optionally fetches
+   * competing seller offers on the #1 best deal while displaying a live progress spinner in the terminal.
+   */
+  async scrapeAndAnalyze({
+    page = 1,
+    useStealth = false,
+    withOffers = true,
+    showProgress = true,
+  }: ScrapeOptions = {}): Promise<PageDealStatus> {
+    const spinner = new TerminalSpinner({ silent: !showProgress });
+    spinner.start(
+      `[${this.categoryName}] Fetching listing page ${page}...`,
+    );
+
+    const listings = await this.scrapePage({ page, useStealth });
+    const initialStatus = analyzePageDeals(listings, {
+      category: this.categoryName,
+      pageUrl: buildPageUrl(this.categoryUrl, page),
+      pageNumber: page,
+    });
+
+    const targetBest =
+      initialStatus.bestEffectiveDeal || initialStatus.bestDeal;
+    const bestLabel = targetBest
+      ? `best deal: ${targetBest.effectiveDiscountPct.toFixed(2)}% off ($${targetBest.sellingPrice?.toFixed(2) ?? "N/A"})`
+      : "no in-stock deals";
+    spinner.succeed(
+      `[${this.categoryName}] Scraped ${initialStatus.totalListings} cards (${initialStatus.inStockCount} in stock, ${bestLabel})`,
+    );
+
+    let bestDealOffers: SellerOffer[] = [];
+    if (withOffers && targetBest) {
+      spinner.start(
+        `[${this.categoryName}] Fetching competing seller offers for "${targetBest.title}" (headless browser)...`,
+      );
+      bestDealOffers = await this.scrapeProductOffers(targetBest.url);
+      if (bestDealOffers.length > 0) {
+        spinner.succeed(
+          `[${this.categoryName}] Fetched ${bestDealOffers.length} competing seller offers for "${targetBest.title}"`,
+        );
+      } else {
+        spinner.warn(
+          `[${this.categoryName}] No competing seller offers returned for "${targetBest.title}"`,
+        );
+      }
+    }
+
+    return analyzePageDeals(listings, {
+      category: this.categoryName,
+      pageUrl: buildPageUrl(this.categoryUrl, page),
+      pageNumber: page,
+      scrapedAt: initialStatus.scrapedAt,
+      bestDealOffers,
+    });
   }
 }
 

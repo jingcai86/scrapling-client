@@ -3,14 +3,11 @@ import { fileURLToPath } from "node:url";
 import type { ScraplingClient } from "../core/index.js";
 import {
   EnebaGiftCardScraper,
-  buildPageUrl,
   parseCliArgs,
   type ScrapeOptions,
-  type SellerOffer,
 } from "./baseScraper.js";
 import { tryPersistScrapeResult } from "./db.js";
 import {
-  analyzePageDeals,
   formatPageStatusReport,
   type PageDealStatus,
 } from "./pageStats.js";
@@ -40,28 +37,15 @@ export async function scrapeAmazonGiftCards({
   page = 1,
   useStealth = false,
   withOffers = true,
+  showProgress = true,
   client,
 }: ScrapeOptions & { client?: ScraplingClient } = {}): Promise<PageDealStatus> {
   const scraper = new AmazonGiftCardScraper({ client });
-  const listings = await scraper.scrapePage({ page, useStealth });
-  const initialStatus = analyzePageDeals(listings, {
-    category: scraper.categoryName,
-    pageUrl: buildPageUrl(scraper.categoryUrl, page),
-    pageNumber: page,
-  });
-
-  let bestDealOffers: SellerOffer[] = [];
-  const targetBest = initialStatus.bestEffectiveDeal || initialStatus.bestDeal;
-  if (withOffers && targetBest) {
-    bestDealOffers = await scraper.scrapeProductOffers(targetBest.url);
-  }
-
-  return analyzePageDeals(listings, {
-    category: scraper.categoryName,
-    pageUrl: buildPageUrl(scraper.categoryUrl, page),
-    pageNumber: page,
-    scrapedAt: initialStatus.scrapedAt,
-    bestDealOffers,
+  return scraper.scrapeAndAnalyze({
+    page,
+    useStealth,
+    withOffers,
+    showProgress,
   });
 }
 
@@ -77,7 +61,7 @@ if (isMain) {
     withOffers: args.withOffers,
   });
 
-  const dbStatus = await tryPersistScrapeResult(status, {
+  await tryPersistScrapeResult(status, {
     noDb: args.noDb,
     maxRank: 10,
   });
@@ -85,11 +69,7 @@ if (isMain) {
   if (args.json) {
     console.log(JSON.stringify(status, null, 2));
   } else {
+    console.log("");
     console.log(formatPageStatusReport(status, { topN: args.top }));
-    if (dbStatus.saved) {
-      console.log(
-        `[PostgreSQL] Stored ${dbStatus.topDealsInserted} top deals & ${dbStatus.offersInserted ?? 0} seller offers into schema "eneba" (batch: ${dbStatus.batchId})`,
-      );
-    }
   }
 }

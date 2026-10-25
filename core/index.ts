@@ -11,3 +11,8 @@ export {
 } from "./client.js";
 export { createPgPool, type DbPoolOptions } from "./db.js";
 export { loadEnv } from "./env.js";
+export {
+  TerminalSpinner,
+  withSpinner,
+  type SpinnerOptions,
+} from "./progress.js";
