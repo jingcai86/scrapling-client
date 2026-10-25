@@ -206,7 +206,7 @@ export function formatPageStatusReport(
       const cbStr = `${deal.cashbackPct.toFixed(1)}%`.padStart(6);
       const effStr = `${deal.effectiveDiscountPct.toFixed(2)}%`.padStart(7);
       lines.push(
-        `  ${rankStr}. [Eff: ${effStr} | Disc: ${discStr} | CB: ${cbStr}] ${priceStr} — ${deal.title} (${deal.region})`,
+        `  ${rankStr}. [Eff: ${effStr} | Disc: ${discStr} | CB: ${cbStr}] ${priceStr} — ${deal.title} (${deal.region})\n      Link: ${deal.url}`,
       );
     });
   }
