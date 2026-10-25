@@ -8,6 +8,7 @@ import { scrapePlayStationGiftCards } from "./playstationGiftCard.js";
 import { scrapeNintendoGiftCards } from "./nintendoGiftCard.js";
 import { scrapeAndroidGiftCards } from "./androidGiftCard.js";
 import { scrapeAmazonGiftCards } from "./amazonGiftCard.js";
+import { scrapeAppleGiftCards } from "./appleGiftCard.js";
 
 /**
  * Formats an executive cross-category comparison table across all scraped Eneba gift card pages.
@@ -50,6 +51,7 @@ if (isMain) {
     scrapeNintendoGiftCards,
     scrapeAndroidGiftCards,
     scrapeAmazonGiftCards,
+    scrapeAppleGiftCards,
   ];
 
   const statuses: PageDealStatus[] = [];

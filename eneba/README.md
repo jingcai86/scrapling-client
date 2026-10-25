@@ -13,7 +13,8 @@ This directory contains the `eneba.com` gift card listing scrapers, deal status 
 | [`nintendoGiftCard.ts`](./nintendoGiftCard.ts) | Scraper for **Nintendo eShop Gift Cards** (`https://www.eneba.com/us/store/nintendo-gift-cards`). |
 | [`androidGiftCard.ts`](./androidGiftCard.ts) | Scraper for **Android (Google Play) Gift Cards** (`https://www.eneba.com/us/store/google-play-gift-cards`). |
 | [`amazonGiftCard.ts`](./amazonGiftCard.ts) | Scraper for **Amazon Gift Cards** (`https://www.eneba.com/us/store/amazon-gift-cards`). |
-| [`runAll.ts`](./runAll.ts) | Runs all four gift card scrapers, prints per-page top-10 status reports + cross-category summary, and persists the batch into PostgreSQL. |
+| [`appleGiftCard.ts`](./appleGiftCard.ts) | Scraper for **Apple Gift Cards** (`https://www.eneba.com/us/store/apple-gift-cards`). |
+| [`runAll.ts`](./runAll.ts) | Runs all five gift card scrapers, prints per-page top-10 status reports + cross-category summary, and persists the batch into PostgreSQL. |
 | [`enebaStats.test.ts`](./enebaStats.test.ts) | Unit tests for Eneba card Markdown parsing and page discount statistics. |
 
 ## PostgreSQL Schema (`eneba.*`)
@@ -35,8 +36,9 @@ npx tsx eneba/playstationGiftCard.ts
 npx tsx eneba/nintendoGiftCard.ts
 npx tsx eneba/androidGiftCard.ts
 npx tsx eneba/amazonGiftCard.ts
+npx tsx eneba/appleGiftCard.ts
 
-# Scrape & compare all 4 gift card pages
+# Scrape & compare all 5 gift card pages
 npx tsx eneba/runAll.ts
 ```
 
