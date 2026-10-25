@@ -1,0 +1,14 @@
+services:
+  scrapling-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scrapling-dashboard
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env
+      - ./data:/app/data

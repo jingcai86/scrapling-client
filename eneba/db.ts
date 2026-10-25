@@ -575,3 +575,208 @@ export async function tryPersistScrapeResult(
     }
   }
 }
+
+/**
+ * Loads the most recent `PageDealStatus` for each category from PostgreSQL (`eneba.*` schema).
+ * Fault-tolerant: returns `[]` if `DATABASE_URL` is not configured or PostgreSQL is unreachable.
+ */
+export async function fetchLatestEnebaStatusesFromDb(): Promise<
+  PageDealStatus[]
+> {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return [];
+  }
+
+  let pool: pg.Pool | null = null;
+  try {
+    pool = createPgPool();
+    await ensureEnebaSchema(pool);
+
+    // Get latest scrape_run per category
+    const runsRes = await pool.query<{
+      id: string;
+      batch_id: string;
+      scraped_at: Date;
+      category: string;
+      page_url: string;
+      page_number: number;
+      total_listings: number;
+      in_stock_count: number;
+      out_of_stock_count: number;
+      discounted_count: number;
+      avg_discount_pct_on_discounted: string;
+      avg_discount_pct_all_in_stock: string;
+      avg_effective_discount_pct: string;
+      max_discount_pct: string;
+      max_effective_discount_pct: string;
+    }>(`
+      SELECT DISTINCT ON (category)
+        id,
+        batch_id,
+        scraped_at,
+        category,
+        page_url,
+        page_number,
+        total_listings,
+        in_stock_count,
+        out_of_stock_count,
+        discounted_count,
+        avg_discount_pct_on_discounted,
+        avg_discount_pct_all_in_stock,
+        avg_effective_discount_pct,
+        max_discount_pct,
+        max_effective_discount_pct
+      FROM eneba.scrape_runs
+      ORDER BY category, scraped_at DESC
+    `);
+
+    const statuses: PageDealStatus[] = [];
+
+    for (const run of runsRes.rows) {
+      const dealsRes = await pool.query<{
+        rank: number;
+        category: string;
+        title: string;
+        url: string;
+        region: string;
+        selling_price: string | null;
+        original_price: string | null;
+        face_value: string | null;
+        face_value_currency: string | null;
+        listed_discount_pct: string | null;
+        cashback_pct: string;
+        in_stock: boolean;
+        discount_pct: string;
+        effective_discount_pct: string;
+        effective_price: string | null;
+        savings_amount: string;
+      }>(
+        `
+        SELECT
+          rank,
+          category,
+          title,
+          url,
+          region,
+          selling_price,
+          original_price,
+          face_value,
+          face_value_currency,
+          listed_discount_pct,
+          cashback_pct,
+          in_stock,
+          discount_pct,
+          effective_discount_pct,
+          effective_price,
+          savings_amount
+        FROM eneba.top_deals
+        WHERE scrape_run_id = $1
+        ORDER BY rank ASC
+        `,
+        [run.id],
+      );
+
+      const rankedDeals = dealsRes.rows.map((d) => ({
+        rank: Number(d.rank),
+        category: d.category,
+        title: d.title,
+        url: d.url,
+        region: d.region,
+        sellingPrice:
+          d.selling_price !== null ? Number(d.selling_price) : null,
+        originalPrice:
+          d.original_price !== null ? Number(d.original_price) : null,
+        faceValue: d.face_value !== null ? Number(d.face_value) : null,
+        faceValueCurrency: d.face_value_currency,
+        listedDiscountPct:
+          d.listed_discount_pct !== null ? Number(d.listed_discount_pct) : null,
+        cashbackPct: Number(d.cashback_pct),
+        inStock: d.in_stock,
+        discountPct: Number(d.discount_pct),
+        effectiveDiscountPct: Number(d.effective_discount_pct),
+        effectivePrice:
+          d.effective_price !== null ? Number(d.effective_price) : null,
+        savingsAmount: Number(d.savings_amount),
+      }));
+
+      // Fetch competing seller offers for this scrape run
+      const offersRes = await pool.query<{
+        seller_name: string;
+        seller_slug: string | null;
+        seller_url: string | null;
+        rating_pct: string | null;
+        rating_label: string | null;
+        price: string;
+        cashback_pct: string;
+        is_lowest_price: boolean;
+        is_featured_offer: boolean;
+      }>(
+        `
+        SELECT
+          s.seller_name,
+          s.seller_slug,
+          s.seller_url,
+          s.rating_pct,
+          s.rating_label,
+          po.price,
+          po.cashback_pct,
+          po.is_lowest_price,
+          po.is_featured_offer
+        FROM eneba.product_offers po
+        JOIN eneba.sellers s ON s.id = po.seller_id
+        WHERE po.scrape_run_id = $1
+        ORDER BY po.price ASC
+        `,
+        [run.id],
+      );
+
+      const bestDealOffers: SellerOffer[] = offersRes.rows.map((o) => ({
+        sellerName: o.seller_name,
+        sellerSlug: o.seller_slug ?? o.seller_name,
+        sellerUrl: o.seller_url ?? "",
+        ratingScore: o.rating_pct !== null ? Number(o.rating_pct) : null,
+        ratingLabel: o.rating_label,
+        price: Number(o.price),
+        cashbackPct: Number(o.cashback_pct),
+        isLowestPrice: o.is_lowest_price,
+        isFeaturedOffer: o.is_featured_offer,
+      }));
+
+      const bestEffectiveDeal = rankedDeals[0] ?? null;
+      const bestDirectDeal =
+        [...rankedDeals].sort((a, b) => b.discountPct - a.discountPct)[0] ??
+        null;
+
+      statuses.push({
+        category: run.category,
+        pageUrl: run.page_url,
+        pageNumber: run.page_number,
+        scrapedAt: new Date(run.scraped_at).toISOString(),
+        totalListings: run.total_listings,
+        inStockCount: run.in_stock_count,
+        outOfStockCount: run.out_of_stock_count,
+        discountedCount: run.discounted_count,
+        averageDiscountPctOnDiscounted: Number(
+          run.avg_discount_pct_on_discounted,
+        ),
+        averageDiscountPctAllInStock: Number(run.avg_discount_pct_all_in_stock),
+        averageEffectiveDiscountPct: Number(run.avg_effective_discount_pct),
+        maxDiscountPct: Number(run.max_discount_pct),
+        maxEffectiveDiscountPct: Number(run.max_effective_discount_pct),
+        bestDeal: bestDirectDeal,
+        bestEffectiveDeal,
+        bestDealOffers,
+        topDeals: rankedDeals,
+        rankedDeals,
+      });
+    }
+
+    return statuses;
+  } catch {
+    return [];
+  } finally {
+    if (pool) {
+      await pool.end().catch(() => {});
+    }
+  }
+}

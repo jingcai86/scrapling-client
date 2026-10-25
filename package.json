@@ -10,6 +10,8 @@
     "./core/*": "./core/*"
   },
   "scripts": {
+    "start": "tsx server/index.ts",
+    "dev": "tsx watch server/index.ts",
     "test": "tsx --test */*.test.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
@@ -25,6 +27,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "resend": "^6.34.1"
   }
 }

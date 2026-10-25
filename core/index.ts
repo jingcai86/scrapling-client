@@ -10,9 +10,34 @@ export {
   type WaitSelectorState,
 } from "./client.js";
 export { createPgPool, type DbPoolOptions } from "./db.js";
-export { loadEnv } from "./env.js";
+export {
+  ENV_SCHEMA,
+  deleteEnvKey,
+  ensureDefaultEnvKeys,
+  loadEnv,
+  parseEnvContent,
+  readEnvValues,
+  resolveEnvFilePath,
+  updateEnvValues,
+  type EnvFieldMeta,
+} from "./env.js";
+export {
+  filterAlertableDeals,
+  renderDealAlertEmailTemplate,
+  sendDealAlertEmail,
+  type DealAlertItem,
+  type EmailDispatchResult,
+  type EmailTemplateOutput,
+} from "./email.js";
 export {
   TerminalSpinner,
   withSpinner,
   type SpinnerOptions,
 } from "./progress.js";
+export {
+  RandomizedDailyScheduler,
+  computeNextRandomizedRun,
+  parseBaseTime,
+  type SchedulerConfig,
+  type SchedulerState,
+} from "./scheduler.js";

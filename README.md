@@ -1,29 +1,41 @@
 # scrapling-client
 
-A generic, modular TypeScript / Node.js web scraping client powered by [Scrapling](https://github.com/D4Vinci/Scrapling) over the Model Context Protocol (MCP) Streamable HTTP interface, with optional PostgreSQL persistence.
+A generic, modular TypeScript / Node.js web scraping client, deal monitor dashboard, randomized cron scheduler, and Resend email alert server powered by [Scrapling](https://github.com/D4Vinci/Scrapling) over the Model Context Protocol (MCP) Streamable HTTP interface, with optional PostgreSQL persistence.
 
 ## Overview
 
-`scrapling-client` provides a reusable TypeScript client (`core/ScraplingClient`) that connects to a remote or local Scrapling MCP server to fetch pages with TLS fingerprint impersonation, stealthy browser automation, CSS selector scoping, and clean Markdown/HTML/text extraction—without requiring heavy local browser dependencies.
-
-Site-specific scrapers live in their own self-contained subdirectories and build on top of the shared `core/` client and database pool helper (`core/createPgPool`).
+`scrapling-client` provides:
+- **Core Scrapling MCP Client (`core/ScraplingClient`)**: Connects to a remote or local Scrapling MCP server with multi-tier anti-bot escalation (rotating browser TLS impersonation → stealthy headless Chromium → Cloudflare Turnstile solver).
+- **Web Dashboard & Server (`server/`)**: Interactive UI and JSON API to view deal status & top ranked deals across providers, add/delete/toggle scraping pages, trigger live scrapes, edit `.env` variables in-place, configure randomized daily cron schedules, and preview/send email alerts.
+- **Randomized Daily Cron Scheduler (`core/RandomizedDailyScheduler`)**: Schedules daily scrapes starting at `CRON_BASE_TIME` (e.g. `19:00` / 7:00 PM) plus a random offset in `[0, CRON_JITTER_MINUTES]` (e.g. `0..60` minutes, running randomly between 7:00 PM and 8:00 PM).
+- **Resend Email Alerts (`core/email.ts`)**: Sends formatted HTML + plain-text deal alert emails whenever any scraped deal meets or exceeds `ALERT_DISCOUNT_THRESHOLD_PCT` (e.g. `20%` off).
 
 ## Architecture
 
 ```text
 scrapling-client/
-├── core/                  # Generic Scrapling MCP client, DB pool & env loader
-│   ├── client.ts          # ScraplingClient (Streamable HTTP JSON-RPC / SSE handler)
+├── core/                  # Generic Scrapling MCP client, DB pool, env editor, cron & email
+│   ├── client.ts          # ScraplingClient (Streamable HTTP JSON-RPC / SSE + 3-tier anti-bot)
 │   ├── db.ts              # Generic PostgreSQL connection pool helper (DATABASE_URL)
-│   ├── env.ts             # Zero-dependency .env loader
+│   ├── email.ts           # Resend email alert dispatcher & HTML template renderer
+│   ├── env.ts             # .env parser, live in-place updater & schema metadata
+│   ├── progress.ts        # Live terminal spinner & elapsed-time progress helper
+│   ├── scheduler.ts       # RandomizedDailyScheduler (base time + random jitter window)
 │   └── index.ts           # Public core exports & TypeScript types
+├── server/                # Web dashboard UI, REST API, page store & scrape runner
+│   ├── index.ts           # HTTP server & API endpoints
+│   ├── pageStore.ts       # Persistent store for configured scraping pages
+│   ├── scrapeRunner.ts    # Live scrape coordinator, DB persistence & email alert trigger
+│   └── ui.ts              # Responsive single-page dashboard UI
 ├── tests/                 # Unit tests for the core client
+├── Dockerfile             # Portable Node 20 Alpine container image
+├── docker-compose.yml     # Docker Compose service with persistent .env and data/ mounts
 ├── .env.example           # Example environment configuration (safe to commit)
 ├── package.json
 └── tsconfig.json
 ```
 
-## Setup
+## Setup & Running Locally
 
 1. **Install dependencies** (requires Node.js 18+):
 
@@ -33,54 +45,34 @@ scrapling-client/
 
 2. **Configure environment variables**:
 
-   Copy `.env.example` to `.env` in your local working directory and set your Scrapling MCP server endpoint (and optional PostgreSQL connection URL):
-
    ```bash
    cp .env.example .env
    ```
 
-   Edit `.env`:
+   You can edit `.env` directly or through the Web Dashboard UI (`Environment (.env)` tab).
 
-   ```dotenv
-   SCRAPLING_MCP_URL=http://localhost:8000/mcp
-   SCRAPLING_TIMEOUT_MS=60000
-   DATABASE_URL=postgresql://postgres:password@localhost:5432/postgres
+3. **Start the Web Dashboard & Scheduler Server**:
+
+   ```bash
+   npm start
+   # Or in watch mode during development:
+   npm run dev
    ```
 
-   > **Security Note**: `.env` is ignored by Git (`.gitignore`) so private server addresses, hostnames, and database credentials are never committed to the repository.
+   Open `http://localhost:3000` in your browser.
 
-## Generic Usage
+## Running with Docker Compose
 
-```ts
-import { ScraplingClient } from "./core/index.js";
-
-const client = new ScraplingClient(); // Reads SCRAPLING_MCP_URL from process.env / .env
-
-// Fast HTTP fetch with browser TLS/JA3 impersonation
-const response = await client.get("https://example.com", {
-  extractionType: "markdown",
-  cssSelector: "main",
-});
-
-console.log(response.status, response.firstText);
+```bash
+docker compose up -d --build
 ```
+
+The `docker-compose.yml` mounts `./.env` and `./data` into the container so any `.env` changes or scraping pages added via the Web UI are persisted on the host.
 
 ## Scripts
 
-- **Run all unit tests**:
-
-  ```bash
-  npm test
-  ```
-
-- **Run TypeScript type checking**:
-
-  ```bash
-  npm run typecheck
-  ```
-
-- **Build JavaScript output (`dist/`)**:
-
-  ```bash
-  npm run build
-  ```
+- `npm start`: Start the web dashboard and randomized cron server (`http://localhost:3000`)
+- `npm run dev`: Start the server in watch mode
+- `npm test`: Run all unit and integration tests
+- `npm run typecheck`: Run TypeScript type checking
+- `npm run build`: Compile TypeScript to `dist/`
