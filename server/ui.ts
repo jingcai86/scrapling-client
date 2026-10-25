@@ -4,7 +4,7 @@ export function renderDashboardHtml(): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Scrapling Deal Monitor — Status, Pages, Cron & Alerts</title>
+  <title>Scrapling Deal Monitor — Deals, Scraping & Configuration</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -46,13 +46,13 @@ export function renderDashboardHtml(): string {
     }
 
     .app-header {
-      background: rgba(30, 41, 59, 0.9);
+      background: rgba(30, 41, 59, 0.92);
       backdrop-filter: blur(8px);
-      border-bottom: 1px solid var(--border);
+      border-block-end: 1px solid var(--border);
       position: sticky;
       inset-block-start: 0;
       z-index: 20;
-      padding: 1rem 1.5rem;
+      padding: 0.9rem 1.5rem;
     }
 
     .header-inner {
@@ -91,7 +91,7 @@ export function renderDashboardHtml(): string {
 
     .brand p {
       margin: 0;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: var(--text-muted);
     }
 
@@ -99,14 +99,18 @@ export function renderDashboardHtml(): string {
       display: flex;
       gap: 0.4rem;
       flex-wrap: wrap;
+      background: var(--bg-panel-alt);
+      padding: 0.3rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
     }
 
     .tab-btn {
       background: transparent;
       color: var(--text-muted);
-      border: 1px solid transparent;
-      padding: 0.5rem 0.9rem;
-      border-radius: 8px;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 7px;
       font-size: 0.875rem;
       font-weight: 600;
       cursor: pointer;
@@ -121,14 +125,6 @@ export function renderDashboardHtml(): string {
     .tab-btn.active {
       color: #fff;
       background: var(--primary);
-      border-color: var(--primary);
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      flex-wrap: wrap;
     }
 
     .btn {
@@ -178,7 +174,7 @@ export function renderDashboardHtml(): string {
     }
 
     .btn-sm {
-      padding: 0.32rem 0.65rem;
+      padding: 0.3rem 0.65rem;
       font-size: 0.78rem;
     }
 
@@ -193,7 +189,7 @@ export function renderDashboardHtml(): string {
       background: linear-gradient(90deg, rgba(99, 102, 241, 0.18), rgba(16, 185, 129, 0.15));
       border: 1px solid rgba(99, 102, 241, 0.45);
       border-radius: var(--radius);
-      padding: 1rem 1.25rem;
+      padding: 0.9rem 1.25rem;
       margin-block-end: 1.5rem;
       display: none;
       align-items: center;
@@ -222,7 +218,7 @@ export function renderDashboardHtml(): string {
     /* KPI Grid */
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 1rem;
       margin-block-end: 1.5rem;
     }
@@ -231,11 +227,11 @@ export function renderDashboardHtml(): string {
       background: var(--bg-panel);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 1.15rem 1.25rem;
+      padding: 1.1rem 1.25rem;
     }
 
     .kpi-label {
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-muted);
@@ -243,13 +239,13 @@ export function renderDashboardHtml(): string {
     }
 
     .kpi-value {
-      font-size: 1.65rem;
+      font-size: 1.55rem;
       font-weight: 800;
       margin: 0.25rem 0;
     }
 
     .kpi-sub {
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: var(--text-muted);
     }
 
@@ -307,11 +303,11 @@ export function renderDashboardHtml(): string {
       color: var(--text-muted);
     }
 
-    /* Modern Responsive Table (from modern-web-guidance: responsive-table) */
+    /* Modern Responsive & Sortable Table (modern-web-guidance: responsive-table) */
     .table-wrapper {
       overflow: auto;
       max-inline-size: 100%;
-      max-block-size: min(620px, 80vh);
+      max-block-size: min(640px, 80vh);
       container-type: inline-size;
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -346,7 +342,7 @@ export function renderDashboardHtml(): string {
     }
 
     th, td {
-      padding: 0.75rem 1rem;
+      padding: 0.72rem 0.95rem;
       border-block-end: 1px solid var(--border);
       vertical-align: middle;
     }
@@ -358,6 +354,31 @@ export function renderDashboardHtml(): string {
       color: var(--text-muted);
       font-weight: 700;
       background: #1e293b;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    thead th.sortable {
+      cursor: pointer;
+      transition: color 0.15s ease, background 0.15s ease;
+    }
+
+    thead th.sortable:hover {
+      color: var(--text);
+      background: #273549;
+    }
+
+    thead th.sortable[aria-sort="ascending"],
+    thead th.sortable[aria-sort="descending"] {
+      color: #a5b4fc;
+      background: rgba(99, 102, 241, 0.15);
+    }
+
+    .sort-icon {
+      display: inline-block;
+      margin-inline-start: 0.35rem;
+      font-size: 0.72rem;
+      opacity: 0.75;
     }
 
     tbody th {
@@ -426,23 +447,28 @@ export function renderDashboardHtml(): string {
         font-weight: 600;
         color: var(--text-muted);
       }
+      td:nth-child(8)::before {
+        content: var(--label-8) ": ";
+        font-weight: 600;
+        color: var(--text-muted);
+      }
     }
 
     /* Form Controls & Deferred Validation (:user-invalid from modern-web-guidance) */
     .form-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
       gap: 1rem;
     }
 
     .field {
       display: flex;
       flex-direction: column;
-      margin-block-end: 0.85rem;
+      margin-block-end: 0.75rem;
     }
 
     .field label {
-      font-size: 0.85rem;
+      font-size: 0.84rem;
       font-weight: 600;
       color: var(--text);
       margin-block-end: 0.15rem;
@@ -451,7 +477,7 @@ export function renderDashboardHtml(): string {
     .hint {
       display: block;
       color: var(--text-muted);
-      font-size: 0.76rem;
+      font-size: 0.75rem;
       margin-block-end: 0.35rem;
     }
 
@@ -461,8 +487,9 @@ export function renderDashboardHtml(): string {
     input[type="number"],
     input[type="time"],
     input[type="password"],
+    input[type="search"],
     select {
-      padding: 0.55rem 0.75rem;
+      padding: 0.52rem 0.75rem;
       border-radius: 8px;
       border: 1px solid var(--border);
       background: var(--bg-panel-alt);
@@ -506,6 +533,32 @@ export function renderDashboardHtml(): string {
       display: block;
     }
 
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.85rem;
+    }
+
+    .kv-box {
+      background: var(--bg-panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+    }
+
+    .kv-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .kv-val {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-top: 0.2rem;
+    }
+
     /* Native Light-Dismiss Dialogs (modern-web-guidance: light-dismiss-a-dialog) */
     dialog {
       background: var(--bg-panel);
@@ -544,7 +597,7 @@ export function renderDashboardHtml(): string {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.78rem;
       color: #cbd5e1;
-      max-height: 180px;
+      max-height: 200px;
       overflow-y: auto;
     }
 
@@ -576,33 +629,20 @@ export function renderDashboardHtml(): string {
         <div class="brand-badge">S</div>
         <div>
           <h1>Scrapling Deal Monitor</h1>
-          <p>Multi-Provider Gift Card Scraper • Randomized Cron • Resend Alerts</p>
+          <p>Multi-Provider Gift Card Analytics • Randomized Cron • Resend Alerts</p>
         </div>
       </div>
 
-      <nav class="nav-tabs" aria-label="Dashboard Sections">
-        <button type="button" class="tab-btn active" data-tab="overview">Home &amp; Best Deals</button>
-        <button type="button" class="tab-btn" data-tab="pages">Scrape Pages (<span id="navPagesCount">0</span>)</button>
-        <button type="button" class="tab-btn" data-tab="scheduler">Cron &amp; Email Alerts</button>
-        <button type="button" class="tab-btn" data-tab="env">Environment (.env)</button>
+      <nav class="nav-tabs" aria-label="Dashboard Navigation">
+        <button type="button" class="tab-btn active" data-tab="overview">📊 Deals Overview</button>
+        <button type="button" class="tab-btn" data-tab="scraping">⚡ Scraping &amp; Targets (<span id="navPagesCount">0</span>)</button>
+        <button type="button" class="tab-btn" data-tab="config">⚙️ Configuration</button>
       </nav>
-
-      <div class="header-actions">
-        <button type="button" class="btn btn-primary" id="btnScrapeAll">
-          <span>▶ Scrape All Enabled</span>
-        </button>
-        <button type="button" class="btn" id="btnScrapeFast" title="Fast scrape without headless seller offer fetches">
-          <span>⚡ Fast Scrape (No Offers)</span>
-        </button>
-        <button type="button" class="btn" id="btnPreviewEmailHeader">
-          <span>✉ Preview Alert Email</span>
-        </button>
-      </div>
     </div>
   </header>
 
   <main class="container">
-    <!-- Live Scrape Banner -->
+    <!-- Global Live Scrape Progress Banner -->
     <div id="scrapeBanner" class="scrape-banner" role="status" aria-live="polite">
       <div style="display:flex;align-items:center;gap:0.85rem;">
         <div class="spinner"></div>
@@ -614,11 +654,13 @@ export function renderDashboardHtml(): string {
       <span class="badge badge-provider" id="scrapeProgressBadge">0 / 0</span>
     </div>
 
-    <!-- TAB 1: OVERVIEW & BEST DEALS -->
+    <!-- =================================================================== -->
+    <!-- TAB 1: DEALS OVERVIEW (PURE VIEW MODE — ALL TABLES SORTABLE)        -->
+    <!-- =================================================================== -->
     <section id="tab-overview" class="tab-panel active">
       <div class="kpi-grid">
         <div class="kpi-card">
-          <div class="kpi-label">Configured Scrape Pages</div>
+          <div class="kpi-label">Active Scrape Pages</div>
           <div class="kpi-value" id="kpiPagesCount">—</div>
           <div class="kpi-sub" id="kpiProvidersSub">Provider: eneba</div>
         </div>
@@ -628,24 +670,24 @@ export function renderDashboardHtml(): string {
           <div class="kpi-sub" id="kpiMaxDealTitle">Across all in-stock gift cards</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Randomized Daily Cron</div>
+          <div class="kpi-label">Next Scheduled Scrape</div>
           <div class="kpi-value" style="font-size:1.25rem;" id="kpiNextCron">—</div>
           <div class="kpi-sub" id="kpiCronWindow">Base 19:00 + 0..60m random jitter</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Alert Rule &amp; Database</div>
+          <div class="kpi-label">Email Alert &amp; DB Status</div>
           <div class="kpi-value" style="font-size:1.25rem;" id="kpiAlertThreshold">&ge; 20% Off</div>
           <div class="kpi-sub" id="kpiDbStatus">PostgreSQL schema: eneba</div>
         </div>
       </div>
 
-      <!-- Cross-Category Status Table -->
+      <!-- Table 1: Category Status & Best Deal Summary (Sortable) -->
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Category Status &amp; #1 Best Deal Summary</h2>
-            <div style="font-size:0.82rem;color:var(--text-muted);">
-              Live snapshot across all scraped gift card store pages
+            <h2 class="card-title">Category Status &amp; #1 Best Deal Comparison</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Click any column header to sort ascending or descending.
             </div>
           </div>
           <div style="display:flex;gap:0.5rem;align-items:center;">
@@ -658,17 +700,17 @@ export function renderDashboardHtml(): string {
         </div>
 
         <div tabindex="0" role="region" aria-labelledby="summary-table-caption" class="table-wrapper">
-          <table style="--label-2:'In Stock';--label-3:'Avg Discount';--label-4:'Avg Effective';--label-5:'Best Deal on Page';--label-6:'Seller Offers';--label-7:'Updated';">
+          <table id="summaryTable" style="--label-2:'In Stock';--label-3:'Avg Discount';--label-4:'Avg Effective';--label-5:'Best Deal on Page';--label-6:'Seller Offers';--label-7:'Updated';">
             <caption id="summary-table-caption">Category status and best deal comparison</caption>
             <thead>
               <tr>
-                <th>Category</th>
-                <th>In Stock</th>
-                <th>Avg Discount</th>
-                <th>Avg Effective (+CB)</th>
-                <th>#1 Best Deal on Page</th>
-                <th>Seller Offers</th>
-                <th>Last Scraped</th>
+                <th class="sortable" data-table="summary" data-sort-key="category" aria-sort="none">Category <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="summary" data-sort-key="inStockCount" aria-sort="none">In Stock <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="summary" data-sort-key="avgDirect" aria-sort="none">Avg Discount <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="summary" data-sort-key="avgEffective" aria-sort="descending">Avg Effective (+CB) <span class="sort-icon">↓</span></th>
+                <th class="sortable" data-table="summary" data-sort-key="bestEffective" aria-sort="none">#1 Best Deal on Page <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="summary" data-sort-key="offersCount" aria-sort="none">Seller Offers <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="summary" data-sort-key="scrapedAt" aria-sort="none">Last Scraped <span class="sort-icon">↕</span></th>
               </tr>
             </thead>
             <tbody id="summaryTableBody">
@@ -678,75 +720,132 @@ export function renderDashboardHtml(): string {
         </div>
       </div>
 
-      <!-- Top 10 Ranked Deals Explorer -->
+      <!-- Table 2: Top Ranked Deals Explorer (Sortable + Searchable) -->
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Top 10 Ranked Deals Per Page</h2>
-            <div style="font-size:0.82rem;color:var(--text-muted);">
-              Ranked 1–10 by effective discount % (direct discount + cashback). Deals meeting the alert threshold are highlighted.
+            <h2 class="card-title">Top 10 Ranked Deals Explorer</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Click any column header to sort. Filter by keyword or category.
             </div>
           </div>
-          <div style="display:flex;gap:0.5rem;align-items:center;">
-            <label for="categoryFilter" style="font-size:0.8rem;color:var(--text-muted);">Category:</label>
-            <select id="categoryFilter">
+          <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
+            <input type="search" id="dealSearchInput" placeholder="Search deals (e.g. Apple 100)..." style="min-width:210px;" aria-label="Search deals by title" />
+            <select id="categoryFilter" aria-label="Filter by category">
               <option value="all">All Categories</option>
             </select>
           </div>
         </div>
 
         <div tabindex="0" role="region" aria-labelledby="deals-table-caption" class="table-wrapper">
-          <table style="--label-2:'Category';--label-3:'Region';--label-4:'Price / Baseline';--label-5:'Direct Disc';--label-6:'Effective Disc';--label-7:'Action';">
+          <table id="dealsTable" style="--label-2:'Product Title';--label-3:'Category';--label-4:'Region';--label-5:'Selling Price';--label-6:'Direct Disc';--label-7:'Effective Disc';--label-8:'Action';">
             <caption id="deals-table-caption">Top ranked gift card deals</caption>
             <thead>
               <tr>
-                <th>Rank &amp; Product</th>
-                <th>Category</th>
-                <th>Region</th>
-                <th>Selling Price</th>
-                <th>Direct Disc</th>
-                <th>Effective (+CB)</th>
+                <th class="sortable" data-table="deals" data-sort-key="rank" aria-sort="none">Rank <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="deals" data-sort-key="title" aria-sort="none">Product Title <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="deals" data-sort-key="category" aria-sort="none">Category <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="deals" data-sort-key="region" aria-sort="none">Region <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="deals" data-sort-key="sellingPrice" aria-sort="none">Selling Price <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="deals" data-sort-key="discountPct" aria-sort="none">Direct Disc <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="deals" data-sort-key="effectiveDiscountPct" aria-sort="descending">Effective (+CB) <span class="sort-icon">↓</span></th>
                 <th>Link</th>
               </tr>
             </thead>
             <tbody id="dealsTableBody">
-              <tr><td colspan="7" style="color:var(--text-muted);text-align:center;">Loading deals...</td></tr>
+              <tr><td colspan="8" style="color:var(--text-muted);text-align:center;">Loading deals...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
-
-      <!-- Recent Activity Log -->
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">Live Scraper &amp; Persistence Logs</h2>
-        </div>
-        <div class="log-box" id="logBox">No recent logs yet.</div>
-      </div>
     </section>
 
-    <!-- TAB 2: SCRAPE PAGES MANAGER -->
-    <section id="tab-pages" class="tab-panel">
+    <!-- =================================================================== -->
+    <!-- TAB 2: SCRAPING & TARGETS (ALL SCRAPING ACTIONS, SCHEDULE & PAGES)  -->
+    <!-- =================================================================== -->
+    <section id="tab-scraping" class="tab-panel">
+      <!-- 1. Scraping Actions & Live Console -->
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Configured Scraping Pages</h2>
-            <div style="font-size:0.82rem;color:var(--text-muted);">
-              Add, toggle, or delete store category pages to scrape. Default includes Eneba PlayStation, Nintendo, Android, Amazon, and Apple gift cards.
+            <h2 class="card-title">Scraping Actions &amp; Live Execution Console</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Trigger an immediate scrape across all enabled pages or run a fast listing-only check.
             </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary" id="btnScrapeAll">
+              <span>▶ Scrape All Enabled (With Offers)</span>
+            </button>
+            <button type="button" class="btn" id="btnScrapeFast">
+              <span>⚡ Fast Scrape All (Listing Only)</span>
+            </button>
+          </div>
+        </div>
+        <div class="log-box" id="logBox">Ready. Waiting for scrape actions.</div>
+      </div>
+
+      <!-- 2. Randomized Daily Cron Schedule (Clean View Mode vs Edit Modal) -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Daily Randomized Cron Schedule</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Runs daily at <code>CRON_BASE_TIME</code> plus a random delay (0 to <code>CRON_JITTER_MINUTES</code>), e.g., 7:00 PM to 8:00 PM.
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button type="button" class="btn btn-sm" id="btnRerollCron">🎲 Re-Roll Random Time</button>
+            <button type="button" class="btn btn-sm btn-primary" id="btnOpenCronDialog">✎ Edit Schedule</button>
           </div>
         </div>
 
+        <div class="kv-grid">
+          <div class="kv-box">
+            <div class="kv-label">Scheduler Status</div>
+            <div class="kv-val" id="viewCronEnabled">—</div>
+          </div>
+          <div class="kv-box">
+            <div class="kv-label">Daily Window</div>
+            <div class="kv-val" id="viewCronWindow">—</div>
+          </div>
+          <div class="kv-box">
+            <div class="kv-label">Rolled Random Offset</div>
+            <div class="kv-val" id="viewCronOffset">—</div>
+          </div>
+          <div class="kv-box">
+            <div class="kv-label">Next Scheduled Run</div>
+            <div class="kv-val" style="color:#818cf8;" id="viewCronNext">—</div>
+          </div>
+          <div class="kv-box">
+            <div class="kv-label">Last Scheduled Run</div>
+            <div class="kv-val" style="font-size:0.9rem;" id="viewCronLast">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Target Scraping Pages Table (Sortable + Add/Edit Modal) -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Target Scraping Pages</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Click any column header to sort. Manage store URLs or trigger a single-page scrape.
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary" id="btnOpenAddPageDialog">+ Add Scraping Page</button>
+        </div>
+
         <div tabindex="0" role="region" aria-labelledby="pages-table-caption" class="table-wrapper">
-          <table style="--label-2:'Provider';--label-3:'Store URL';--label-4:'Seller Offers';--label-5:'Status';--label-6:'Actions';">
+          <table id="pagesTable" style="--label-2:'Provider';--label-3:'Store URL';--label-4:'Seller Offers';--label-5:'Status';--label-6:'Actions';">
             <caption id="pages-table-caption">Configured scraping pages</caption>
             <thead>
               <tr>
-                <th>Category Name</th>
-                <th>Provider</th>
-                <th>Store Page URL</th>
-                <th>Seller Offers</th>
-                <th>Enabled</th>
+                <th class="sortable" data-table="pages" data-sort-key="categoryName" aria-sort="ascending">Category Name <span class="sort-icon">↑</span></th>
+                <th class="sortable" data-table="pages" data-sort-key="provider" aria-sort="none">Provider <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="pages" data-sort-key="url" aria-sort="none">Store Page URL <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="pages" data-sort-key="withOffers" aria-sort="none">Seller Offers <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="pages" data-sort-key="enabled" aria-sort="none">Status <span class="sort-icon">↕</span></th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -754,276 +853,226 @@ export function renderDashboardHtml(): string {
           </table>
         </div>
       </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">Add New Scraping Page</h2>
-        </div>
-        <form id="addPageForm">
-          <div class="form-grid">
-            <div class="field">
-              <label for="newPageProvider">Provider</label>
-              <span id="provider-hint" class="hint">Store provider identifier (e.g., eneba)</span>
-              <input
-                type="text"
-                id="newPageProvider"
-                name="provider"
-                value="eneba"
-                required
-                aria-describedby="provider-hint"
-                aria-errormessage="provider-err"
-              />
-              <div id="provider-err" class="error-msg">
-                <span aria-hidden="true">❌</span> Provider is required.
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="newPageCategory">Category Name</label>
-              <span id="cat-hint" class="hint">Example: Steam Gift Cards or Xbox Gift Cards</span>
-              <input
-                type="text"
-                id="newPageCategory"
-                name="categoryName"
-                placeholder="Xbox Gift Cards"
-                required
-                aria-describedby="cat-hint"
-                aria-errormessage="cat-err"
-              />
-              <div id="cat-err" class="error-msg">
-                <span aria-hidden="true">❌</span> Please enter a category title.
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="newPageUrl">Category Store URL</label>
-              <span id="url-hint" class="hint">Format: https://www.eneba.com/us/store/xbox-gift-cards</span>
-              <input
-                type="url"
-                id="newPageUrl"
-                name="url"
-                placeholder="https://www.eneba.com/us/store/xbox-gift-cards"
-                required
-                aria-describedby="url-hint"
-                aria-errormessage="url-err"
-              />
-              <div id="url-err" class="error-msg">
-                <span aria-hidden="true">❌</span> Please enter a valid https:// URL.
-              </div>
-            </div>
-          </div>
-
-          <div style="display:flex;align-items:center;gap:1.5rem;margin:0.5rem 0 1rem;">
-            <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;cursor:pointer;">
-              <input type="checkbox" id="newPageWithOffers" checked />
-              Scrape competing third-party seller offers by default
-            </label>
-          </div>
-
-          <button type="submit" class="btn btn-primary">+ Add Scraping Page</button>
-        </form>
-      </div>
     </section>
 
-    <!-- TAB 3: RANDOMIZED CRON & RESEND EMAIL ALERTS -->
-    <section id="tab-scheduler" class="tab-panel">
-      <div class="form-grid">
-        <!-- Randomized Cron Job Card -->
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2 class="card-title">Randomized Daily Cron Scheduler</h2>
-              <div style="font-size:0.82rem;color:var(--text-muted);">
-                Runs daily starting from Base Time plus a random delay (0 to Jitter minutes), e.g., 7:00 PM + 0..60m = scrapes randomly between 7:00 PM and 8:00 PM.
-              </div>
-            </div>
-          </div>
-
-          <div style="background:var(--bg-panel-alt);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-block-end:1rem;">
-            <div style="font-size:0.8rem;color:var(--text-muted);">Next Scheduled Execution</div>
-            <div style="font-size:1.1rem;font-weight:700;color:#818cf8;margin:0.2rem 0;" id="schedNextRunText">—</div>
-            <div style="font-size:0.8rem;color:var(--text-muted);" id="schedOffsetText">—</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem;" id="schedLastRunText">Last run: idle</div>
-          </div>
-
-          <form id="schedulerForm">
-            <div class="field">
-              <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
-                <input type="checkbox" id="cronEnabledInput" checked />
-                Enable Daily Randomized Cron Job (<code>CRON_ENABLED</code>)
-              </label>
-            </div>
-
-            <div class="field">
-              <label for="cronBaseTimeInput">Daily Window Start Time (<code>CRON_BASE_TIME</code>)</label>
-              <span id="basetime-hint" class="hint">24-hour time when the random window opens (19:00 = 7:00 PM)</span>
-              <input
-                type="time"
-                id="cronBaseTimeInput"
-                required
-                value="19:00"
-                aria-describedby="basetime-hint"
-                aria-errormessage="basetime-err"
-              />
-              <div id="basetime-err" class="error-msg">
-                <span aria-hidden="true">❌</span> Please pick a valid start time.
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="cronJitterInput">Random Jitter Window in Minutes (<code>CRON_JITTER_MINUTES</code>)</label>
-              <span id="jitter-hint" class="hint">Random minutes (0–720) added to start time each day (default: 60 mins)</span>
-              <input
-                type="number"
-                id="cronJitterInput"
-                min="0"
-                max="720"
-                required
-                value="60"
-                aria-describedby="jitter-hint"
-                aria-errormessage="jitter-err"
-              />
-              <div id="jitter-err" class="error-msg">
-                <span aria-hidden="true">❌</span> Enter a number between 0 and 720 minutes.
-              </div>
-            </div>
-
-            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:1rem;">
-              <button type="submit" class="btn btn-primary">Save Schedule to .env</button>
-              <button type="button" class="btn" id="btnRerollCron">🎲 Re-Roll Random Offset</button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Resend Email Alert Card -->
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2 class="card-title">Resend Email Deal Alerts</h2>
-              <div style="font-size:0.82rem;color:var(--text-muted);">
-                Automatically emails you via Resend whenever any scraped gift card meets or exceeds your discount threshold (default: 20% off).
-              </div>
-            </div>
-          </div>
-
-          <form id="emailSettingsForm">
-            <div class="field">
-              <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
-                <input type="checkbox" id="emailEnabledInput" />
-                Enable Automatic Deal Alert Emails (<code>EMAIL_ENABLED</code>)
-              </label>
-            </div>
-
-            <div class="field">
-              <label for="emailThresholdInput">Discount Alert Threshold % (<code>ALERT_DISCOUNT_THRESHOLD_PCT</code>)</label>
-              <span id="thresh-hint" class="hint">Send email when direct or effective discount is &ge; this % (e.g., 20)</span>
-              <input
-                type="number"
-                id="emailThresholdInput"
-                min="1"
-                max="99"
-                step="0.5"
-                required
-                value="20"
-                aria-describedby="thresh-hint"
-                aria-errormessage="thresh-err"
-              />
-              <div id="thresh-err" class="error-msg">
-                <span aria-hidden="true">❌</span> Please enter a threshold between 1% and 99%.
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="emailToInput">Recipient Email Address (<code>ALERT_EMAIL_TO</code>)</label>
-              <span id="emailto-hint" class="hint">Format: you@example.com</span>
-              <input
-                type="email"
-                id="emailToInput"
-                autocomplete="email"
-                placeholder="you@example.com"
-                aria-describedby="emailto-hint"
-                aria-errormessage="emailto-err"
-              />
-              <div id="emailto-err" class="error-msg">
-                <span aria-hidden="true">❌</span> Please enter a valid email address.
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="emailFromInput">Sender Address (<code>ALERT_EMAIL_FROM</code>)</label>
-              <span id="emailfrom-hint" class="hint">Default Resend test sender: Deal Alerts &lt;onboarding@resend.dev&gt;</span>
-              <input
-                type="text"
-                id="emailFromInput"
-                value="Deal Alerts <onboarding@resend.dev>"
-                aria-describedby="emailfrom-hint"
-              />
-            </div>
-
-            <div class="field">
-              <label for="resendKeyInput">Resend API Key (<code>RESEND_API_KEY</code>)</label>
-              <span id="resendkey-hint" class="hint">Starts with re_... (saved directly to your local .env)</span>
-              <input
-                type="password"
-                id="resendKeyInput"
-                placeholder="re_xxxxxxxxxxxxxxxxx"
-                aria-describedby="resendkey-hint"
-              />
-            </div>
-
-            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:1rem;">
-              <button type="submit" class="btn btn-primary">Save Email Config to .env</button>
-              <button type="button" class="btn" id="btnPreviewEmailCard">✉ Preview Email Template</button>
-              <button type="button" class="btn btn-success" id="btnSendTestEmail">🚀 Send Test Email</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 4: ENVIRONMENT (.ENV) CONFIGURATION -->
-    <section id="tab-env" class="tab-panel">
+    <!-- =================================================================== -->
+    <!-- TAB 3: CONFIGURATION (ALL .ENV, DB, CRON & EMAIL IN ONE PLACE)      -->
+    <!-- =================================================================== -->
+    <section id="tab-config" class="tab-panel">
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Environment Configuration (<code>.env</code>)</h2>
-            <div style="font-size:0.82rem;color:var(--text-muted);">
-              File path: <code id="envFilePathLabel">.env</code> — Changes are written directly to disk and applied in memory immediately.
+            <h2 class="card-title">System &amp; Environment Configuration (<code>.env</code>)</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              File: <code id="envFilePathLabel">.env</code> — All Scrapling MCP, PostgreSQL, Cron, and Resend Email settings in one place.
             </div>
           </div>
-          <div style="display:flex;gap:0.5rem;">
-            <button type="button" class="btn" id="btnToggleSecrets">👁 Show/Hide Secrets</button>
-            <button type="button" class="btn btn-primary" id="btnSaveAllEnv">💾 Save All .env Changes</button>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button type="button" class="btn btn-sm" id="btnToggleSecrets">👁 Show Secrets</button>
+            <button type="button" class="btn btn-sm" id="btnPreviewEmailConfig">✉ Preview Alert Email</button>
+            <button type="button" class="btn btn-sm btn-success" id="btnSendTestEmail">🚀 Send Test Email</button>
+            <button type="button" class="btn btn-sm btn-primary" id="btnEnterConfigEdit">✎ Edit Configuration</button>
           </div>
         </div>
 
-        <form id="envEditorForm">
-          <div id="envFieldsContainer" class="form-grid"></div>
-        </form>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">Add Custom Environment Variable</h2>
+        <!-- VIEW MODE: Sortable Read-Only Configuration Table -->
+        <div id="configViewMode">
+          <div tabindex="0" role="region" aria-labelledby="config-table-caption" class="table-wrapper">
+            <table id="configTable" style="--label-2:'Group';--label-3:'Current Value';--label-4:'Description';">
+              <caption id="config-table-caption">Current environment configuration variables</caption>
+              <thead>
+                <tr>
+                  <th class="sortable" data-table="config" data-sort-key="key" aria-sort="none">Variable Key <span class="sort-icon">↕</span></th>
+                  <th class="sortable" data-table="config" data-sort-key="group" aria-sort="ascending">Group <span class="sort-icon">↑</span></th>
+                  <th class="sortable" data-table="config" data-sort-key="value" aria-sort="none">Current Value <span class="sort-icon">↕</span></th>
+                  <th class="sortable" data-table="config" data-sort-key="description" aria-sort="none">Description <span class="sort-icon">↕</span></th>
+                </tr>
+              </thead>
+              <tbody id="configTableBody"></tbody>
+            </table>
+          </div>
         </div>
-        <form id="addCustomEnvForm" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
-          <div class="field" style="flex:1;min-width:220px;margin:0;">
-            <label for="customEnvKey">Variable Name</label>
-            <span id="customkey-hint" class="hint">Example: CUSTOM_PROXY_URL</span>
-            <input type="text" id="customEnvKey" placeholder="CUSTOM_KEY" required aria-describedby="customkey-hint" />
+
+        <!-- EDIT MODE: Unified Form Editor (Hidden until "Edit Configuration" is clicked) -->
+        <div id="configEditMode" style="display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.4);padding:0.75rem 1rem;border-radius:10px;margin-block-end:1rem;">
+            <span style="font-size:0.85rem;font-weight:600;color:#a5b4fc;">Editing Configuration — Changes save directly to <code>.env</code> and apply immediately.</span>
+            <div style="display:flex;gap:0.5rem;">
+              <button type="button" class="btn btn-sm" id="btnCancelConfigEdit">Cancel</button>
+              <button type="button" class="btn btn-sm btn-primary" id="btnSaveAllEnv">💾 Save Changes</button>
+            </div>
           </div>
-          <div class="field" style="flex:2;min-width:280px;margin:0;">
-            <label for="customEnvVal">Value</label>
-            <span id="customval-hint" class="hint">Value to store in .env</span>
-            <input type="text" id="customEnvVal" placeholder="value" aria-describedby="customval-hint" />
+
+          <form id="envEditorForm">
+            <div id="envFieldsContainer" class="form-grid"></div>
+          </form>
+
+          <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);">
+            <h3 style="margin:0 0 0.75rem;font-size:0.95rem;">Add Custom Environment Variable</h3>
+            <form id="addCustomEnvForm" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
+              <div class="field" style="flex:1;min-width:220px;margin:0;">
+                <label for="customEnvKey">Variable Name</label>
+                <span id="customkey-hint" class="hint">Example: CUSTOM_PROXY_URL</span>
+                <input type="text" id="customEnvKey" placeholder="CUSTOM_KEY" required aria-describedby="customkey-hint" />
+              </div>
+              <div class="field" style="flex:2;min-width:280px;margin:0;">
+                <label for="customEnvVal">Value</label>
+                <span id="customval-hint" class="hint">Value to store in .env</span>
+                <input type="text" id="customEnvVal" placeholder="value" aria-describedby="customval-hint" />
+              </div>
+              <button type="submit" class="btn">+ Add Variable</button>
+            </form>
           </div>
-          <button type="submit" class="btn btn-primary">+ Add Variable</button>
-        </form>
+        </div>
       </div>
     </section>
   </main>
 
-  <!-- Light-Dismiss Dialog 1: Email Alert Template Preview -->
+  <!-- ===================================================================== -->
+  <!-- LIGHT-DISMISS DIALOGS (modern-web-guidance: light-dismiss-a-dialog)   -->
+  <!-- ===================================================================== -->
+
+  <!-- Dialog 1: Add / Edit Scraping Page -->
+  <dialog id="pageFormDialog" closedby="any" aria-labelledby="pageFormDialogTitle">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <h3 id="pageFormDialogTitle" style="margin:0;font-size:1.05rem;">Add Scraping Page</h3>
+        <form method="dialog">
+          <button type="submit" class="btn btn-sm">✕ Close</button>
+        </form>
+      </div>
+      <form id="pageModalForm">
+        <input type="hidden" id="editPageId" value="" />
+        <div class="field">
+          <label for="newPageProvider">Provider</label>
+          <span id="provider-hint" class="hint">Store provider identifier (e.g., eneba)</span>
+          <input
+            type="text"
+            id="newPageProvider"
+            name="provider"
+            value="eneba"
+            required
+            aria-describedby="provider-hint"
+            aria-errormessage="provider-err"
+          />
+          <div id="provider-err" class="error-msg">
+            <span aria-hidden="true">❌</span> Provider is required.
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="newPageCategory">Category Name</label>
+          <span id="cat-hint" class="hint">Example: Xbox Gift Cards or Steam Gift Cards</span>
+          <input
+            type="text"
+            id="newPageCategory"
+            name="categoryName"
+            placeholder="Xbox Gift Cards"
+            required
+            aria-describedby="cat-hint"
+            aria-errormessage="cat-err"
+          />
+          <div id="cat-err" class="error-msg">
+            <span aria-hidden="true">❌</span> Please enter a category title.
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="newPageUrl">Category Store URL</label>
+          <span id="url-hint" class="hint">Format: https://www.eneba.com/us/store/xbox-gift-cards</span>
+          <input
+            type="url"
+            id="newPageUrl"
+            name="url"
+            placeholder="https://www.eneba.com/us/store/xbox-gift-cards"
+            required
+            aria-describedby="url-hint"
+            aria-errormessage="url-err"
+          />
+          <div id="url-err" class="error-msg">
+            <span aria-hidden="true">❌</span> Please enter a valid https:// URL.
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:0.6rem;margin:0.75rem 0 1.25rem;">
+          <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;cursor:pointer;">
+            <input type="checkbox" id="newPageWithOffers" checked />
+            Scrape competing third-party seller offers (headless browser)
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;cursor:pointer;">
+            <input type="checkbox" id="newPageEnabled" checked />
+            Page Enabled for Scheduled &amp; Batch Scrapes
+          </label>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+          <button type="button" class="btn" onclick="document.getElementById('pageFormDialog').close()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitPageModal">💾 Save Page</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Dialog 2: Edit Randomized Daily Cron Schedule -->
+  <dialog id="cronFormDialog" closedby="any" aria-labelledby="cronDialogTitle">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <h3 id="cronDialogTitle" style="margin:0;font-size:1.05rem;">Edit Randomized Daily Cron Schedule</h3>
+        <form method="dialog">
+          <button type="submit" class="btn btn-sm">✕ Close</button>
+        </form>
+      </div>
+      <form id="schedulerForm">
+        <div class="field">
+          <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
+            <input type="checkbox" id="cronEnabledInput" checked />
+            Enable Daily Randomized Cron Job (<code>CRON_ENABLED</code>)
+          </label>
+        </div>
+
+        <div class="field">
+          <label for="cronBaseTimeInput">Daily Window Start Time (<code>CRON_BASE_TIME</code>)</label>
+          <span id="basetime-hint" class="hint">24-hour time when the random window opens (19:00 = 7:00 PM)</span>
+          <input
+            type="time"
+            id="cronBaseTimeInput"
+            required
+            value="19:00"
+            aria-describedby="basetime-hint"
+            aria-errormessage="basetime-err"
+          />
+          <div id="basetime-err" class="error-msg">
+            <span aria-hidden="true">❌</span> Please pick a valid start time.
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="cronJitterInput">Random Jitter Window in Minutes (<code>CRON_JITTER_MINUTES</code>)</label>
+          <span id="jitter-hint" class="hint">Random delay (0–720 mins) added to start time each day (default: 60 mins)</span>
+          <input
+            type="number"
+            id="cronJitterInput"
+            min="0"
+            max="720"
+            required
+            value="60"
+            aria-describedby="jitter-hint"
+            aria-errormessage="jitter-err"
+          />
+          <div id="jitter-err" class="error-msg">
+            <span aria-hidden="true">❌</span> Enter a number between 0 and 720 minutes.
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
+          <button type="button" class="btn" onclick="document.getElementById('cronFormDialog').close()">Cancel</button>
+          <button type="submit" class="btn btn-primary">💾 Save Schedule to .env</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Dialog 3: Email Alert Template Preview -->
   <dialog id="emailPreviewDialog" closedby="any" aria-labelledby="emailPreviewTitle">
     <div class="dialog-inner">
       <div class="dialog-header">
@@ -1043,7 +1092,7 @@ export function renderDashboardHtml(): string {
     </div>
   </dialog>
 
-  <!-- Light-Dismiss Dialog 2: Competing Seller Offers -->
+  <!-- Dialog 4: Competing Seller Offers (Sortable Table) -->
   <dialog id="sellerOffersDialog" closedby="any" aria-labelledby="sellerOffersTitle">
     <div class="dialog-inner">
       <div class="dialog-header">
@@ -1056,15 +1105,15 @@ export function renderDashboardHtml(): string {
         </form>
       </div>
       <div tabindex="0" role="region" aria-labelledby="offers-modal-caption" class="table-wrapper">
-        <table style="--label-2:'Price';--label-3:'Cashback';--label-4:'Rating';--label-5:'Badge';--label-6:'Store Link';">
+        <table id="offersTable" style="--label-2:'Price';--label-3:'Cashback';--label-4:'Rating';--label-5:'Badge';--label-6:'Store Link';">
           <caption id="offers-modal-caption">Competing seller offers for selected product</caption>
           <thead>
             <tr>
-              <th>Seller / Merchant</th>
-              <th>Price</th>
-              <th>Cashback</th>
-              <th>Rating</th>
-              <th>Placement</th>
+              <th class="sortable" data-table="offers" data-sort-key="sellerName" aria-sort="none">Seller / Merchant <span class="sort-icon">↕</span></th>
+              <th class="sortable" data-table="offers" data-sort-key="price" aria-sort="ascending">Price <span class="sort-icon">↑</span></th>
+              <th class="sortable" data-table="offers" data-sort-key="cashbackPct" aria-sort="none">Cashback <span class="sort-icon">↕</span></th>
+              <th class="sortable" data-table="offers" data-sort-key="ratingScore" aria-sort="none">Rating <span class="sort-icon">↕</span></th>
+              <th class="sortable" data-table="offers" data-sort-key="placement" aria-sort="none">Placement <span class="sort-icon">↕</span></th>
               <th>Vendor Link</th>
             </tr>
           </thead>
@@ -1078,7 +1127,7 @@ export function renderDashboardHtml(): string {
 
   <script>
     // 1. Light-dismiss fallback for browsers without native <dialog closedby="any"> support
-    // (from modern-web-guidance: light-dismiss-a-dialog)
+    // (modern-web-guidance: light-dismiss-a-dialog)
     document.querySelectorAll('dialog').forEach((dialog) => {
       if (!('closedBy' in HTMLDialogElement.prototype)) {
         dialog.addEventListener('click', (event) => {
@@ -1097,7 +1146,7 @@ export function renderDashboardHtml(): string {
     });
 
     // 2. Deferred input validation fallback & ARIA sync
-    // (from modern-web-guidance: validate-input-after-interaction)
+    // (modern-web-guidance: validate-input-after-interaction)
     const UserInvalidFallback = (() => {
       const dirtyState = new WeakMap();
       const updateState = (input) => {
@@ -1157,9 +1206,67 @@ export function renderDashboardHtml(): string {
       if (e.target && e.target.hasAttribute && e.target.hasAttribute('aria-invalid')) syncAria(e.target);
     });
 
-    // Dashboard State & Logic
+    // 3. Universal Table Sort State & Comparator
+    const tableSortState = {
+      summary: { key: 'avgEffective', dir: 'desc' },
+      deals: { key: 'effectiveDiscountPct', dir: 'desc' },
+      pages: { key: 'categoryName', dir: 'asc' },
+      config: { key: 'group', dir: 'asc' },
+      offers: { key: 'price', dir: 'asc' },
+    };
+
     let dashboardData = null;
     let showSecrets = false;
+    let isConfigEditing = false;
+    let activeOffersModalIdx = null;
+
+    function compareValues(a, b, dir) {
+      const mul = dir === 'asc' ? 1 : -1;
+      if (a === null || a === undefined) return 1;
+      if (b === null || b === undefined) return -1;
+      if (typeof a === 'number' && typeof b === 'number') {
+        return (a - b) * mul;
+      }
+      if (typeof a === 'boolean' && typeof b === 'boolean') {
+        return (Number(a) - Number(b)) * mul;
+      }
+      return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }) * mul;
+    }
+
+    function updateSortHeaders(tableName) {
+      const state = tableSortState[tableName];
+      document.querySelectorAll('th.sortable[data-table="' + tableName + '"]').forEach((th) => {
+        const key = th.dataset.sortKey;
+        const icon = th.querySelector('.sort-icon');
+        if (key === state.key) {
+          th.setAttribute('aria-sort', state.dir === 'asc' ? 'ascending' : 'descending');
+          if (icon) icon.textContent = state.dir === 'asc' ? '↑' : '↓';
+        } else {
+          th.setAttribute('aria-sort', 'none');
+          if (icon) icon.textContent = '↕';
+        }
+      });
+    }
+
+    document.querySelectorAll('th.sortable').forEach((th) => {
+      th.addEventListener('click', () => {
+        const tableName = th.dataset.table;
+        const key = th.dataset.sortKey;
+        const current = tableSortState[tableName];
+        if (current.key === key) {
+          current.dir = current.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+          current.key = key;
+          current.dir = 'asc';
+        }
+        updateSortHeaders(tableName);
+        if (tableName === 'offers' && activeOffersModalIdx !== null) {
+          renderSellerOffersModal(activeOffersModalIdx);
+        } else {
+          renderAll();
+        }
+      });
+    });
 
     function showToast(msg) {
       const el = document.getElementById('toast');
@@ -1218,30 +1325,32 @@ export function renderDashboardHtml(): string {
       document.getElementById('kpiMaxDiscount').textContent = maxDisc > 0 ? '-' + maxDisc.toFixed(2) + '%' : '0.00%';
       document.getElementById('kpiMaxDealTitle').textContent = maxDealTitle;
 
-      // Scheduler KPI & Tab
+      // Scheduler KPI & Read-Only View Card
       if (scheduler.enabled && scheduler.nextRunAt) {
         const nextDate = new Date(scheduler.nextRunAt);
         document.getElementById('kpiNextCron').textContent = nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         document.getElementById('kpiCronWindow').textContent =
-          'Base ' + scheduler.baseTime + ' + ' + scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's random jitter';
-        document.getElementById('schedNextRunText').textContent = nextDate.toLocaleString();
-        document.getElementById('schedOffsetText').textContent =
-          'Window: ' + scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + 'm] → Rolled offset: +' +
-          scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's';
+          'Base ' + scheduler.baseTime + ' + ' + scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's jitter';
+        document.getElementById('viewCronEnabled').innerHTML = '<span class="badge badge-discount">Enabled</span>';
+        document.getElementById('viewCronWindow').textContent = scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]';
+        document.getElementById('viewCronOffset').textContent = '+' + scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's';
+        document.getElementById('viewCronNext').textContent = nextDate.toLocaleString();
       } else {
         document.getElementById('kpiNextCron').textContent = 'Disabled';
-        document.getElementById('kpiCronWindow').textContent = 'Enable in Cron & Email Alerts tab';
-        document.getElementById('schedNextRunText').textContent = 'Cron Disabled';
-        document.getElementById('schedOffsetText').textContent = '';
+        document.getElementById('kpiCronWindow').textContent = 'Enable in Scraping & Targets tab';
+        document.getElementById('viewCronEnabled').innerHTML = '<span class="badge badge-muted">Disabled</span>';
+        document.getElementById('viewCronWindow').textContent = scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]';
+        document.getElementById('viewCronOffset').textContent = '—';
+        document.getElementById('viewCronNext').textContent = 'Paused';
       }
-      document.getElementById('schedLastRunText').textContent =
-        'Last scheduled run: ' + (scheduler.lastRunAt ? new Date(scheduler.lastRunAt).toLocaleString() + ' (' + scheduler.lastRunStatus + ')' : 'Never run yet');
+      document.getElementById('viewCronLast').textContent =
+        scheduler.lastRunAt ? new Date(scheduler.lastRunAt).toLocaleString() + ' (' + scheduler.lastRunStatus + ')' : 'No scheduled run yet';
 
       // Alert & DB KPI
       document.getElementById('kpiAlertThreshold').textContent = '≥ ' + thresholdPct + '% Off';
       const emailActive = String(env.values.EMAIL_ENABLED).toLowerCase() === 'true';
       document.getElementById('kpiDbStatus').textContent =
-        'Email Alerts: ' + (emailActive ? 'Enabled' : 'Standby') + ' • DB: ' + (env.values.DATABASE_URL ? 'Configured' : 'Optional');
+        'Email: ' + (emailActive ? 'Enabled' : 'Standby') + ' • DB: ' + (env.values.DATABASE_URL ? 'Connected' : 'Optional');
 
       // Live Scrape Banner
       const banner = document.getElementById('scrapeBanner');
@@ -1262,35 +1371,10 @@ export function renderDashboardHtml(): string {
         btnScrapeFast.disabled = false;
       }
 
-      // Render Summary Table
-      const summaryBody = document.getElementById('summaryTableBody');
-      if (statuses.length === 0) {
-        summaryBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No scrape results yet. Click "Scrape All Enabled" above to fetch live deals.</td></tr>';
-      } else {
-        summaryBody.innerHTML = statuses.map((st, idx) => {
-          const best = st.bestEffectiveDeal || st.bestDeal;
-          const offersCount = st.bestDealOffers ? st.bestDealOffers.length : 0;
-          const bestHtml = best
-            ? '<a href="' + escapeHtml(best.url) + '" target="_blank" rel="noopener"><strong>-' +
-              best.effectiveDiscountPct.toFixed(2) + '% ($' + (best.sellingPrice?.toFixed(2) ?? 'N/A') + ')</strong> — ' +
-              escapeHtml(best.title) + '</a>'
-            : '<span style="color:var(--text-muted);">None in stock</span>';
+      // Render Table 1: Sortable Category Status Table
+      renderSummaryTable(statuses);
 
-          return '<tr>' +
-            '<th><span class="badge badge-provider" style="margin-right:6px;">eneba</span>' + escapeHtml(st.category) + '</th>' +
-            '<td>' + st.inStockCount + ' / ' + st.totalListings + '</td>' +
-            '<td>' + st.averageDiscountPctOnDiscounted.toFixed(2) + '%</td>' +
-            '<td><span class="badge badge-discount">' + st.averageEffectiveDiscountPct.toFixed(2) + '%</span></td>' +
-            '<td>' + bestHtml + '</td>' +
-            '<td>' + (offersCount > 0
-              ? '<button type="button" class="btn btn-sm" onclick="openSellerOffers(' + idx + ')">View ' + offersCount + ' Sellers</button>'
-              : '<span style="color:var(--text-muted);">0 offers</span>') + '</td>' +
-            '<td style="color:var(--text-muted);font-size:0.8rem;">' + new Date(st.scrapedAt).toLocaleString() + '</td>' +
-          '</tr>';
-        }).join('');
-      }
-
-      // Populate Category Filter & Render Top 10 Deals Table
+      // Populate Category Filter & Render Table 2: Sortable Top Deals Table
       const catSelect = document.getElementById('categoryFilter');
       const currentCat = catSelect.value;
       const categories = statuses.map((s) => s.category);
@@ -1305,82 +1389,183 @@ export function renderDashboardHtml(): string {
         ? runner.recentLogs.map((l) => '<div>' + escapeHtml(l) + '</div>').join('')
         : 'Ready. Waiting for scrape actions.';
 
-      // Render Pages Manager Table
-      const pagesBody = document.getElementById('pagesTableBody');
-      pagesBody.innerHTML = pages.map((p) => {
+      // Render Table 3: Sortable Target Scraping Pages Table
+      renderPagesTable(pages);
+
+      // Render Table 4: Configuration View Table (and Edit Form if not actively editing)
+      renderConfigTable(env);
+      if (!isConfigEditing) {
+        renderEnvEditorFields(env);
+      }
+    }
+
+    function renderSummaryTable(statuses) {
+      const summaryBody = document.getElementById('summaryTableBody');
+      if (!statuses || statuses.length === 0) {
+        summaryBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No scrape results yet. Open "Scraping & Targets" to run a scrape.</td></tr>';
+        return;
+      }
+
+      const sort = tableSortState.summary;
+      const indexed = statuses.map((st, originalIdx) => {
+        const best = st.bestEffectiveDeal || st.bestDeal;
+        return {
+          st,
+          originalIdx,
+          category: st.category,
+          inStockCount: st.inStockCount,
+          avgDirect: st.averageDiscountPctOnDiscounted,
+          avgEffective: st.averageEffectiveDiscountPct,
+          bestEffective: best ? best.effectiveDiscountPct : -1,
+          offersCount: st.bestDealOffers ? st.bestDealOffers.length : 0,
+          scrapedAt: new Date(st.scrapedAt).getTime(),
+        };
+      });
+
+      indexed.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+
+      summaryBody.innerHTML = indexed.map((item) => {
+        const { st, originalIdx } = item;
+        const best = st.bestEffectiveDeal || st.bestDeal;
+        const offersCount = st.bestDealOffers ? st.bestDealOffers.length : 0;
+        const bestHtml = best
+          ? '<a href="' + escapeHtml(best.url) + '" target="_blank" rel="noopener"><strong>-' +
+            best.effectiveDiscountPct.toFixed(2) + '% ($' + (best.sellingPrice?.toFixed(2) ?? 'N/A') + ')</strong> — ' +
+            escapeHtml(best.title) + '</a>'
+          : '<span style="color:var(--text-muted);">None in stock</span>';
+
         return '<tr>' +
-          '<th>' + escapeHtml(p.categoryName) + '</th>' +
-          '<td><span class="badge badge-provider">' + escapeHtml(p.provider) + '</span></td>' +
-          '<td><a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener">' + escapeHtml(p.url) + '</a></td>' +
-          '<td><input type="checkbox" ' + (p.withOffers ? 'checked' : '') + ' onchange="togglePageField(\\'' + escapeHtml(p.id) + '\\', \\'withOffers\\', this.checked)" /></td>' +
-          '<td><input type="checkbox" ' + (p.enabled ? 'checked' : '') + ' onchange="togglePageField(\\'' + escapeHtml(p.id) + '\\', \\'enabled\\', this.checked)" /></td>' +
-          '<td style="display:flex;gap:0.4rem;flex-wrap:wrap;">' +
-            '<button type="button" class="btn btn-sm btn-primary" onclick="scrapeSinglePage(\\'' + escapeHtml(p.id) + '\\')">▶ Scrape</button>' +
-            '<button type="button" class="btn btn-sm btn-danger" onclick="deletePage(\\'' + escapeHtml(p.id) + '\\')">Delete</button>' +
-          '</td>' +
+          '<th><span class="badge badge-provider" style="margin-right:6px;">eneba</span>' + escapeHtml(st.category) + '</th>' +
+          '<td>' + st.inStockCount + ' / ' + st.totalListings + '</td>' +
+          '<td>' + st.averageDiscountPctOnDiscounted.toFixed(2) + '%</td>' +
+          '<td><span class="badge badge-discount">' + st.averageEffectiveDiscountPct.toFixed(2) + '%</span></td>' +
+          '<td>' + bestHtml + '</td>' +
+          '<td>' + (offersCount > 0
+            ? '<button type="button" class="btn btn-sm" onclick="openSellerOffers(' + originalIdx + ')">View ' + offersCount + ' Sellers</button>'
+            : '<span style="color:var(--text-muted);">0 offers</span>') + '</td>' +
+          '<td style="color:var(--text-muted);font-size:0.8rem;">' + new Date(st.scrapedAt).toLocaleString() + '</td>' +
         '</tr>';
       }).join('');
-
-      // Sync Scheduler & Email form inputs if not currently focused
-      if (document.activeElement?.id !== 'cronBaseTimeInput' && document.activeElement?.id !== 'cronJitterInput') {
-        document.getElementById('cronEnabledInput').checked = scheduler.enabled;
-        document.getElementById('cronBaseTimeInput').value = scheduler.baseTime;
-        document.getElementById('cronJitterInput').value = scheduler.jitterMinutes;
-      }
-
-      if (!document.getElementById('emailSettingsForm').contains(document.activeElement)) {
-        document.getElementById('emailEnabledInput').checked = String(env.values.EMAIL_ENABLED).toLowerCase() === 'true';
-        document.getElementById('emailThresholdInput').value = env.values.ALERT_DISCOUNT_THRESHOLD_PCT || '20';
-        document.getElementById('emailToInput').value = env.values.ALERT_EMAIL_TO || '';
-        document.getElementById('emailFromInput').value = env.values.ALERT_EMAIL_FROM || 'Deal Alerts <onboarding@resend.dev>';
-        document.getElementById('resendKeyInput').value = env.values.RESEND_API_KEY || '';
-      }
-
-      // Render .env Editor if not currently editing inside it
-      if (!document.getElementById('envEditorForm').contains(document.activeElement)) {
-        renderEnvEditor(env);
-      }
     }
 
     function renderDealsTable(statuses, selectedCategory, thresholdPct) {
       const dealsBody = document.getElementById('dealsTableBody');
+      const searchQ = (document.getElementById('dealSearchInput')?.value || '').trim().toLowerCase();
       const filteredStatuses = selectedCategory === 'all'
         ? statuses
         : statuses.filter((s) => s.category === selectedCategory);
 
-      const rows = [];
+      const flatDeals = [];
       filteredStatuses.forEach((st) => {
         (st.rankedDeals || []).slice(0, 10).forEach((deal, idx) => {
           const rank = idx + 1;
-          const baseline = deal.originalPrice ?? deal.faceValue;
-          const isAlertMatch = Math.max(deal.discountPct, deal.effectiveDiscountPct) >= thresholdPct;
-          rows.push(
-            '<tr>' +
-              '<th>#' + rank + ' — ' + escapeHtml(deal.title) +
-                (isAlertMatch ? ' <span class="badge badge-alert" title="Meets email alert threshold">🔥 &ge;' + thresholdPct + '%</span>' : '') +
-              '</th>' +
-              '<td>' + escapeHtml(st.category) + '</td>' +
-              '<td>' + escapeHtml(deal.region) + '</td>' +
-              '<td><strong>$' + (deal.sellingPrice?.toFixed(2) ?? 'N/A') + '</strong>' +
-                (baseline ? ' <span style="color:var(--text-muted);text-decoration:line-through;font-size:0.78rem;">$' + baseline.toFixed(2) + '</span>' : '') +
-              '</td>' +
-              '<td>-' + deal.discountPct.toFixed(2) + '%</td>' +
-              '<td><span class="badge badge-discount">-' + deal.effectiveDiscountPct.toFixed(2) + '%</span>' +
-                (deal.cashbackPct > 0 ? ' <span style="font-size:0.75rem;color:var(--text-muted);">(+' + deal.cashbackPct.toFixed(1) + '% CB → $' + (deal.effectivePrice?.toFixed(2) ?? '') + ')</span>' : '') +
-              '</td>' +
-              '<td><a href="' + escapeHtml(deal.url) + '" target="_blank" rel="noopener" class="btn btn-sm">Open Deal ↗</a></td>' +
-            '</tr>'
-          );
+          if (searchQ) {
+            const hay = (deal.title + ' ' + st.category + ' ' + deal.region).toLowerCase();
+            if (!searchQ.split(/\\s+/).every((tok) => hay.includes(tok))) return;
+          }
+          flatDeals.push({
+            rank,
+            title: deal.title,
+            category: st.category,
+            region: deal.region,
+            sellingPrice: deal.sellingPrice ?? 999999,
+            originalPrice: deal.originalPrice ?? deal.faceValue,
+            discountPct: deal.discountPct,
+            effectiveDiscountPct: deal.effectiveDiscountPct,
+            cashbackPct: deal.cashbackPct,
+            effectivePrice: deal.effectivePrice,
+            url: deal.url,
+          });
         });
       });
 
-      dealsBody.innerHTML = rows.length > 0
-        ? rows.join('')
-        : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No ranked deals to display.</td></tr>';
+      const sort = tableSortState.deals;
+      flatDeals.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+
+      if (flatDeals.length === 0) {
+        dealsBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No matching deals found.</td></tr>';
+        return;
+      }
+
+      dealsBody.innerHTML = flatDeals.map((deal) => {
+        const isAlertMatch = Math.max(deal.discountPct, deal.effectiveDiscountPct) >= thresholdPct;
+        const priceDisplay = deal.sellingPrice < 999999 ? '$' + deal.sellingPrice.toFixed(2) : 'N/A';
+        return '<tr>' +
+          '<th>#' + deal.rank + '</th>' +
+          '<td><strong>' + escapeHtml(deal.title) + '</strong>' +
+            (isAlertMatch ? ' <span class="badge badge-alert" title="Meets email alert threshold">🔥 &ge;' + thresholdPct + '%</span>' : '') +
+          '</td>' +
+          '<td>' + escapeHtml(deal.category) + '</td>' +
+          '<td>' + escapeHtml(deal.region) + '</td>' +
+          '<td><strong>' + priceDisplay + '</strong>' +
+            (deal.originalPrice ? ' <span style="color:var(--text-muted);text-decoration:line-through;font-size:0.78rem;">$' + deal.originalPrice.toFixed(2) + '</span>' : '') +
+          '</td>' +
+          '<td>-' + deal.discountPct.toFixed(2) + '%</td>' +
+          '<td><span class="badge badge-discount">-' + deal.effectiveDiscountPct.toFixed(2) + '%</span>' +
+            (deal.cashbackPct > 0 ? ' <span style="font-size:0.75rem;color:var(--text-muted);">(+' + deal.cashbackPct.toFixed(1) + '% CB → $' + (deal.effectivePrice?.toFixed(2) ?? '') + ')</span>' : '') +
+          '</td>' +
+          '<td><a href="' + escapeHtml(deal.url) + '" target="_blank" rel="noopener" class="btn btn-sm">Open Deal ↗</a></td>' +
+        '</tr>';
+      }).join('');
     }
 
-    function renderEnvEditor(env) {
+    function renderPagesTable(pages) {
+      const pagesBody = document.getElementById('pagesTableBody');
+      const sort = tableSortState.pages;
+      const sorted = [...pages].sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+
+      pagesBody.innerHTML = sorted.map((p) => {
+        return '<tr>' +
+          '<th>' + escapeHtml(p.categoryName) + '</th>' +
+          '<td><span class="badge badge-provider">' + escapeHtml(p.provider) + '</span></td>' +
+          '<td><a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener">' + escapeHtml(p.url) + '</a></td>' +
+          '<td>' + (p.withOffers ? '<span class="badge badge-discount">With Offers</span>' : '<span class="badge badge-muted">Listing Only</span>') + '</td>' +
+          '<td>' + (p.enabled ? '<span class="badge badge-discount">Enabled</span>' : '<span class="badge badge-muted">Disabled</span>') + '</td>' +
+          '<td style="display:flex;gap:0.4rem;flex-wrap:wrap;">' +
+            '<button type="button" class="btn btn-sm btn-primary" onclick="scrapeSinglePage(\\'' + escapeHtml(p.id) + '\\')">▶ Scrape</button>' +
+            '<button type="button" class="btn btn-sm" onclick="openEditPageModal(\\'' + escapeHtml(p.id) + '\\')">✎ Edit</button>' +
+            '<button type="button" class="btn btn-sm btn-danger" onclick="deletePage(\\'' + escapeHtml(p.id) + '\\')">Delete</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function renderConfigTable(env) {
       document.getElementById('envFilePathLabel').textContent = env.envFilePath || '.env';
+      const tbody = document.getElementById('configTableBody');
+      const schemaByKey = new Map((env.schema || []).map((f) => [f.key, f]));
+      const allKeys = Array.from(new Set([...schemaByKey.keys(), ...Object.keys(env.values || {})]));
+
+      const rows = allKeys.map((key) => {
+        const meta = schemaByKey.get(key);
+        const val = env.values[key] ?? '';
+        const isSecret = meta?.isSecret || /PASSWORD|SECRET|KEY|DATABASE_URL/i.test(key);
+        const displayVal = !val
+          ? '<span style="color:var(--text-muted);font-style:italic;">(not set)</span>'
+          : (isSecret && !showSecrets ? '••••••••••••••••' : '<code>' + escapeHtml(val) + '</code>');
+        return {
+          key,
+          group: meta ? meta.group : 'custom',
+          value: val,
+          displayVal,
+          description: meta ? meta.description : 'Custom environment variable',
+        };
+      });
+
+      const sort = tableSortState.config;
+      rows.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+
+      tbody.innerHTML = rows.map((r) => {
+        return '<tr>' +
+          '<th><code>' + escapeHtml(r.key) + '</code></th>' +
+          '<td><span class="badge badge-provider">' + escapeHtml(r.group) + '</span></td>' +
+          '<td>' + r.displayVal + '</td>' +
+          '<td style="color:var(--text-muted);font-size:0.82rem;">' + escapeHtml(r.description) + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function renderEnvEditorFields(env) {
       const container = document.getElementById('envFieldsContainer');
       const schemaByKey = new Map((env.schema || []).map((f) => [f.key, f]));
       const allKeys = Array.from(new Set([...schemaByKey.keys(), ...Object.keys(env.values || {})]));
@@ -1403,21 +1588,33 @@ export function renderDashboardHtml(): string {
       }).join('');
     }
 
-    document.getElementById('categoryFilter').addEventListener('change', (e) => {
-      if (!dashboardData) return;
-      const thresholdPct = Number(dashboardData.env.values.ALERT_DISCOUNT_THRESHOLD_PCT || 20);
-      renderDealsTable(dashboardData.statuses, e.target.value, thresholdPct);
-    });
+    // Filter listeners
+    document.getElementById('categoryFilter').addEventListener('change', () => renderAll());
+    document.getElementById('dealSearchInput').addEventListener('input', () => renderAll());
 
-    // Open competing seller offers modal
+    // Competing seller offers modal (with sortable columns)
     window.openSellerOffers = (statusIdx) => {
+      activeOffersModalIdx = statusIdx;
+      renderSellerOffersModal(statusIdx);
+      document.getElementById('sellerOffersDialog').showModal();
+    };
+
+    function renderSellerOffersModal(statusIdx) {
       const st = dashboardData?.statuses?.[statusIdx];
       if (!st) return;
       const best = st.bestEffectiveDeal || st.bestDeal;
       document.getElementById('sellerOffersSub').textContent =
         (best ? best.title : st.category) + ' — ' + (st.bestDealOffers?.length || 0) + ' competing merchant offers';
       const tbody = document.getElementById('sellerOffersBody');
-      tbody.innerHTML = (st.bestDealOffers || []).map((o) => {
+      const offers = [...(st.bestDealOffers || [])].map((o) => ({
+        ...o,
+        placement: o.isLowestPrice ? 1 : (o.isFeaturedOffer ? 2 : 3),
+      }));
+
+      const sort = tableSortState.offers;
+      offers.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+
+      tbody.innerHTML = offers.map((o) => {
         return '<tr>' +
           '<th>' + escapeHtml(o.sellerName) + '</th>' +
           '<td><strong>$' + Number(o.price).toFixed(2) + '</strong></td>' +
@@ -1428,8 +1625,7 @@ export function renderDashboardHtml(): string {
           '<td>' + (o.sellerUrl ? '<a href="' + escapeHtml(o.sellerUrl) + '" target="_blank" rel="noopener">Merchant Page ↗</a>' : '—') + '</td>' +
         '</tr>';
       }).join('');
-      document.getElementById('sellerOffersDialog').showModal();
-    };
+    }
 
     // Scrape triggers
     async function triggerScrape(payload) {
@@ -1451,40 +1647,58 @@ export function renderDashboardHtml(): string {
     document.getElementById('btnScrapeFast').addEventListener('click', () => triggerScrape({ withOffers: false }));
     window.scrapeSinglePage = (pageId) => triggerScrape({ pageId });
 
-    // Page Store CRUD
-    document.getElementById('addPageForm').addEventListener('submit', async (e) => {
+    // Add / Edit Scraping Page Modal
+    document.getElementById('btnOpenAddPageDialog').addEventListener('click', () => {
+      document.getElementById('pageFormDialogTitle').textContent = 'Add Scraping Page';
+      document.getElementById('editPageId').value = '';
+      document.getElementById('newPageProvider').value = 'eneba';
+      document.getElementById('newPageCategory').value = '';
+      document.getElementById('newPageUrl').value = '';
+      document.getElementById('newPageWithOffers').checked = true;
+      document.getElementById('newPageEnabled').checked = true;
+      document.getElementById('pageFormDialog').showModal();
+    });
+
+    window.openEditPageModal = (pageId) => {
+      const page = (dashboardData?.pages || []).find((p) => p.id === pageId);
+      if (!page) return;
+      document.getElementById('pageFormDialogTitle').textContent = 'Edit Scraping Page';
+      document.getElementById('editPageId').value = page.id;
+      document.getElementById('newPageProvider').value = page.provider;
+      document.getElementById('newPageCategory').value = page.categoryName;
+      document.getElementById('newPageUrl').value = page.url;
+      document.getElementById('newPageWithOffers').checked = page.withOffers;
+      document.getElementById('newPageEnabled').checked = page.enabled;
+      document.getElementById('pageFormDialog').showModal();
+    };
+
+    document.getElementById('pageModalForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const editId = document.getElementById('editPageId').value;
       const payload = {
         provider: document.getElementById('newPageProvider').value,
         categoryName: document.getElementById('newPageCategory').value,
         url: document.getElementById('newPageUrl').value,
         withOffers: document.getElementById('newPageWithOffers').checked,
+        enabled: document.getElementById('newPageEnabled').checked,
       };
-      const res = await fetch('/api/pages', {
-        method: 'POST',
+
+      const url = editId ? '/api/pages/' + encodeURIComponent(editId) : '/api/pages';
+      const method = editId ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
-        showToast('Error: ' + (data.error || 'Could not add page'));
+        showToast('Error: ' + (data.error || 'Could not save page'));
         return;
       }
-      document.getElementById('newPageCategory').value = '';
-      document.getElementById('newPageUrl').value = '';
-      showToast('Added scraping page: ' + data.page.categoryName);
+      document.getElementById('pageFormDialog').close();
+      showToast(editId ? 'Updated scraping page!' : 'Added scraping page: ' + data.page.categoryName);
       await fetchDashboard();
     });
-
-    window.togglePageField = async (id, field, value) => {
-      await fetch('/api/pages/' + encodeURIComponent(id), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value }),
-      });
-      showToast('Updated page setting (' + field + ')');
-      await fetchDashboard();
-    };
 
     window.deletePage = async (id) => {
       await fetch('/api/pages/' + encodeURIComponent(id), { method: 'DELETE' });
@@ -1492,7 +1706,16 @@ export function renderDashboardHtml(): string {
       await fetchDashboard();
     };
 
-    // Scheduler form
+    // Edit Cron Modal
+    document.getElementById('btnOpenCronDialog').addEventListener('click', () => {
+      if (dashboardData?.scheduler) {
+        document.getElementById('cronEnabledInput').checked = dashboardData.scheduler.enabled;
+        document.getElementById('cronBaseTimeInput').value = dashboardData.scheduler.baseTime;
+        document.getElementById('cronJitterInput').value = dashboardData.scheduler.jitterMinutes;
+      }
+      document.getElementById('cronFormDialog').showModal();
+    });
+
     document.getElementById('schedulerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const payload = {
@@ -1506,6 +1729,7 @@ export function renderDashboardHtml(): string {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
+        document.getElementById('cronFormDialog').close();
         showToast('Saved randomized cron schedule to .env');
         await fetchDashboard();
       }
@@ -1521,53 +1745,27 @@ export function renderDashboardHtml(): string {
       await fetchDashboard();
     });
 
-    // Email settings form
-    document.getElementById('emailSettingsForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const updates = {
-        EMAIL_ENABLED: String(document.getElementById('emailEnabledInput').checked),
-        ALERT_DISCOUNT_THRESHOLD_PCT: document.getElementById('emailThresholdInput').value,
-        ALERT_EMAIL_TO: document.getElementById('emailToInput').value,
-        ALERT_EMAIL_FROM: document.getElementById('emailFromInput').value,
-        RESEND_API_KEY: document.getElementById('resendKeyInput').value,
-      };
-      await fetch('/api/env', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates }),
-      });
-      showToast('Saved Resend email alert settings to .env');
-      await fetchDashboard();
-    });
-
-    // Email preview modal
-    async function openEmailPreview() {
-      const res = await fetch('/api/email/preview');
-      const data = await res.json();
-      document.getElementById('emailPreviewSubject').textContent = 'Subject: ' + data.subject;
-      const frame = document.getElementById('emailPreviewFrame');
-      frame.srcdoc = data.html;
-      document.getElementById('emailPreviewDialog').showModal();
+    // Configuration View Mode vs Edit Mode toggle
+    function setConfigEditMode(editing) {
+      isConfigEditing = editing;
+      document.getElementById('configViewMode').style.display = editing ? 'none' : 'block';
+      document.getElementById('configEditMode').style.display = editing ? 'block' : 'none';
+      document.getElementById('btnEnterConfigEdit').style.display = editing ? 'none' : 'inline-flex';
+      if (editing && dashboardData) {
+        renderEnvEditorFields(dashboardData.env);
+      }
     }
 
-    document.getElementById('btnPreviewEmailHeader').addEventListener('click', openEmailPreview);
-    document.getElementById('btnPreviewEmailCard').addEventListener('click', openEmailPreview);
+    document.getElementById('btnEnterConfigEdit').addEventListener('click', () => setConfigEditMode(true));
+    document.getElementById('btnCancelConfigEdit').addEventListener('click', () => setConfigEditMode(false));
 
-    document.getElementById('btnSendTestEmail').addEventListener('click', async () => {
-      const res = await fetch('/api/email/test', { method: 'POST' });
-      const data = await res.json();
-      if (data.sent) {
-        showToast('Test email sent via Resend! Message ID: ' + data.messageId);
-      } else {
-        showToast('Email not sent: ' + (data.error || data.reason));
-      }
-      await fetchDashboard();
-    });
-
-    // .env Editor save & secrets toggle
     document.getElementById('btnToggleSecrets').addEventListener('click', () => {
       showSecrets = !showSecrets;
-      if (dashboardData) renderEnvEditor(dashboardData.env);
+      document.getElementById('btnToggleSecrets').textContent = showSecrets ? '🙈 Hide Secrets' : '👁 Show Secrets';
+      if (dashboardData) {
+        renderConfigTable(dashboardData.env);
+        if (isConfigEditing) renderEnvEditorFields(dashboardData.env);
+      }
     });
 
     document.getElementById('btnSaveAllEnv').addEventListener('click', async () => {
@@ -1581,7 +1779,8 @@ export function renderDashboardHtml(): string {
         body: JSON.stringify({ updates }),
       });
       if (res.ok) {
-        showToast('Saved all configuration variables to .env');
+        setConfigEditMode(false);
+        showToast('Saved configuration to .env');
         await fetchDashboard();
       }
     });
@@ -1600,15 +1799,39 @@ export function renderDashboardHtml(): string {
       document.getElementById('customEnvVal').value = '';
       showToast('Added ' + key + ' to .env');
       await fetchDashboard();
+      if (dashboardData) renderEnvEditorFields(dashboardData.env);
     });
 
     window.removeEnvKey = async (key) => {
       await fetch('/api/env/' + encodeURIComponent(key), { method: 'DELETE' });
       showToast('Removed ' + key + ' from .env');
       await fetchDashboard();
+      if (dashboardData) renderEnvEditorFields(dashboardData.env);
     };
 
-    // Poll every 2.5s so live scrape progress and cron countdown stay up-to-date
+    // Email preview & test buttons
+    async function openEmailPreview() {
+      const res = await fetch('/api/email/preview');
+      const data = await res.json();
+      document.getElementById('emailPreviewSubject').textContent = 'Subject: ' + data.subject;
+      const frame = document.getElementById('emailPreviewFrame');
+      frame.srcdoc = data.html;
+      document.getElementById('emailPreviewDialog').showModal();
+    }
+
+    document.getElementById('btnPreviewEmailConfig').addEventListener('click', openEmailPreview);
+
+    document.getElementById('btnSendTestEmail').addEventListener('click', async () => {
+      const res = await fetch('/api/email/test', { method: 'POST' });
+      const data = await res.json();
+      if (data.sent) {
+        showToast('Test email sent via Resend! Message ID: ' + data.messageId);
+      } else {
+        showToast('Email not sent: ' + (data.error || data.reason));
+      }
+      await fetchDashboard();
+    });
+
     fetchDashboard();
     setInterval(fetchDashboard, 2500);
   </script>
