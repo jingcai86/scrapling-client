@@ -7,6 +7,7 @@ import {
   deleteEnvKey,
   ensureDefaultEnvKeys,
   filterAlertableDeals,
+  getEmailConfigStatus,
   loadEnv,
   readEnvValues,
   renderDealAlertEmailTemplate,
@@ -338,6 +339,7 @@ const isMain =
 if (isMain) {
   const instance = await createDashboardServer();
   const sched = instance.scheduler.getState();
+  const emailStatus = getEmailConfigStatus();
   console.log("=".repeat(76));
   console.log(
     `🚀 Scrapling Deal Monitor Server running at http://localhost:${instance.port}`,
@@ -345,5 +347,12 @@ if (isMain) {
   console.log(
     `⏰ Daily Randomized Cron: ${sched.enabled ? `${sched.baseTime} + 0..${sched.jitterMinutes}m jitter (Next: ${sched.nextRunAt ? new Date(sched.nextRunAt).toLocaleString() : "N/A"})` : "Disabled"}`,
   );
+  if (emailStatus.warningMessage) {
+    console.warn(`⚠️  [Email Warning] ${emailStatus.warningMessage}`);
+  } else {
+    console.log(
+      `✉️  Resend Email Alerts: Enabled (threshold >= ${emailStatus.thresholdPct}% off)`,
+    );
+  }
   console.log("=".repeat(76));
 }

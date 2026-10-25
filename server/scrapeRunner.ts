@@ -1,5 +1,6 @@
 import {
   ScraplingClient,
+  getEmailConfigStatus,
   sendDealAlertEmail,
   type DealAlertItem,
   type EmailDispatchResult,
@@ -81,6 +82,10 @@ export class ScrapeRunner {
     this.pageStore = pageStore;
     for (const st of this.pageStore.loadLatestStatuses()) {
       this.statusesByCategory.set(st.category, st);
+    }
+    const emailStatus = getEmailConfigStatus();
+    if (emailStatus.warningMessage) {
+      this.addLog(`[Startup Warning] ${emailStatus.warningMessage}`);
     }
   }
 

@@ -23,9 +23,11 @@ export {
 } from "./env.js";
 export {
   filterAlertableDeals,
+  getEmailConfigStatus,
   renderDealAlertEmailTemplate,
   sendDealAlertEmail,
   type DealAlertItem,
+  type EmailConfigStatus,
   type EmailDispatchResult,
   type EmailTemplateOutput,
 } from "./email.js";

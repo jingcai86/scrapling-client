@@ -38,6 +38,51 @@ export interface EmailDispatchResult {
   error?: string;
 }
 
+export interface EmailConfigStatus {
+  configured: boolean;
+  enabled: boolean;
+  hasApiKey: boolean;
+  hasRecipients: boolean;
+  thresholdPct: number;
+  warningMessage: string | null;
+}
+
+/**
+ * Checks whether the Resend email client is configured and ready, returning a human-readable
+ * startup warning if credentials or recipients are not set up yet.
+ */
+export function getEmailConfigStatus(): EmailConfigStatus {
+  loadEnv();
+  const enabled =
+    String(process.env.EMAIL_ENABLED ?? "false").toLowerCase() === "true";
+  const hasApiKey = Boolean(process.env.RESEND_API_KEY?.trim());
+  const hasRecipients = Boolean(process.env.ALERT_EMAIL_TO?.trim());
+  const thresholdPct =
+    Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT ?? "20") || 20;
+
+  const missing: string[] = [];
+  if (!hasApiKey) missing.push("RESEND_API_KEY");
+  if (!hasRecipients) missing.push("ALERT_EMAIL_TO");
+
+  const configured = enabled && hasApiKey && hasRecipients;
+  let warningMessage: string | null = null;
+
+  if (missing.length > 0) {
+    warningMessage = `Resend email client is not configured yet (missing ${missing.join(", ")} in .env). Deal alert emails (>= ${thresholdPct}% off) will be skipped until configured via .env or the Web UI.`;
+  } else if (!enabled) {
+    warningMessage = `Email alerts are currently disabled (EMAIL_ENABLED=false). Deal alert emails (>= ${thresholdPct}% off) will be skipped until enabled.`;
+  }
+
+  return {
+    configured,
+    enabled,
+    hasApiKey,
+    hasRecipients,
+    thresholdPct,
+    warningMessage,
+  };
+}
+
 function escapeHtml(value: string): string {
   return String(value)
     .replace(/&/g, "&amp;")
