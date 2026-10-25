@@ -3,6 +3,7 @@ import { loadEnv } from "./env.js";
 loadEnv();
 
 export type ExtractionType = "markdown" | "html" | "text";
+export type WaitSelectorState = "attached" | "detached" | "hidden" | "visible";
 
 export interface ScraplingClientOptions {
   mcpUrl?: string;
@@ -16,6 +17,29 @@ export interface FetchPageOptions {
   stealth?: boolean;
   solveCloudflare?: boolean;
   mainContentOnly?: boolean;
+  /** CSS selector to wait for in browser modes before extracting content */
+  waitSelector?: string | null;
+  waitSelectorState?: WaitSelectorState;
+  /** Extra time in ms to wait after page load finishes in browser modes */
+  waitMs?: number;
+  /** Wait until network has no active connections for 500ms */
+  networkIdle?: boolean;
+  /** Drop heavy font/image/media requests for faster browser loads */
+  disableResources?: boolean;
+  /** Add random canvas fingerprint noise in stealth mode */
+  hideCanvas?: boolean;
+  /** Prevent WebRTC local IP leak in stealth mode */
+  blockWebrtc?: boolean;
+  /** Spoof Google Search referer header (default: true) */
+  googleSearch?: boolean;
+  /** Browser fingerprint(s) to impersonate in HTTP mode */
+  impersonate?: string | string[];
+  /** Number of HTTP-level retries (default: 3) */
+  retries?: number;
+  /** Seconds between HTTP-level retries (default: 1) */
+  retryDelay?: number;
+  /** Per-request timeout in ms for browser operations */
+  pageTimeoutMs?: number;
 }
 
 export type ScraplingFetchOptions = FetchPageOptions;
@@ -41,6 +65,8 @@ export interface McpToolResult {
   url?: string;
   status?: number;
   content?: string[];
+  result?: Array<{ url?: string; status?: number; content?: string[] }>;
+  session_id?: string;
   [key: string]: unknown;
 }
 
@@ -58,9 +84,46 @@ export interface McpRpcPayload {
   };
 }
 
+const ANTI_BOT_PATTERNS = [
+  /just a moment\.\.\./i,
+  /attention required!\s*\|\s*cloudflare/i,
+  /cf-browser-verification/i,
+  /verify you are human/i,
+  /access denied/i,
+  /ddos-guard/i,
+];
+
+/**
+ * Checks whether a response appears to be blocked by a WAF/Cloudflare interstitial or empty.
+ */
+export function isBlockedOrEmptyResponse(
+  status: number,
+  content: string[],
+): boolean {
+  if (status === 403 || status === 429 || status === 503 || status === 0) {
+    return true;
+  }
+  const nonEmpty = content.filter((item) => item && item.trim().length > 0);
+  if (nonEmpty.length === 0) {
+    return true;
+  }
+  const combined = nonEmpty.join("\n");
+  if (combined.length < 500) {
+    for (const pattern of ANTI_BOT_PATTERNS) {
+      if (pattern.test(combined)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /**
  * Generic TypeScript client for Scrapling Streamable-HTTP MCP servers.
- * Configured via `SCRAPLING_MCP_URL` (and optional `SCRAPLING_MCP_AUTH_TOKEN`).
+ * Implements Scrapling's multi-tier anti-bot escalation:
+ *   Tier 1: Fast HTTP with TLS/JA3 fingerprint impersonation + retries (`make_request`)
+ *   Tier 2: Stealth headless browser with `wait_selector`, `network_idle`, and `hide_canvas` (`stealthy_fetch`)
+ *   Tier 3: Stealth headless browser with automatic Cloudflare Turnstile/interstitial solver (`solve_cloudflare: true`)
  */
 export class ScraplingClient {
   public readonly mcpUrl: string;
@@ -87,7 +150,7 @@ export class ScraplingClient {
       options.authToken ?? process.env.SCRAPLING_MCP_AUTH_TOKEN ?? "";
     this.timeoutMs =
       options.timeoutMs ??
-      Number.parseInt(process.env.SCRAPLING_TIMEOUT_MS || "60000", 10);
+      Number.parseInt(process.env.SCRAPLING_TIMEOUT_MS || "90000", 10);
   }
 
   private async mcpPost(
@@ -246,8 +309,10 @@ export class ScraplingClient {
   }
 
   /**
-   * Fetch a URL via Scrapling. Uses fast TLS-impersonated `make_request` by default
-   * and automatically falls back to headless Chromium (`stealthy_fetch`) if needed.
+   * Fetch a URL via Scrapling with automatic multi-tier escalation when a page is blocked or empty:
+   * - Tier 1: `make_request` (TLS fingerprint impersonation + stealthy headers + retries)
+   * - Tier 2: `stealthy_fetch` (Playwright/Camoufox stealth browser + `wait_selector` + `network_idle` + `hide_canvas`)
+   * - Tier 3: `stealthy_fetch` with `solve_cloudflare: true` and extended wait time
    */
   public async fetchPage(
     url: string,
@@ -259,64 +324,124 @@ export class ScraplingClient {
       stealth = false,
       solveCloudflare = false,
       mainContentOnly = false,
+      waitSelector = null,
+      waitSelectorState = "attached",
+      waitMs = 0,
+      networkIdle = true,
+      disableResources = false,
+      hideCanvas = true,
+      blockWebrtc = true,
+      googleSearch = true,
+      impersonate = ["chrome", "chrome136", "firefox", "safari"],
+      retries = 3,
+      retryDelay = 1,
+      pageTimeoutMs = 45000,
     } = options;
 
-    if (!stealth && !solveCloudflare) {
-      const reqArgs: Record<string, unknown> = {
+    // Tier 1: Fast HTTP request with TLS impersonation (unless stealth/waitSelector/solveCloudflare requested)
+    if (!stealth && !solveCloudflare && !waitSelector) {
+      try {
+        const reqArgs: Record<string, unknown> = {
+          url,
+          extraction_type: extractionType,
+          main_content_only: mainContentOnly,
+          impersonate,
+          stealthy_headers: true,
+          retries,
+          retry_delay: retryDelay,
+        };
+        if (cssSelector) {
+          reqArgs.css_selector = cssSelector;
+        }
+
+        const res = await this.callTool("make_request", reqArgs);
+        const status = Number(res.status || 0);
+        const content = Array.isArray(res.content) ? res.content : [];
+        if (!isBlockedOrEmptyResponse(status, content)) {
+          return {
+            url: typeof res.url === "string" ? res.url : url,
+            status,
+            content,
+            text: content.join("\n"),
+            firstText: content[0] ?? "",
+            backend: "mcp:make_request",
+          };
+        }
+      } catch {
+        // Escalate to Tier 2 (stealthy_fetch) on HTTP failure
+      }
+    }
+
+    // Tier 2: Stealth headless browser fetch
+    const buildStealthArgs = (
+      cfSolve: boolean,
+      extraWaitMs: number,
+      includeWaitSelector: boolean,
+    ): Record<string, unknown> => {
+      const args: Record<string, unknown> = {
         url,
         extraction_type: extractionType,
+        headless: true,
+        network_idle: networkIdle,
+        solve_cloudflare: cfSolve,
         main_content_only: mainContentOnly,
+        google_search: googleSearch,
+        hide_canvas: hideCanvas,
+        block_webrtc: blockWebrtc,
+        allow_webgl: true,
+        disable_resources: disableResources,
+        timeout: pageTimeoutMs,
+        wait: waitMs + extraWaitMs,
       };
       if (cssSelector) {
-        reqArgs.css_selector = cssSelector;
+        args.css_selector = cssSelector;
       }
+      if (includeWaitSelector && waitSelector) {
+        args.wait_selector = waitSelector;
+        args.wait_selector_state = waitSelectorState;
+      }
+      return args;
+    };
 
-      const res = await this.callTool("make_request", reqArgs);
+    try {
+      const res = await this.callTool(
+        "stealthy_fetch",
+        buildStealthArgs(solveCloudflare, 0, true),
+      );
       const status = Number(res.status || 0);
       const content = Array.isArray(res.content) ? res.content : [];
-      if (
-        status === 200 &&
-        content.some((item) => item && item.trim().length > 0)
-      ) {
-        const text = content.join("\n");
+      if (!isBlockedOrEmptyResponse(status, content)) {
         return {
           url: typeof res.url === "string" ? res.url : url,
           status,
           content,
-          text,
+          text: content.join("\n"),
           firstText: content[0] ?? "",
-          backend: "mcp:make_request",
+          backend: "mcp:stealthy_fetch",
         };
       }
+    } catch {
+      // Escalate to Tier 3 if wait_selector timed out or stealthy_fetch failed
     }
 
-    const stealthArgs: Record<string, unknown> = {
-      url,
-      extraction_type: extractionType,
-      headless: true,
-      network_idle: true,
-      solve_cloudflare: solveCloudflare,
-      main_content_only: mainContentOnly,
-    };
-    if (cssSelector) {
-      stealthArgs.css_selector = cssSelector;
-    }
-
-    const res = await this.callTool("stealthy_fetch", stealthArgs);
+    // Tier 3: Fallback with solve_cloudflare=true, extended wait time, and without strict wait_selector timeout
+    const res = await this.callTool(
+      "stealthy_fetch",
+      buildStealthArgs(true, 2000, false),
+    );
     const content = Array.isArray(res.content) ? res.content : [];
-    const text = content.join("\n");
     return {
       url: typeof res.url === "string" ? res.url : url,
       status: Number(res.status || 0),
       content,
-      text,
+      text: content.join("\n"),
       firstText: content[0] ?? "",
-      backend: "mcp:stealthy_fetch",
+      backend: "mcp:stealthy_fetch:cloudflare_fallback",
     };
   }
 
   /**
-   * Fast HTTP request with browser TLS/JA3 fingerprint impersonation.
+   * Fast HTTP request with browser TLS/JA3 fingerprint impersonation (automatically escalates to stealthy_fetch if blocked).
    */
   public async get(
     url: string,
@@ -326,7 +451,7 @@ export class ScraplingClient {
   }
 
   /**
-   * Headless browser fetch with anti-bot stealth and optional Cloudflare solver.
+   * Headless browser fetch with anti-bot stealth, optional `waitSelector`, and Cloudflare solver fallback.
    */
   public async stealthyFetch(
     url: string,

@@ -7,10 +7,12 @@ const { Pool } = pg;
 
 export interface DbPoolOptions {
   connectionString?: string;
+  connectionTimeoutMillis?: number;
 }
 
 /**
  * Creates a PostgreSQL connection pool using `DATABASE_URL` from `.env` or environment variables.
+ * Uses a short connection timeout by default so unreachable databases fail fast without blocking scrapers.
  */
 export function createPgPool(options: DbPoolOptions = {}): pg.Pool {
   loadEnv();
@@ -25,5 +27,6 @@ export function createPgPool(options: DbPoolOptions = {}): pg.Pool {
 
   return new Pool({
     connectionString: connectionString.trim(),
+    connectionTimeoutMillis: options.connectionTimeoutMillis ?? 5000,
   });
 }

@@ -2,10 +2,23 @@ import { ScraplingClient } from "../core/index.js";
 
 export const ENEBA_BASE_URL = "https://www.eneba.com";
 export const ENEBA_PRODUCT_CARD_SELECTOR = "div.pFaGHa";
+export const ENEBA_VENDOR_LINK_SELECTOR = "a[href*='/vendor/']";
 
 export interface FaceValue {
   amount: number;
   currency: string;
+}
+
+export interface SellerOffer {
+  sellerName: string;
+  sellerSlug: string;
+  sellerUrl: string;
+  ratingScore: number | null;
+  ratingLabel: string | null;
+  price: number;
+  cashbackPct: number;
+  isLowestPrice: boolean;
+  isFeaturedOffer: boolean;
 }
 
 export interface GiftCardListing {
@@ -24,23 +37,14 @@ export interface GiftCardListing {
   effectiveDiscountPct: number;
   effectivePrice: number | null;
   savingsAmount: number;
-}
-
-export interface SellerOffer {
-  sellerName: string;
-  sellerSlug: string;
-  sellerUrl: string;
-  ratingScore: number | null;
-  ratingLabel: string | null;
-  price: number;
-  cashbackPct: number;
-  isLowestPrice: boolean;
-  isFeaturedOffer: boolean;
+  offers?: SellerOffer[];
 }
 
 export interface ScrapeOptions {
   page?: number;
   useStealth?: boolean;
+  /** Scrape competing seller offers on the best deal product page (default: true) */
+  withOffers?: boolean;
 }
 
 export interface CliArgs {
@@ -213,6 +217,10 @@ export class EnebaGiftCardScraper {
 
   /**
    * Fetches raw product card Markdown blocks from an Eneba listing page.
+   * Uses Scrapling's multi-tier fallback:
+   * 1. Fast TLS-impersonated HTTP (`get`) or `stealthyFetch` with CSS selector `div.pFaGHa`
+   * 2. Full-page Markdown extraction split by product cards
+   * 3. `stealthyFetch` with `waitSelector: "div.pFaGHa"` and `solveCloudflare: true` if blocked
    */
   async fetchRawCards({
     page = 1,
@@ -223,20 +231,41 @@ export class EnebaGiftCardScraper {
       ? this.client.stealthyFetch.bind(this.client)
       : this.client.get.bind(this.client);
 
-    const response = await fetchFn(targetUrl, {
-      extractionType: "markdown",
-      cssSelector: ENEBA_PRODUCT_CARD_SELECTOR,
-    });
+    try {
+      const response = await fetchFn(targetUrl, {
+        extractionType: "markdown",
+        cssSelector: ENEBA_PRODUCT_CARD_SELECTOR,
+      });
 
-    if (response.content.length > 0) {
-      return response.content;
+      const validCards = response.content.filter((c) =>
+        c.includes("[View offers]"),
+      );
+      if (validCards.length > 0) {
+        return validCards;
+      }
+    } catch {
+      // Fall through to full-page / stealth fallback
     }
 
-    // Fallback: fetch full page markdown and split by product card blocks
-    const fullPage = await fetchFn(targetUrl, {
+    try {
+      const fullPage = await fetchFn(targetUrl, {
+        extractionType: "markdown",
+      });
+      const splitCards = this.splitFullPageMarkdownIntoCards(fullPage.text);
+      if (splitCards.length > 0) {
+        return splitCards;
+      }
+    } catch {
+      // Fall through to stealthyFetch with waitSelector & Cloudflare solver
+    }
+
+    const stealthRes = await this.client.stealthyFetch(targetUrl, {
       extractionType: "markdown",
+      cssSelector: ENEBA_PRODUCT_CARD_SELECTOR,
+      waitSelector: ENEBA_PRODUCT_CARD_SELECTOR,
+      solveCloudflare: true,
     });
-    return this.splitFullPageMarkdownIntoCards(fullPage.firstText);
+    return stealthRes.content;
   }
 
   /**
@@ -359,7 +388,9 @@ export class EnebaGiftCardScraper {
     if (!markdown) {
       return [];
     }
-    const chunks = markdown.split(/(?=!\[[^\]]*\]\(https:\/\/products\.eneba\.games\/)/g);
+    const chunks = markdown.split(
+      /(?=!\[[^\]]*\]\(https:\/\/products\.eneba\.games\/)/g,
+    );
     return chunks.filter((chunk) => chunk.includes("[View offers]"));
   }
 
@@ -394,7 +425,9 @@ export class EnebaGiftCardScraper {
       offersSectionIdx !== -1 ? markdown.slice(offersSectionIdx) : markdown;
 
     // Split on vendor avatar image links: [![Vendor](...)](/us/vendor/...)
-    const blocks = relevantMd.split(/(?=\[!\[[^\]]*\]\([^)]+\)\]\([^)]*\/vendor\/[^)]+\))/g);
+    const blocks = relevantMd.split(
+      /(?=\[!\[[^\]]*\]\([^)]+\)\]\([^)]*\/vendor\/[^)]+\))/g,
+    );
     const offers: SellerOffer[] = [];
 
     for (let i = 0; i < blocks.length; i++) {
@@ -443,7 +476,8 @@ export class EnebaGiftCardScraper {
 
       const isLowestPrice = /\bLowest price\b/i.test(cleanBlock);
       const isFeaturedOffer =
-        i <= 1 && !relevantMd.slice(0, relevantMd.indexOf(block)).includes("other offers");
+        i <= 1 &&
+        !relevantMd.slice(0, relevantMd.indexOf(block)).includes("other offers");
 
       offers.push({
         sellerName,
@@ -462,26 +496,45 @@ export class EnebaGiftCardScraper {
   }
 
   /**
-   * Fetches a product detail page using headless browser (`stealthyFetch`)
-   * and extracts the active seller offers.
+   * Fetches a product detail page using Scrapling's `stealthyFetch` + `waitSelector`
+   * and extracts competing seller offers. Never throws if the product page is unreachable;
+   * returns `[]` after fallback attempts so the main scrape result is never interrupted.
    */
   async scrapeProductOffers(productUrl: string): Promise<SellerOffer[]> {
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      // Attempt 1: Stealth browser waiting specifically for vendor links to attach in DOM
       const res = await this.client.stealthyFetch(productUrl, {
         extractionType: "markdown",
         mainContentOnly: true,
+        waitSelector: ENEBA_VENDOR_LINK_SELECTOR,
+        waitMs: 500,
       });
       const offers = this.parseProductOffersMarkdown(res.text);
       if (offers.length > 0) {
         return offers;
       }
+
+      // Attempt 2: Stealth browser with Cloudflare solver and 2000ms settle wait
+      const fallbackRes = await this.client.stealthyFetch(productUrl, {
+        extractionType: "markdown",
+        mainContentOnly: true,
+        solveCloudflare: true,
+        waitMs: 2000,
+      });
+      return this.parseProductOffersMarkdown(fallbackRes.text);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[Scrapling Warn] Could not scrape seller offers for ${productUrl}: ${msg}`,
+      );
+      return [];
     }
-    return [];
   }
 }
 
 /**
- * Parses common CLI flags (`--page`, `--top`, `--stealth`, `--json`, `--no-db`, `--with-offers`) for individual scrapers.
+ * Parses common CLI flags (`--page`, `--top`, `--stealth`, `--json`, `--no-db`, `--no-offers`, `--with-offers`).
+ * Note: `withOffers` is enabled (`true`) by default.
  */
 export function parseCliArgs(argv: string[] = process.argv.slice(2)): CliArgs {
   const args: CliArgs = {
@@ -490,7 +543,7 @@ export function parseCliArgs(argv: string[] = process.argv.slice(2)): CliArgs {
     stealth: false,
     json: false,
     noDb: false,
-    withOffers: false,
+    withOffers: true,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -507,6 +560,8 @@ export function parseCliArgs(argv: string[] = process.argv.slice(2)): CliArgs {
       args.noDb = true;
     } else if (token === "--with-offers") {
       args.withOffers = true;
+    } else if (token === "--no-offers") {
+      args.withOffers = false;
     }
   }
 

@@ -130,6 +130,18 @@ export interface SaveDealsOptions {
   maxRank?: number;
 }
 
+export interface DbPersistenceStatus {
+  saved: boolean;
+  skipped: boolean;
+  batchId?: string;
+  scrapedAt?: string;
+  scrapeRunsInserted?: number;
+  topDealsInserted?: number;
+  sellersUpserted?: number;
+  offersInserted?: number;
+  error?: string;
+}
+
 /**
  * Extracts a normalized product slug from an Eneba product URL.
  */
@@ -376,7 +388,6 @@ export async function saveProductOffersToDb(
     try {
       await client.query("BEGIN");
 
-      // Look up product_id (and latest scrape_run_id if available)
       const prodRes = await client.query<{ id: string }>(
         `SELECT id FROM eneba.products WHERE url = $1 LIMIT 1`,
         [productUrl],
@@ -464,6 +475,93 @@ export async function saveProductOffersToDb(
   } finally {
     if (ownPool) {
       await pool.end();
+    }
+  }
+}
+
+/**
+ * Non-blocking, fault-tolerant database persistence helper.
+ * If `DATABASE_URL` is missing, `--no-db` is passed, or PostgreSQL connection/insert fails for ANY reason,
+ * this catches the error, logs a warning to `stderr`, and returns a status object so the scraper
+ * always returns its full JSON/CLI results without crashing.
+ */
+export async function tryPersistScrapeResult(
+  statuses: PageDealStatus | PageDealStatus[],
+  options: {
+    noDb?: boolean;
+    maxRank?: number;
+  } = {},
+): Promise<DbPersistenceStatus> {
+  const statusList = Array.isArray(statuses) ? statuses : [statuses];
+
+  if (options.noDb || !process.env.DATABASE_URL?.trim()) {
+    const status: DbPersistenceStatus = {
+      saved: false,
+      skipped: true,
+    };
+    for (const st of statusList) {
+      st.dbStatus = status;
+    }
+    return status;
+  }
+
+  let pool: pg.Pool | null = null;
+  try {
+    pool = createPgPool();
+    const savedDeals = await savePageDealsToDb(statusList, {
+      pool,
+      maxRank: options.maxRank ?? 10,
+    });
+
+    let totalSellers = 0;
+    let totalOffers = 0;
+    for (const st of statusList) {
+      const best = st.bestEffectiveDeal || st.bestDeal;
+      if (best && st.bestDealOffers && st.bestDealOffers.length > 0) {
+        const offerRes = await saveProductOffersToDb(
+          best.url,
+          st.bestDealOffers,
+          {
+            pool,
+            scrapedAt: savedDeals.scrapedAt,
+          },
+        );
+        totalSellers += offerRes.sellersUpserted;
+        totalOffers += offerRes.offersInserted;
+      }
+    }
+
+    const dbStatus: DbPersistenceStatus = {
+      saved: true,
+      skipped: false,
+      batchId: savedDeals.batchId,
+      scrapedAt: savedDeals.scrapedAt,
+      scrapeRunsInserted: savedDeals.scrapeRunsInserted,
+      topDealsInserted: savedDeals.topDealsInserted,
+      sellersUpserted: totalSellers,
+      offersInserted: totalOffers,
+    };
+    for (const st of statusList) {
+      st.dbStatus = dbStatus;
+    }
+    return dbStatus;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[PostgreSQL Warn] Database persistence failed (continuing without DB): ${message}`,
+    );
+    const dbStatus: DbPersistenceStatus = {
+      saved: false,
+      skipped: false,
+      error: message,
+    };
+    for (const st of statusList) {
+      st.dbStatus = dbStatus;
+    }
+    return dbStatus;
+  } finally {
+    if (pool) {
+      await pool.end().catch(() => {});
     }
   }
 }

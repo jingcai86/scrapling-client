@@ -46,5 +46,5 @@ npx tsx eneba/runAll.ts
 - `--top <N>`: Number of top ranked deals to display per page (default: `10`)
 - `--stealth`: Use Scrapling's headless Chromium `stealthy_fetch` instead of fast HTTP TLS impersonation
 - `--json`: Output structured JSON instead of the formatted table report
-- `--no-db`: Skip storing results in PostgreSQL even if `DATABASE_URL` is set
-- `--with-offers`: Follow the best deal's product URL with headless Chromium to scrape competing vendor offers and populate `eneba.sellers` & `eneba.product_offers`
+- `--no-offers`: Skip scraping competing seller offers on the #1 best deal page (enabled by default)
+- `--no-db`: Skip storing results in PostgreSQL even if `DATABASE_URL` is set (note: if PostgreSQL is unreachable or fails for any reason, the scraper logs a warning to `stderr` and still returns the full JSON/CLI result)

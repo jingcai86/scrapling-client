@@ -1,8 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ScraplingClient } from "../core/index.js";
-import { EnebaGiftCardScraper, parseCliArgs } from "./baseScraper.js";
-import { savePageDealsToDb, saveProductOffersToDb } from "./db.js";
+import { parseCliArgs } from "./baseScraper.js";
+import { tryPersistScrapeResult } from "./db.js";
 import { formatPageStatusReport, type PageDealStatus } from "./pageStats.js";
 import { scrapePlayStationGiftCards } from "./playstationGiftCard.js";
 import { scrapeNintendoGiftCards } from "./nintendoGiftCard.js";
@@ -57,10 +57,16 @@ if (isMain) {
     const status = await scrapeFn({
       page: args.page,
       useStealth: args.stealth,
+      withOffers: args.withOffers,
       client,
     });
     statuses.push(status);
   }
+
+  const dbStatus = await tryPersistScrapeResult(statuses, {
+    noDb: args.noDb,
+    maxRank: 10,
+  });
 
   if (args.json) {
     console.log(JSON.stringify(statuses, null, 2));
@@ -70,39 +76,10 @@ if (isMain) {
       console.log("");
     }
     console.log(formatCrossCategorySummary(statuses));
-  }
-
-  if (!args.noDb && process.env.DATABASE_URL) {
-    const saved = await savePageDealsToDb(statuses, { maxRank: 10 });
-    if (!args.json) {
+    if (dbStatus.saved) {
       console.log(
-        `\n[PostgreSQL] Stored ${saved.topDealsInserted} top deals across ${saved.scrapeRunsInserted} page runs into schema "eneba" (eneba.scrape_runs, eneba.products, eneba.top_deals) at ${saved.scrapedAt} (batch: ${saved.batchId})`,
+        `\n[PostgreSQL] Stored ${dbStatus.topDealsInserted} top deals & ${dbStatus.offersInserted ?? 0} competing seller offers across ${dbStatus.scrapeRunsInserted} page runs into schema "eneba" (batch: ${dbStatus.batchId})`,
       );
-    }
-
-    if (args.withOffers) {
-      const offerScraper = new EnebaGiftCardScraper({
-        categoryName: "Offers",
-        categoryUrl: "https://www.eneba.com",
-        client,
-      });
-      let totalSellers = 0;
-      let totalOffers = 0;
-      for (const st of statuses) {
-        const best = st.bestEffectiveDeal || st.bestDeal;
-        if (!best) continue;
-        const offers = await offerScraper.scrapeProductOffers(best.url);
-        const offerRes = await saveProductOffersToDb(best.url, offers, {
-          scrapedAt: saved.scrapedAt,
-        });
-        totalSellers += offerRes.sellersUpserted;
-        totalOffers += offerRes.offersInserted;
-      }
-      if (!args.json) {
-        console.log(
-          `[PostgreSQL] Stored ${totalOffers} competing seller offers (${totalSellers} seller records) into eneba.sellers & eneba.product_offers`,
-        );
-      }
     }
   }
 }

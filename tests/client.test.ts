@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ScraplingClient, loadEnv } from "../core/index.js";
+import {
+  ScraplingClient,
+  isBlockedOrEmptyResponse,
+  loadEnv,
+} from "../core/index.js";
 
 describe("ScraplingClient & loadEnv", () => {
   it("loads variables from a .env file without overriding existing env vars", () => {
@@ -58,5 +62,19 @@ describe("ScraplingClient & loadEnv", () => {
     const parsed = client._parseRpcResponse(rawSse);
     assert.equal(parsed.result?.structuredContent?.status, 200);
     assert.deepEqual(parsed.result?.structuredContent?.content, ["hello"]);
+  });
+
+  it("detects blocked or Cloudflare interstitial responses for automatic escalation", () => {
+    assert.equal(isBlockedOrEmptyResponse(403, ["Forbidden"]), true);
+    assert.equal(isBlockedOrEmptyResponse(429, ["Too Many Requests"]), true);
+    assert.equal(isBlockedOrEmptyResponse(200, []), true);
+    assert.equal(
+      isBlockedOrEmptyResponse(200, ["Just a moment... Verify you are human"]),
+      true,
+    );
+    assert.equal(
+      isBlockedOrEmptyResponse(200, ["Valid product card content"]),
+      false,
+    );
   });
 });

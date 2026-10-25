@@ -2,8 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   EnebaGiftCardScraper,
+  parseCliArgs,
   parseFaceValueFromTitle,
 } from "./baseScraper.js";
+import { tryPersistScrapeResult } from "./db.js";
 import { analyzePageDeals, formatPageStatusReport } from "./pageStats.js";
 import type { ScraplingClient } from "../core/index.js";
 
@@ -46,9 +48,21 @@ Sold out
 
 [View offers](/us/other-amazon-gift-card-25-usd-key-united-states)`;
 
-const mockClient = { mcpUrl: "http://localhost:8000/mcp" } as unknown as ScraplingClient;
+const mockClient = {
+  mcpUrl: "http://localhost:8000/mcp",
+} as unknown as ScraplingClient;
 
 describe("Eneba Gift Card Parser & Page Status Analytics", () => {
+  it("defaults withOffers to true and top to 10 in CLI args", () => {
+    const defaults = parseCliArgs([]);
+    assert.equal(defaults.withOffers, true);
+    assert.equal(defaults.top, 10);
+
+    const disabled = parseCliArgs(["--no-offers", "--no-db"]);
+    assert.equal(disabled.withOffers, false);
+    assert.equal(disabled.noDb, true);
+  });
+
   it("parses face value and currency from product titles", () => {
     assert.deepEqual(
       parseFaceValueFromTitle(
@@ -127,10 +141,8 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
     assert.equal(status.inStockCount, 2);
     assert.equal(status.outOfStockCount, 1);
     assert.equal(status.discountedCount, 2);
-    // Average of 14% and 10% = 12%
     assert.equal(status.averageDiscountPctOnDiscounted, 12);
     assert.equal(status.averageDiscountPctAllInStock, 12);
-    // Effective discounts: 18.3% and 19% -> avg 18.65%
     assert.equal(status.averageEffectiveDiscountPct, 18.65);
 
     assert.ok(status.bestDeal);
@@ -141,5 +153,29 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
     const report = formatPageStatusReport(status, { topN: 2 });
     assert.match(report, /Avg Discount \(Discounted\)\s*:\s*12\.00%/);
     assert.match(report, /Best Direct Discount Deal on Page:/);
+  });
+
+  it("does not throw if PostgreSQL connection fails during tryPersistScrapeResult", async () => {
+    const originalDbUrl = process.env.DATABASE_URL;
+    process.env.DATABASE_URL =
+      "postgresql://invalid:invalid@127.0.0.1:1/unreachable_db";
+
+    try {
+      const status = analyzePageDeals([], {
+        category: "Sample Gift Cards",
+        pageUrl: "https://www.eneba.com/us/store/sample-gift-cards",
+      });
+      const dbRes = await tryPersistScrapeResult(status);
+      assert.equal(dbRes.saved, false);
+      assert.equal(dbRes.skipped, false);
+      assert.ok(dbRes.error);
+      assert.equal(status.dbStatus?.saved, false);
+    } finally {
+      if (originalDbUrl !== undefined) {
+        process.env.DATABASE_URL = originalDbUrl;
+      } else {
+        delete process.env.DATABASE_URL;
+      }
+    }
   });
 });

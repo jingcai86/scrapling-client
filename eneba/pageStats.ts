@@ -1,4 +1,5 @@
-import type { GiftCardListing } from "./baseScraper.js";
+import type { GiftCardListing, SellerOffer } from "./baseScraper.js";
+import type { DbPersistenceStatus } from "./db.js";
 
 export interface RankedGiftCardListing extends GiftCardListing {
   rank: number;
@@ -23,9 +24,13 @@ export interface PageDealStatus {
   maxEffectiveDiscountPct: number;
   bestDeal: GiftCardListing | null;
   bestEffectiveDeal: GiftCardListing | null;
+  /** Competing third-party seller offers for the page's #1 best deal */
+  bestDealOffers: SellerOffer[];
   /** Top N (default 10) deals ranked 1..10 */
   topDeals: RankedGiftCardListing[];
   rankedDeals: GiftCardListing[];
+  /** Optional database persistence status (never blocks returning the scrape result) */
+  dbStatus?: DbPersistenceStatus;
 }
 
 export interface AnalyzePageOptions {
@@ -34,6 +39,7 @@ export interface AnalyzePageOptions {
   pageNumber?: number;
   scrapedAt?: Date | string;
   topN?: number;
+  bestDealOffers?: SellerOffer[];
 }
 
 export interface FormatReportOptions {
@@ -59,10 +65,13 @@ export function analyzePageDeals(
     pageNumber = 1,
     scrapedAt = new Date(),
     topN = 10,
+    bestDealOffers = [],
   }: AnalyzePageOptions = {},
 ): PageDealStatus {
   const scrapedAtIso =
-    scrapedAt instanceof Date ? scrapedAt.toISOString() : new Date(scrapedAt).toISOString();
+    scrapedAt instanceof Date
+      ? scrapedAt.toISOString()
+      : new Date(scrapedAt).toISOString();
 
   const totalListings = listings.length;
   const inStockListings = listings.filter(
@@ -109,6 +118,10 @@ export function analyzePageDeals(
   const bestDeal = rankedByDirectDiscount[0] ?? null;
   const bestEffectiveDeal = rankedDeals[0] ?? null;
 
+  if (bestEffectiveDeal && bestDealOffers.length > 0) {
+    bestEffectiveDeal.offers = bestDealOffers;
+  }
+
   const maxDiscountPct = bestDeal ? bestDeal.discountPct : 0;
   const maxEffectiveDiscountPct = bestEffectiveDeal
     ? bestEffectiveDeal.effectiveDiscountPct
@@ -137,6 +150,7 @@ export function analyzePageDeals(
     maxEffectiveDiscountPct,
     bestDeal,
     bestEffectiveDeal,
+    bestDealOffers,
     topDeals,
     rankedDeals,
   };
@@ -191,6 +205,28 @@ export function formatPageStatusReport(
     );
   } else {
     lines.push(subDivider, `Best Deal on Page: No in-stock listings found.`);
+  }
+
+  if (status.bestDealOffers && status.bestDealOffers.length > 0) {
+    const targetTitle =
+      status.bestEffectiveDeal?.title ?? status.bestDeal?.title ?? "Best Deal";
+    lines.push(
+      subDivider,
+      `Competing Seller Offers for #1 Deal (${targetTitle}):`,
+    );
+    status.bestDealOffers.forEach((offer, idx) => {
+      const tags: string[] = [];
+      if (offer.isLowestPrice) tags.push("LOWEST PRICE");
+      if (offer.isFeaturedOffer) tags.push("FEATURED");
+      const tagStr = tags.length > 0 ? ` [${tags.join(", ")}]` : "";
+      const ratingStr =
+        offer.ratingScore !== null
+          ? `${offer.ratingScore.toFixed(2)} (${offer.ratingLabel ?? "Rated"})`
+          : "Unrated";
+      lines.push(
+        `  ${idx + 1}. ${formatPrice(offer.price)} (CB: ${offer.cashbackPct.toFixed(1)}%) — ${offer.sellerName} [Rating: ${ratingStr}]${tagStr}`,
+      );
+    });
   }
 
   const dealsToShow = status.rankedDeals.slice(0, topN);

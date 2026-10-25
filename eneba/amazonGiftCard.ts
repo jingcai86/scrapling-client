@@ -6,8 +6,9 @@ import {
   buildPageUrl,
   parseCliArgs,
   type ScrapeOptions,
+  type SellerOffer,
 } from "./baseScraper.js";
-import { savePageDealsToDb, saveProductOffersToDb } from "./db.js";
+import { tryPersistScrapeResult } from "./db.js";
 import {
   analyzePageDeals,
   formatPageStatusReport,
@@ -33,19 +34,34 @@ export class AmazonGiftCardScraper extends EnebaGiftCardScraper {
 }
 
 /**
- * Scrapes Amazon gift cards on Eneba and returns page status & best deal analytics.
+ * Scrapes Amazon gift cards on Eneba and returns page status, top 10 deals, and best deal seller offers.
  */
 export async function scrapeAmazonGiftCards({
   page = 1,
   useStealth = false,
+  withOffers = true,
   client,
 }: ScrapeOptions & { client?: ScraplingClient } = {}): Promise<PageDealStatus> {
   const scraper = new AmazonGiftCardScraper({ client });
   const listings = await scraper.scrapePage({ page, useStealth });
+  const initialStatus = analyzePageDeals(listings, {
+    category: scraper.categoryName,
+    pageUrl: buildPageUrl(scraper.categoryUrl, page),
+    pageNumber: page,
+  });
+
+  let bestDealOffers: SellerOffer[] = [];
+  const targetBest = initialStatus.bestEffectiveDeal || initialStatus.bestDeal;
+  if (withOffers && targetBest) {
+    bestDealOffers = await scraper.scrapeProductOffers(targetBest.url);
+  }
+
   return analyzePageDeals(listings, {
     category: scraper.categoryName,
     pageUrl: buildPageUrl(scraper.categoryUrl, page),
     pageNumber: page,
+    scrapedAt: initialStatus.scrapedAt,
+    bestDealOffers,
   });
 }
 
@@ -58,32 +74,22 @@ if (isMain) {
   const status = await scrapeAmazonGiftCards({
     page: args.page,
     useStealth: args.stealth,
+    withOffers: args.withOffers,
+  });
+
+  const dbStatus = await tryPersistScrapeResult(status, {
+    noDb: args.noDb,
+    maxRank: 10,
   });
 
   if (args.json) {
     console.log(JSON.stringify(status, null, 2));
   } else {
     console.log(formatPageStatusReport(status, { topN: args.top }));
-  }
-
-  if (!args.noDb && process.env.DATABASE_URL) {
-    const saved = await savePageDealsToDb(status, { maxRank: 10 });
-    if (!args.json) {
+    if (dbStatus.saved) {
       console.log(
-        `[PostgreSQL] Stored ${saved.topDealsInserted} rows (rank 1-${saved.topDealsInserted}) into schema "eneba" at ${saved.scrapedAt} (batch: ${saved.batchId})`,
+        `[PostgreSQL] Stored ${dbStatus.topDealsInserted} top deals & ${dbStatus.offersInserted ?? 0} seller offers into schema "eneba" (batch: ${dbStatus.batchId})`,
       );
-    }
-    if (args.withOffers && status.bestEffectiveDeal) {
-      const scraper = new AmazonGiftCardScraper();
-      const offers = await scraper.scrapeProductOffers(status.bestEffectiveDeal.url);
-      const offerRes = await saveProductOffersToDb(status.bestEffectiveDeal.url, offers, {
-        scrapedAt: saved.scrapedAt,
-      });
-      if (!args.json) {
-        console.log(
-          `[PostgreSQL] Stored ${offerRes.offersInserted} seller offers into eneba.sellers & eneba.product_offers`,
-        );
-      }
     }
   }
 }
