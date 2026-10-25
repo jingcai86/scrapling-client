@@ -69,6 +69,28 @@ docker compose up -d --build
 
 The `docker-compose.yml` mounts `./.env` and `./data` into the container so any `.env` changes or scraping pages added via the Web UI are persisted on the host.
 
+## Deal Search API (for Hermes / External Agents)
+
+Both `GET /api/deals/search` and `POST /api/deals/search` (also aliased at `/api/deals`) allow searching deals by product/category name, date/timestamp (such as `yesterday`, `today`, `24h`, `7d`, `YYYY-MM-DD`, or an ISO/Unix timestamp), and `best=true`:
+
+```bash
+# 1. Search by name (e.g., Apple Gift Card)
+curl "http://localhost:3000/api/deals/search?q=apple+gift+card"
+
+# 2. Get the #1 best deal from yesterday (across all categories)
+curl "http://localhost:3000/api/deals/search?date=yesterday&best=true"
+
+# 3. Combine both: Best Apple Gift Card deal from yesterday (or a specific timestamp)
+curl "http://localhost:3000/api/deals/search?q=apple+gift+card&timestamp=yesterday&best=true"
+
+# 4. POST JSON payload (for tool/agent callers)
+curl -X POST "http://localhost:3000/api/deals/search" \
+  -H "Content-Type: application/json" \
+  -d '{"q": "apple gift card", "date": "yesterday", "bestOnly": true}'
+```
+
+The response includes a top-level `bestDeal` object (the highest effective discount match) as well as the `deals` array and `totalMatches`.
+
 ## Scripts
 
 - `npm start`: Start the web dashboard and randomized cron server (`http://localhost:3000`)

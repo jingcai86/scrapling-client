@@ -177,6 +177,102 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       assert.equal(prevRes.status, 200);
       const prev = (await prevRes.json()) as { html: string; subject: string };
       assert.match(prev.html, /Scrapling Deal Monitor Alert/);
+
+      // 6. Seed cached statuses (including a yesterday snapshot and today snapshot) and test /api/deals/search for Hermes
+      const yesterdayDate = new Date();
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      yesterdayDate.setHours(19, 30, 0, 0);
+      const yesterdayIso = yesterdayDate.toISOString();
+
+      app.pageStore.saveLatestStatuses([
+        {
+          category: "Apple Gift Cards",
+          pageUrl: "https://www.eneba.com/us/store/apple-gift-cards",
+          pageNumber: 1,
+          scrapedAt: yesterdayIso,
+          totalListings: 2,
+          inStockCount: 2,
+          outOfStockCount: 0,
+          discountedCount: 2,
+          averageDiscountPctOnDiscounted: 8,
+          averageDiscountPctAllInStock: 8,
+          averageEffectiveDiscountPct: 10,
+          maxDiscountPct: 10,
+          maxEffectiveDiscountPct: 12,
+          bestDeal: null,
+          bestEffectiveDeal: null,
+          bestDealOffers: [],
+          topDeals: [],
+          rankedDeals: [
+            {
+              category: "Apple Gift Cards",
+              title: "Apple Gift Card 100 USD Key UNITED STATES",
+              url: "https://www.eneba.com/us/apple-100",
+              region: "United States",
+              sellingPrice: 90,
+              originalPrice: 100,
+              faceValue: 100,
+              faceValueCurrency: "USD",
+              listedDiscountPct: 10,
+              cashbackPct: 2,
+              inStock: true,
+              discountPct: 10,
+              effectiveDiscountPct: 11.8,
+              effectivePrice: 88.2,
+              savingsAmount: 10,
+            },
+            {
+              category: "Apple Gift Cards",
+              title: "Apple Gift Card 50 USD Key UNITED STATES",
+              url: "https://www.eneba.com/us/apple-50",
+              region: "United States",
+              sellingPrice: 47,
+              originalPrice: 50,
+              faceValue: 50,
+              faceValueCurrency: "USD",
+              listedDiscountPct: 6,
+              cashbackPct: 0,
+              inStock: true,
+              discountPct: 6,
+              effectiveDiscountPct: 6,
+              effectivePrice: 47,
+              savingsAmount: 3,
+            },
+          ],
+        },
+      ]);
+
+      // Re-instantiate runner cache or test via newly loaded statuses
+      const app2 = await createDashboardServer({
+        port: 0,
+        dataDir: path.join(tmpDir, "data"),
+        envPath: tmpEnvPath,
+      });
+
+      try {
+        const base2 = `http://127.0.0.1:${app2.port}`;
+
+        // Search by name + yesterday + best=true
+        const searchRes = await fetch(
+          `${base2}/api/deals/search?q=${encodeURIComponent("apple gift card")}&date=yesterday&best=true`,
+        );
+        assert.equal(searchRes.status, 200);
+        const searchData = (await searchRes.json()) as {
+          totalMatches: number;
+          bestDeal: { title: string; effectiveDiscountPct: number } | null;
+          deals: Array<{ title: string }>;
+        };
+        assert.equal(searchData.totalMatches, 2);
+        assert.equal(searchData.deals.length, 1);
+        assert.ok(searchData.bestDeal);
+        assert.equal(
+          searchData.bestDeal.title,
+          "Apple Gift Card 100 USD Key UNITED STATES",
+        );
+        assert.equal(searchData.bestDeal.effectiveDiscountPct, 11.8);
+      } finally {
+        await app2.close();
+      }
     } finally {
       await app.close();
       if (originalDbUrl !== undefined) {
