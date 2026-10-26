@@ -23,58 +23,81 @@ export function renderEnebaTab(): string {
         </div>
       </div>
 
-      <!-- Eneba Provider Configuration (scrapling.eneba_config) -->
-      <div class="card" style="margin-block-end:1.25rem;">
-        <div class="card-header" style="flex-wrap:wrap;gap:1rem;">
-          <div>
-            <h2 class="card-title" style="display:flex;align-items:center;gap:0.5rem;">
-              <span>⚙️ Eneba Scraper &amp; Alert Configuration</span>
-              <span class="badge badge-discount" style="font-size:0.75rem;">scrapling.eneba_config</span>
-            </h2>
-            <div style="font-size:0.8rem;color:var(--text-muted);">
-              Configure how many top deals to pull per category and the minimum discount % to trigger email alerts. Stored in PostgreSQL <code>scrapling.eneba_config</code>.
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.85rem;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:0.4rem;">
-              <label for="enebaTopDealsLimitInput" style="font-size:0.83rem;font-weight:600;color:var(--text);">
-                Pull Limit:
-              </label>
-              <input
-                type="number"
-                id="enebaTopDealsLimitInput"
-                min="1"
-                max="50"
-                step="1"
-                value="10"
-                style="width:72px;padding:0.35rem 0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:700;text-align:center;"
-                aria-label="Number of top deals to pull per category"
-              />
-            </div>
-            <div style="display:flex;align-items:center;gap:0.4rem;">
-              <label for="enebaAlertThresholdInput" style="font-size:0.83rem;font-weight:600;color:var(--text);">
-                Alert Threshold (%):
-              </label>
-              <input
-                type="number"
-                id="enebaAlertThresholdInput"
-                min="0"
-                max="100"
-                step="1"
-                value="20"
-                style="width:72px;padding:0.35rem 0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:700;text-align:center;"
-                aria-label="Minimum discount percent to trigger alert email"
-              />
-            </div>
-            <button type="button" class="btn btn-sm btn-primary" id="btnSaveEnebaConfig">
-              Save Configuration
-            </button>
-            <button type="button" class="btn btn-sm" onclick="triggerScrape({})">
-              ▶ Scrape Now
-            </button>
-          </div>
+      <!-- Eneba Provider Action Bar & Modal Trigger -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-block-end:1.25rem;">
+        <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;color:var(--text-muted);">
+          <span class="badge badge-discount" style="font-size:0.75rem;">scrapling.eneba_config</span>
+          <span>Pull Limit: <strong id="enebaPullLimitBadge">10</strong> • Alert Threshold: <strong id="enebaAlertThreshBadge">20%</strong></span>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <button type="button" class="btn btn-sm" id="btnOpenEnebaConfigModal">
+            ⚙️ Scraper Configuration
+          </button>
+          <button type="button" class="btn btn-sm btn-primary" onclick="triggerScrape({})">
+            ▶ Scrape Now
+          </button>
         </div>
       </div>
+
+      <!-- Eneba Configuration Modal Dialog -->
+      <dialog id="enebaConfigModal" closedby="any" aria-labelledby="enebaModalTitle" class="modal-dialog">
+        <div class="modal-header">
+          <div>
+            <h3 id="enebaModalTitle" style="margin:0;font-size:1.1rem;display:flex;align-items:center;gap:0.5rem;">
+              <span>⚙️ Eneba Scraper &amp; Alert Configuration</span>
+              <span class="badge badge-discount" style="font-size:0.75rem;">scrapling.eneba_config</span>
+            </h3>
+            <p style="margin:0.25rem 0 0;font-size:0.82rem;color:var(--text-muted);">
+              Configure how many top deals to pull per category and the minimum discount % to trigger alerts.
+            </p>
+          </div>
+          <form method="dialog">
+            <button type="submit" class="btn btn-sm">✕ Close</button>
+          </form>
+        </div>
+        <div class="modal-body" style="padding:1.25rem 0;display:flex;flex-direction:column;gap:1rem;">
+          <div>
+            <label for="enebaTopDealsLimitInput" style="display:block;margin-bottom:0.35rem;font-weight:600;font-size:0.88rem;">
+              Pull Limit (Top Deals per Category):
+            </label>
+            <input
+              type="number"
+              id="enebaTopDealsLimitInput"
+              min="1"
+              max="50"
+              step="1"
+              value="10"
+              style="width:100%;box-sizing:border-box;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);"
+              aria-label="Number of top deals to pull per category"
+            />
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">Range: 1–50 (default: 10)</div>
+          </div>
+          <div>
+            <label for="enebaAlertThresholdInput" style="display:block;margin-bottom:0.35rem;font-weight:600;font-size:0.88rem;">
+              Alert Threshold (%):
+            </label>
+            <input
+              type="number"
+              id="enebaAlertThresholdInput"
+              min="0"
+              max="100"
+              step="1"
+              value="20"
+              style="width:100%;box-sizing:border-box;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);"
+              aria-label="Minimum discount percent to trigger alert email"
+            />
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">Minimum discount % to trigger alert emails (default: 20%)</div>
+          </div>
+        </div>
+        <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:0.5rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+          <form method="dialog" style="display:inline;">
+            <button type="submit" class="btn btn-sm">Cancel</button>
+          </form>
+          <button type="button" class="btn btn-sm btn-primary" id="btnSaveEnebaConfig">
+            Save Configuration
+          </button>
+        </div>
+      </dialog>
 
       <!-- Eneba Table 1: Category Status & Competing Seller Offers (Sortable) -->
       <div class="card">

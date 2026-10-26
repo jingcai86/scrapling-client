@@ -283,6 +283,40 @@ interface ConfigRow {
                 </div>
               </div>
             </div>
+
+            <!-- Group 5: Eneba Scraper & Alert Configuration (scrapling.eneba_config) -->
+            <div class="section-box">
+              <h3>5. Eneba Scraper &amp; Alert Configuration (scrapling.eneba_config)</h3>
+              <p class="section-hint">PostgreSQL table <code>scrapling.eneba_config</code> controlling category deal limits and alerts.</p>
+              <div class="fields-grid">
+                <div class="field-item">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>ENEBA_TOP_DEALS_LIMIT</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [(ngModel)]="editFormValues['ENEBA_TOP_DEALS_LIMIT']"
+                      min="1"
+                      max="50"
+                    />
+                    <mat-hint>Number of top-ranked deals to persist per category (1–50)</mat-hint>
+                  </mat-form-field>
+                </div>
+                <div class="field-item">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>ENEBA_ALERT_THRESHOLD_PCT</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [(ngModel)]="editFormValues['ENEBA_ALERT_THRESHOLD_PCT']"
+                      min="0"
+                      max="100"
+                    />
+                    <mat-hint>Minimum discount % on Eneba to trigger alert email (0–100)</mat-hint>
+                  </mat-form-field>
+                </div>
+              </div>
+            </div>
           </div>
         </mat-card-content>
       </mat-card>
@@ -488,9 +522,35 @@ export class ConfigDialogComponent implements DoCheck {
       };
     });
 
+    const eneba = data.enebaConfig || {};
+    if (eneba['top_deals_limit']) {
+      rows.push({
+        key: 'ENEBA_TOP_DEALS_LIMIT',
+        group: 'eneba',
+        value: eneba['top_deals_limit'],
+        description: 'Number of top-ranked deals to persist per category in PostgreSQL (scrapling.eneba_config).',
+        isSecret: false,
+        disabled: false,
+      });
+    }
+    if (eneba['alert_discount_threshold_pct']) {
+      rows.push({
+        key: 'ENEBA_ALERT_THRESHOLD_PCT',
+        group: 'eneba',
+        value: eneba['alert_discount_threshold_pct'],
+        description: 'Minimum direct discount % on Eneba to trigger alert email (scrapling.eneba_config).',
+        isSecret: false,
+        disabled: false,
+      });
+    }
+
     this.sortedConfig = rows;
     if (!this.isEditMode && Object.keys(this.editFormValues).length === 0) {
-      this.editFormValues = { ...values };
+      this.editFormValues = {
+        ...values,
+        ENEBA_TOP_DEALS_LIMIT: eneba['top_deals_limit'] || '10',
+        ENEBA_ALERT_THRESHOLD_PCT: eneba['alert_discount_threshold_pct'] || '20',
+      };
     }
   }
 
@@ -527,10 +587,22 @@ export class ConfigDialogComponent implements DoCheck {
   saveAllConfig() {
     const updates: Record<string, string> = {};
     for (const [key, val] of Object.entries(this.editFormValues)) {
+      if (key === 'ENEBA_TOP_DEALS_LIMIT' || key === 'ENEBA_ALERT_THRESHOLD_PCT') continue;
       const item = this.sortedConfig.find((r) => r.key === key);
       if (item && !item.disabled) {
         updates[key] = val;
       }
+    }
+
+    if (this.editFormValues['ENEBA_TOP_DEALS_LIMIT'] || this.editFormValues['ENEBA_ALERT_THRESHOLD_PCT']) {
+      const enebaUpdates: Record<string, string> = {};
+      if (this.editFormValues['ENEBA_TOP_DEALS_LIMIT']) {
+        enebaUpdates['top_deals_limit'] = String(this.editFormValues['ENEBA_TOP_DEALS_LIMIT']);
+      }
+      if (this.editFormValues['ENEBA_ALERT_THRESHOLD_PCT']) {
+        enebaUpdates['alert_discount_threshold_pct'] = String(this.editFormValues['ENEBA_ALERT_THRESHOLD_PCT']);
+      }
+      this.apiService.updateEnebaConfig(enebaUpdates).subscribe();
     }
 
     this.apiService.updateEnv(updates).subscribe({

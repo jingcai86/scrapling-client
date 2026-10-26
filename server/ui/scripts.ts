@@ -578,6 +578,8 @@ export function renderClientScripts(): string {
       }
       const badge = document.getElementById('enebaPullLimitBadge');
       if (badge) badge.textContent = pullLimit;
+      const threshBadge = document.getElementById('enebaAlertThreshBadge');
+      if (threshBadge) threshBadge.textContent = enebaAlertThreshold + '%';
 
       const catSelect = document.getElementById('enebaCategoryFilter');
       const currentCat = catSelect.value;
@@ -854,11 +856,21 @@ export function renderClientScripts(): string {
           dashboardData.enebaConfig = data.config;
         }
         showToast('Eneba configuration saved! (Limit: ' + pullVal + ', Alert: ≥' + threshVal + '%) in scrapling.eneba_config');
+        const modal = document.getElementById('enebaConfigModal');
+        if (modal && typeof modal.close === 'function') modal.close();
         renderAll();
       } catch (err) {
         showToast('Failed to update Eneba config: ' + (err.message || err));
       }
     });
+
+    const btnOpenEnebaConfigModal = document.getElementById('btnOpenEnebaConfigModal');
+    if (btnOpenEnebaConfigModal) {
+      btnOpenEnebaConfigModal.addEventListener('click', () => {
+        const modal = document.getElementById('enebaConfigModal');
+        if (modal && typeof modal.showModal === 'function') modal.showModal();
+      });
+    }
 
     // Competing seller offers modal (with sortable columns)
     window.openSellerOffers = (statusIdx) => {

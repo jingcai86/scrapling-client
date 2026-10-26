@@ -12,6 +12,7 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { SellerOffersDialogComponent } from '../../dialogs/seller-offers-dialog.component';
+import { EnebaConfigDialogComponent } from '../../dialogs/eneba-config-dialog.component';
 import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/dashboard.model';
 
 @Component({
@@ -75,36 +76,25 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
         </mat-card>
       </div>
 
-      <!-- Eneba Scraper & Alert Config Card -->
-      <mat-card class="config-card" appearance="outlined">
-        <mat-card-header class="config-header">
-          <div>
-            <mat-card-title class="card-title-badge">
-              <span>⚙️ Eneba Scraper & Alert Configuration</span>
-              <span class="schema-badge">scrapling.eneba_config</span>
-            </mat-card-title>
-            <mat-card-subtitle>
-              Configure how many top deals to pull per category and the minimum discount % to trigger alerts. Stored in PostgreSQL <code>scrapling.eneba_config</code>.
-            </mat-card-subtitle>
-          </div>
-          <div class="config-actions">
-            <mat-form-field appearance="outline" class="mini-field">
-              <mat-label>Pull Limit</mat-label>
-              <input matInput type="number" [(ngModel)]="topDealsLimit" min="1" max="50" />
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="mini-field">
-              <mat-label>Alert Threshold (%)</mat-label>
-              <input matInput type="number" [(ngModel)]="alertThresholdPct" min="0" max="100" />
-            </mat-form-field>
-            <button mat-flat-button color="primary" (click)="saveEnebaConfig()">
-              Save Configuration
-            </button>
-            <button mat-stroked-button (click)="triggerScrape()">
-              ▶ Scrape Now
-            </button>
-          </div>
-        </mat-card-header>
-      </mat-card>
+      <!-- Eneba Action Bar -->
+      <div class="eneba-action-bar">
+        <div class="config-summary-pill">
+          <span class="schema-badge">scrapling.eneba_config</span>
+          <span class="summary-text">
+            Pull Limit: <strong>{{ topDealsLimit }}</strong> • Alert Threshold: <strong>{{ alertThresholdPct }}%</strong>
+          </span>
+        </div>
+        <div class="action-buttons">
+          <button mat-stroked-button type="button" class="action-btn" (click)="openEnebaConfigModal()">
+            <span class="material-symbols-outlined btn-icon">settings</span>
+            Configuration
+          </button>
+          <button mat-flat-button color="primary" type="button" class="action-btn" (click)="triggerScrape()">
+            <span class="material-symbols-outlined btn-icon">play_arrow</span>
+            Scrape Now
+          </button>
+        </div>
+      </div>
 
       <!-- Category Summary Table -->
       <mat-card class="main-card" appearance="outlined">
@@ -298,23 +288,20 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
         text-overflow: ellipsis;
       }
     }
-    .config-card {
-      background: var(--mat-sys-surface-container);
-      border-radius: 12px;
-    }
-    .config-header {
+    .eneba-action-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 1rem;
-      width: 100%;
+      padding: 0.25rem 0;
     }
-    .card-title-badge {
+    .config-summary-pill {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-size: 1.1rem;
+      gap: 0.75rem;
+      font-size: 0.88rem;
+      color: var(--mat-sys-on-surface-variant);
     }
     .schema-badge {
       font-size: 0.75rem;
@@ -324,15 +311,19 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
       color: var(--mat-sys-on-secondary-container);
       font-weight: 700;
     }
-    .config-actions {
+    .action-buttons {
       display: flex;
       align-items: center;
       gap: 0.75rem;
       flex-wrap: wrap;
     }
-    .mini-field {
-      width: 130px;
-      margin-bottom: -1.25em;
+    .action-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.35rem !important;
+    }
+    .btn-icon {
+      font-size: 1.15rem !important;
     }
     .main-card {
       background: var(--mat-sys-surface-container);
@@ -523,6 +514,24 @@ export class EnebaComponent {
   formatDate(dateStr?: string): string {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleString();
+  }
+
+  openEnebaConfigModal() {
+    const dialogRef = this.dialog.open(EnebaConfigDialogComponent, {
+      data: {
+        topDealsLimit: this.topDealsLimit,
+        alertThresholdPct: this.alertThresholdPct,
+      },
+      width: '500px',
+    });
+
+    dialogRef.afterClosed().subscribe((res) => {
+      if (res) {
+        this.topDealsLimit = res.topDealsLimit;
+        this.alertThresholdPct = res.alertThresholdPct;
+        this.saveEnebaConfig();
+      }
+    });
   }
 
   saveEnebaConfig() {
