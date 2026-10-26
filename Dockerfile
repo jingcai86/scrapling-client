@@ -1,5 +1,7 @@
 FROM node:20-alpine
 
+RUN apk add --no-cache tzdata
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -14,6 +16,7 @@ RUN mkdir -p /app/data
 
 ENV NODE_ENV=production
 ENV PORT=80
+ENV TZ=America/Los_Angeles
 
 EXPOSE 80
 

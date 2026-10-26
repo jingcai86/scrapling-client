@@ -126,6 +126,22 @@ export function renderDealAlertEmailTemplate(
     options.thresholdPct ??
     (Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT ?? "20") || 20);
   const generatedAt = options.generatedAt ?? new Date().toISOString();
+  const timeZone = process.env.TZ?.trim() || "America/Los_Angeles";
+  let formattedGeneratedAt: string;
+  try {
+    formattedGeneratedAt = new Date(generatedAt).toLocaleString("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZoneName: "short",
+    });
+  } catch {
+    formattedGeneratedAt = new Date(generatedAt).toLocaleString("en-US");
+  }
 
   const bestDiscount = deals.reduce(
     (max, d) => Math.max(max, d.effectiveDiscountPct, d.discountPct),
@@ -204,7 +220,7 @@ export function renderDealAlertEmailTemplate(
         ${deals.length} Deal${deals.length === 1 ? "" : "s"} Exceeded ${thresholdPct}% Discount Threshold
       </h1>
       <p style="margin:0;font-size:13px;opacity:0.9;">
-        Scraped at ${escapeHtml(new Date(generatedAt).toLocaleString())}
+        Scraped at ${escapeHtml(formattedGeneratedAt)}
       </p>
     </div>
 
@@ -238,7 +254,7 @@ export function renderDealAlertEmailTemplate(
 
   const textLines = [
     subject,
-    `Scraped at: ${generatedAt}`,
+    `Scraped at: ${formattedGeneratedAt}`,
     `Discount threshold: >= ${thresholdPct}%`,
     "-".repeat(72),
     ...deals.map(

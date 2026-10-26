@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     ports:
       - "${PORT:-80}:80"
+    environment:
+      - TZ=${TZ:-America/Los_Angeles}
     env_file:
       - .env
     volumes:

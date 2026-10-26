@@ -25,6 +25,15 @@ export const ENV_SCHEMA: EnvFieldMeta[] = [
     inputType: "number",
   },
   {
+    key: "TZ",
+    label: "Timezone (IANA)",
+    group: "server",
+    description:
+      "Server timezone for cron scheduling, logs, and email timestamps (e.g., America/Los_Angeles for PST/PDT).",
+    defaultValue: "America/Los_Angeles",
+    inputType: "text",
+  },
+  {
     key: "SCRAPLING_MCP_URL",
     label: "Scrapling MCP Endpoint",
     group: "scrapling",
@@ -170,7 +179,7 @@ export function loadEnv(customPath?: string): void {
       const content = fs.readFileSync(envPath, "utf8");
       const parsed = parseEnvContent(content);
       for (const [key, value] of Object.entries(parsed)) {
-        if (process.env[key] === undefined) {
+        if (process.env[key] === undefined || key === "TZ") {
           process.env[key] = value;
         }
       }
@@ -178,6 +187,9 @@ export function loadEnv(customPath?: string): void {
     } catch {
       // Ignore unreadable .env files
     }
+  }
+  if (!process.env.TZ) {
+    process.env.TZ = "America/Los_Angeles";
   }
 }
 
