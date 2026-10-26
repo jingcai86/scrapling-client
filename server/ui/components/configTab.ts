@@ -1,5 +1,22 @@
 export function renderConfigTab(): string {
   return `    <section id="tab-config" class="tab-panel">
+      <!-- Appearance & Theme Selector Card -->
+      <div class="card" style="margin-block-end: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">🎨 Interface Appearance &amp; Color Theme</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Choose your preferred UI theme. <strong>System Default</strong> synchronizes with your device's light or dark mode.
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button type="button" class="btn btn-sm config-theme-choice-btn" data-theme-mode="system">🖥️ System Default</button>
+            <button type="button" class="btn btn-sm config-theme-choice-btn" data-theme-mode="light">☀️ Light Theme</button>
+            <button type="button" class="btn btn-sm config-theme-choice-btn" data-theme-mode="dark">🌙 Dark Theme</button>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <div>

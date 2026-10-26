@@ -12,6 +12,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { EmailPreviewDialogComponent } from '../../dialogs/email-preview-dialog.component';
 import type { EnvFieldSchema } from '../../core/models/dashboard.model';
 
@@ -44,6 +45,60 @@ interface ConfigRow {
   ],
   template: `
     <div class="page-container">
+      <!-- Appearance & Theme Selector Card -->
+      <mat-card class="theme-card" appearance="outlined">
+        <mat-card-header class="theme-card-header">
+          <div class="card-title-flex">
+            <span class="material-symbols-outlined header-icon">palette</span>
+            <div>
+              <mat-card-title>Interface Appearance & Color Theme</mat-card-title>
+              <mat-card-subtitle>
+                Choose how Scrapling Monitor looks on your screen. <strong>System Default</strong> automatically synchronizes with your device's light or dark mode setting.
+              </mat-card-subtitle>
+            </div>
+          </div>
+        </mat-card-header>
+        <mat-card-content class="theme-card-content">
+          <div class="theme-button-group">
+            <button
+              mat-stroked-button
+              type="button"
+              class="theme-choice-btn"
+              [class.active]="themeService.themeMode() === 'system'"
+              (click)="themeService.setTheme('system')"
+            >
+              <span class="material-symbols-outlined btn-icon">desktop_windows</span>
+              <span class="btn-text">System Default</span>
+              <span class="material-symbols-outlined checkmark" *ngIf="themeService.themeMode() === 'system'">check_circle</span>
+            </button>
+
+            <button
+              mat-stroked-button
+              type="button"
+              class="theme-choice-btn"
+              [class.active]="themeService.themeMode() === 'light'"
+              (click)="themeService.setTheme('light')"
+            >
+              <span class="material-symbols-outlined btn-icon">light_mode</span>
+              <span class="btn-text">Light Theme</span>
+              <span class="material-symbols-outlined checkmark" *ngIf="themeService.themeMode() === 'light'">check_circle</span>
+            </button>
+
+            <button
+              mat-stroked-button
+              type="button"
+              class="theme-choice-btn"
+              [class.active]="themeService.themeMode() === 'dark'"
+              (click)="themeService.setTheme('dark')"
+            >
+              <span class="material-symbols-outlined btn-icon">dark_mode</span>
+              <span class="btn-text">Dark Theme</span>
+              <span class="material-symbols-outlined checkmark" *ngIf="themeService.themeMode() === 'dark'">check_circle</span>
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="card-header-flex">
           <div>
@@ -226,6 +281,60 @@ interface ConfigRow {
       flex-direction: column;
       gap: 1.5rem;
     }
+    .theme-card {
+      background: var(--mat-sys-surface-container);
+      border-radius: 12px;
+      padding-bottom: 0.5rem;
+    }
+    .theme-card-header {
+      padding: 1.25rem 1.25rem 0.75rem;
+    }
+    .card-title-flex {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .header-icon {
+      font-size: 1.75rem;
+      color: var(--mat-sys-primary);
+    }
+    .theme-card-content {
+      padding: 0 1.25rem 1rem;
+    }
+    .theme-button-group {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .theme-choice-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.5rem !important;
+      padding: 0.5rem 1.25rem !important;
+      height: 42px !important;
+      border-radius: 24px !important;
+      font-weight: 600 !important;
+      font-size: 0.9rem !important;
+      border-color: var(--mat-sys-outline-variant) !important;
+      color: var(--mat-sys-on-surface-variant) !important;
+      background: var(--mat-sys-surface-container-high) !important;
+      transition: all 0.2s ease !important;
+
+      &.active {
+        border-color: var(--mat-sys-primary) !important;
+        background: var(--mat-sys-primary-container) !important;
+        color: var(--mat-sys-primary) !important;
+      }
+    }
+    .btn-icon {
+      font-size: 1.25rem !important;
+    }
+    .checkmark {
+      font-size: 1.15rem !important;
+      color: var(--mat-sys-primary) !important;
+      margin-left: 0.25rem;
+    }
     .main-card {
       background: var(--mat-sys-surface-container);
       border-radius: 12px;
@@ -373,6 +482,7 @@ export class ConfigComponent {
 
   constructor(
     private apiService: ApiService,
+    public themeService: ThemeService,
     private dialog: MatDialog,
     private snackBar: MatSnackBar,
   ) {}
