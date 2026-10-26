@@ -188,32 +188,10 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
                 <ng-container matColumnDef="bestDiscountSeen">
                   <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-deal">Best Discount Seen</th>
                   <td mat-cell *matCellDef="let s" class="col-best-deal">
-                    <div *ngIf="s.bestDeal" class="best-deal-cell">
-                      <div class="deal-primary-line">
-                        <span class="badge badge-discount">-{{ s.bestDeal.discountPct.toFixed(1) }}%</span>
-                        <strong class="deal-price-text">\${{ s.bestDeal.sellingPrice.toFixed(2) }}</strong>
-                        <span class="deal-savings-text" *ngIf="getSavings(s)">(Save \${{ getSavings(s) }})</span>
-                        <a
-                          *ngIf="s.bestDeal.url"
-                          [href]="s.bestDeal.url"
-                          target="_blank"
-                          rel="noopener"
-                          (click)="$event.stopPropagation()"
-                          class="deal-link-icon"
-                          title="Open deal on Eneba"
-                        >↗</a>
-                      </div>
-                      <div class="deal-meta-line">
-                        <span class="deal-seller-text" *ngIf="getSellerName(s)">
-                          <span class="seller-label">Seller:</span> {{ getSellerName(s) }}
-                        </span>
-                        <span class="offers-mini-chip" *ngIf="s.bestDealOffers?.length">
-                          <mat-icon class="offers-xs-icon">storefront</mat-icon>
-                          {{ s.bestDealOffers.length }} offers
-                        </span>
-                      </div>
-                    </div>
-                    <span *ngIf="!s.bestDeal" class="muted">—</span>
+                    <span class="badge badge-discount-peak" *ngIf="s.bestDeal && s.bestDeal.discountPct > 0">
+                      -{{ s.bestDeal.discountPct.toFixed(1) }}%
+                    </span>
+                    <span class="muted" *ngIf="!s.bestDeal || s.bestDeal.discountPct <= 0">—</span>
                   </td>
                 </ng-container>
 
@@ -223,11 +201,76 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
                   *matRowDef="let row; columns: categoryColumns;"
                   class="category-table-row clickable-row"
                   (click)="openOffers(row)"
-                  [matTooltip]="getCategoryTooltip(row)"
-                  matTooltipClass="multiline-tooltip"
-                  [matTooltipPosition]="'above'"
+                  (mouseenter)="showRowTooltip($event, row)"
+                  (mousemove)="moveRowTooltip($event)"
+                  (mouseleave)="hideRowTooltip()"
                 ></tr>
               </table>
+            </div>
+
+            <!-- Rich Category Diagnostics Hover Card / Floating Tooltip -->
+            <div
+              *ngIf="hoveredRow"
+              class="category-hover-card"
+              [style.top.px]="tooltipTop"
+              [style.left.px]="tooltipLeft"
+            >
+              <!-- Row 1: Category Header Eyebrow & Scrape Timestamp (0.72rem) -->
+              <div class="hover-card-header">
+                <span class="hover-cat-badge">{{ hoveredRow.category }}</span>
+                <span class="hover-time">
+                  <mat-icon class="hover-time-icon">schedule</mat-icon>
+                  {{ formatDate(hoveredRow.scrapedAt) }}
+                </span>
+              </div>
+
+              <!-- Deal Content if bestDeal exists -->
+              <ng-container *ngIf="hoveredRow.bestDeal">
+                <!-- Row 2: Prominent Deal Title (0.94rem bold) -->
+                <div class="hover-deal-title">
+                  {{ hoveredRow.bestDeal.title }}
+                </div>
+
+                <!-- Row 3: Key Metrics Grid (1.05rem / 0.92rem / 0.88rem) -->
+                <div class="hover-metrics-grid">
+                  <div class="hover-metric-box metric-discount">
+                    <span class="metric-label">Best Discount</span>
+                    <span class="metric-value">-{{ hoveredRow.bestDeal.discountPct.toFixed(1) }}%</span>
+                  </div>
+                  <div class="hover-metric-box">
+                    <span class="metric-label">Deal Price</span>
+                    <span class="metric-value price-val">\${{ hoveredRow.bestDeal.sellingPrice.toFixed(2) }}</span>
+                  </div>
+                  <div class="hover-metric-box" *ngIf="getSavings(hoveredRow)">
+                    <span class="metric-label">You Save</span>
+                    <span class="metric-value savings-val">\${{ getSavings(hoveredRow) }}</span>
+                  </div>
+                </div>
+
+                <!-- Row 4: Merchant / Seller Line (0.78rem) -->
+                <div class="hover-seller-row" *ngIf="getSellerName(hoveredRow)">
+                  <mat-icon class="hover-row-icon">storefront</mat-icon>
+                  <span class="seller-label">Top Merchant:</span>
+                  <strong class="seller-name">{{ getSellerName(hoveredRow) }}</strong>
+                  <span class="seller-rating" *ngIf="hoveredRow.bestDeal.lowestSellerRating">
+                    ★ {{ hoveredRow.bestDeal.lowestSellerRating }}
+                  </span>
+                </div>
+              </ng-container>
+
+              <!-- No Deal Fallback -->
+              <div *ngIf="!hoveredRow.bestDeal" class="hover-no-deal">
+                No active discount deals currently in stock for this category.
+              </div>
+
+              <!-- Row 5: Footer Actions & Competing Offers (0.74rem) -->
+              <div class="hover-card-footer">
+                <span class="offers-summary">
+                  <mat-icon class="footer-icon">groups</mat-icon>
+                  {{ hoveredRow.bestDealOffers?.length || 0 }} competing seller offers
+                </span>
+                <span class="click-hint">Click row to view all offers →</span>
+              </div>
             </div>
           </mat-card-content>
         </mat-card>
@@ -456,88 +499,215 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       min-width: 920px !important;
     }
     .col-cat {
-      width: 24% !important;
-      min-width: 85px !important;
+      width: 42% !important;
+      min-width: 100px !important;
       white-space: nowrap !important;
     }
     .col-avg {
-      width: 18% !important;
-      min-width: 75px !important;
+      width: 29% !important;
+      min-width: 80px !important;
       white-space: nowrap !important;
     }
     .col-best-deal {
-      width: 58% !important;
-      min-width: 0 !important;
+      width: 29% !important;
+      min-width: 80px !important;
+      white-space: nowrap !important;
     }
-    .best-deal-cell {
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
-      padding: 0.25rem 0;
-    }
-    .deal-primary-line {
-      display: flex;
-      align-items: center;
-      gap: 0.45rem;
-      flex-wrap: wrap;
-    }
-    .deal-price-text {
-      color: var(--mat-sys-on-surface);
-      font-size: 0.88rem;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-    .deal-savings-text {
+    .badge-discount-peak {
+      background: rgba(16, 185, 129, 0.16);
       color: #10b981;
-      font-size: 0.76rem;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .deal-link-icon {
-      color: var(--mat-sys-primary);
-      text-decoration: none;
-      font-size: 0.85rem;
+      border: 1px solid rgba(16, 185, 129, 0.32);
       font-weight: 700;
-      line-height: 1;
-      margin-left: 0.15rem;
+      font-size: 0.84rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      display: inline-block;
+      letter-spacing: -0.01em;
+    }
+    .category-table-row {
+      cursor: pointer;
+      height: 48px;
+      transition: background-color 0.15s ease;
+
+      &:nth-child(even) {
+        background-color: rgba(255, 255, 255, 0.02);
+      }
 
       &:hover {
-        text-decoration: underline;
+        background-color: var(--mat-sys-surface-container-high) !important;
       }
     }
-    .deal-meta-line {
+    .category-hover-card {
+      position: fixed;
+      z-index: 10000;
+      pointer-events: none;
+      width: 360px;
+      max-width: calc(100vw - 32px);
+      background: color-mix(in srgb, var(--mat-sys-surface-container-highest, #1e293b) 95%, #0f172a);
+      border: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.14));
+      border-radius: 12px;
+      box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.45), 0 6px 16px -2px rgba(0, 0, 0, 0.25);
+      padding: 0.95rem 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      animation: popoverFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes popoverFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .hover-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.08));
+      padding-bottom: 0.5rem;
+    }
+    .hover-cat-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--mat-sys-primary);
+      background: rgba(99, 102, 241, 0.14);
+      padding: 0.18rem 0.55rem;
+      border-radius: 5px;
+    }
+    .hover-time {
       display: flex;
       align-items: center;
-      gap: 0.45rem;
-      flex-wrap: wrap;
-    }
-    .deal-seller-text {
-      font-size: 0.74rem;
+      gap: 0.3rem;
+      font-size: 0.72rem;
       color: var(--mat-sys-on-surface-variant);
-      white-space: nowrap;
+      font-weight: 500;
+    }
+    .hover-time-icon {
+      font-size: 0.85rem !important;
+      width: 0.85rem !important;
+      height: 0.85rem !important;
+      opacity: 0.75;
+    }
+    .hover-deal-title {
+      font-size: 0.94rem;
+      font-weight: 700;
+      line-height: 1.35;
+      color: var(--mat-sys-on-surface);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .hover-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.15));
+      padding: 0.55rem 0.65rem;
+      border-radius: 8px;
+    }
+    .hover-metric-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
 
-      .seller-label {
-        opacity: 0.8;
+      .metric-label {
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: var(--mat-sys-on-surface-variant);
+        letter-spacing: 0.02em;
+      }
+
+      .metric-value {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--mat-sys-on-surface);
+      }
+
+      &.metric-discount .metric-value {
+        color: #10b981;
+        font-size: 1.05rem;
+      }
+
+      .savings-val {
+        color: #10b981;
+      }
+
+      .price-val {
+        color: var(--mat-sys-on-surface);
       }
     }
-    .offers-mini-chip {
-      display: inline-flex;
+    .hover-seller-row {
+      display: flex;
       align-items: center;
-      gap: 0.2rem;
-      font-size: 0.7rem;
-      font-weight: 600;
-      padding: 0.12rem 0.42rem;
-      border-radius: 4px;
-      background: rgba(99, 102, 241, 0.1);
-      color: var(--mat-sys-primary);
-      border: 1px solid rgba(99, 102, 241, 0.22);
-      white-space: nowrap;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      color: var(--mat-sys-on-surface-variant);
 
-      .offers-xs-icon {
-        font-size: 13px !important;
-        width: 13px !important;
-        height: 13px !important;
-        line-height: 13px !important;
+      .hover-row-icon {
+        font-size: 0.95rem !important;
+        width: 0.95rem !important;
+        height: 0.95rem !important;
+        opacity: 0.8;
+      }
+
+      .seller-label {
+        opacity: 0.85;
+      }
+
+      .seller-name {
+        color: var(--mat-sys-on-surface);
+        font-weight: 600;
+      }
+
+      .seller-rating {
+        color: #f59e0b;
+        font-weight: 600;
+        margin-left: 0.2rem;
+      }
+    }
+    .hover-no-deal {
+      font-size: 0.82rem;
+      color: var(--mat-sys-on-surface-variant);
+      font-style: italic;
+      padding: 0.4rem 0;
+    }
+    .hover-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.08));
+      padding-top: 0.5rem;
+      font-size: 0.74rem;
+
+      .offers-summary {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        color: #818cf8;
+        font-weight: 600;
+
+        .footer-icon {
+          font-size: 0.9rem !important;
+          width: 0.9rem !important;
+          height: 0.9rem !important;
+        }
+      }
+
+      .click-hint {
+        color: var(--mat-sys-on-surface-variant);
+        font-size: 0.7rem;
+        font-style: italic;
       }
     }
     .cat-title {
@@ -749,6 +919,10 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   filteredDeals: (RankedDeal & { scrapedAt?: string })[] = [];
   availableCategories: string[] = [];
 
+  hoveredRow: PageDealStatus | null = null;
+  tooltipTop = 0;
+  tooltipLeft = 0;
+
   constructor(
     private apiService: ApiService,
     private dialog: MatDialog,
@@ -784,6 +958,40 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
       setTimeout(() => chart.resize(), 60);
       setTimeout(() => chart.resize(), 250);
     });
+  }
+
+  showRowTooltip(event: MouseEvent, row: PageDealStatus): void {
+    this.hoveredRow = row;
+    this.updateTooltipCoords(event);
+  }
+
+  moveRowTooltip(event: MouseEvent): void {
+    if (this.hoveredRow) {
+      this.updateTooltipCoords(event);
+    }
+  }
+
+  hideRowTooltip(): void {
+    this.hoveredRow = null;
+  }
+
+  private updateTooltipCoords(event: MouseEvent): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const cardWidth = 360;
+    const cardHeight = 220;
+    const margin = 16;
+    let x = event.clientX + 16;
+    let y = event.clientY + 14;
+
+    if (x + cardWidth > window.innerWidth - margin) {
+      x = event.clientX - cardWidth - 16;
+    }
+    if (y + cardHeight > window.innerHeight - margin) {
+      y = event.clientY - cardHeight - 14;
+    }
+
+    this.tooltipLeft = Math.max(margin, x);
+    this.tooltipTop = Math.max(margin, y);
   }
 
   ngAfterViewInit() {
