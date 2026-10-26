@@ -15,6 +15,7 @@
     "build:ui": "npm run --prefix frontend build",
     "dev:ui": "npm run --prefix frontend start",
     "test": "tsx --test */*.test.ts",
+    "db:init": "tsx scripts/init-db.ts",
     "typecheck": "tsc --noEmit",
     "build": "npm run build:ui && tsc"
   },
