@@ -64,25 +64,27 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
             <div class="kpi-sub truncate" [title]="bestDealTitle()">{{ bestDealTitle() }}</div>
           </mat-card-content>
         </mat-card>
-      </div>
 
-      <!-- Eneba Action Bar -->
-      <div class="eneba-action-bar">
-        <div class="config-summary-pill">
-          <span class="summary-text">
-            Pull Limit: <strong>{{ topDealsLimit }}</strong> • Alert Threshold: <strong>{{ alertThresholdPct }}%</strong>
-          </span>
-        </div>
-        <div class="action-buttons">
-          <button mat-stroked-button type="button" class="action-btn" (click)="openEnebaConfigModal()">
-            <span class="material-symbols-outlined btn-icon">settings</span>
-            Configuration
-          </button>
-          <button mat-flat-button color="primary" type="button" class="action-btn" (click)="triggerScrape()">
-            <span class="material-symbols-outlined btn-icon">play_arrow</span>
-            Scrape Now
-          </button>
-        </div>
+        <mat-card class="kpi-card controls-card" appearance="outlined">
+          <mat-card-header>
+            <mat-card-subtitle>Provider Controls</mat-card-subtitle>
+            <mat-card-title class="kpi-value kpi-controls-value">
+              Pull: {{ topDealsLimit }} • Alert: {{ alertThresholdPct }}%
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="kpi-controls-actions">
+              <button mat-stroked-button type="button" class="action-btn" (click)="openEnebaConfigModal()">
+                <span class="material-symbols-outlined btn-icon">settings</span>
+                Configuration
+              </button>
+              <button mat-flat-button color="primary" type="button" class="action-btn" (click)="triggerScrape()">
+                <span class="material-symbols-outlined btn-icon">play_arrow</span>
+                Scrape Now
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
       </div>
 
       <!-- Category Summary Table -->
@@ -277,20 +279,26 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
         text-overflow: ellipsis;
       }
     }
-    .eneba-action-bar {
+    .controls-card {
       display: flex;
+      flex-direction: column;
       justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-      padding: 0.25rem 0;
     }
-    .config-summary-pill {
+    .kpi-controls-value {
+      font-size: 1.05rem !important;
+      font-weight: 700;
+      color: var(--mat-sys-on-surface);
+      margin: 0.25rem 0;
+    }
+    .kpi-controls-actions {
       display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      font-size: 0.88rem;
-      color: var(--mat-sys-on-surface-variant);
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+      .action-btn {
+        flex: 1;
+        white-space: nowrap;
+      }
     }
     .schema-badge {
       font-size: 0.75rem;

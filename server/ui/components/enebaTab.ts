@@ -16,20 +16,21 @@ export function renderEnebaTab(): string {
           <div class="kpi-value" style="color:#34d399;" id="enebaKpiBestPct">—</div>
           <div class="kpi-sub" id="enebaKpiBestTitle">—</div>
         </div>
-      </div>
-
-      <!-- Eneba Provider Action Bar & Modal Trigger -->
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-block-end:1.25rem;">
-        <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;color:var(--text-muted);">
-          <span>Pull Limit: <strong id="enebaPullLimitBadge">10</strong> • Alert Threshold: <strong id="enebaAlertThreshBadge">20%</strong></span>
-        </div>
-        <div style="display:flex;gap:0.75rem;">
-          <button type="button" class="btn btn-sm" id="btnOpenEnebaConfigModal">
-            ⚙️ Scraper Configuration
-          </button>
-          <button type="button" class="btn btn-sm btn-primary" onclick="triggerScrape({})">
-            ▶ Scrape Now
-          </button>
+        <div class="kpi-card" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <div class="kpi-label">Provider Controls</div>
+            <div class="kpi-sub" style="margin-top:0.35rem;font-size:0.83rem;">
+              Pull Limit: <strong id="enebaPullLimitBadge" style="color:var(--text);">10</strong> • Alert: <strong id="enebaAlertThreshBadge" style="color:var(--text);">20%</strong>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
+            <button type="button" class="btn btn-sm" id="btnOpenEnebaConfigModal" style="flex:1;white-space:nowrap;">
+              ⚙️ Scraper Configuration
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" onclick="triggerScrape({})" style="flex:1;white-space:nowrap;">
+              ▶ Scrape Now
+            </button>
+          </div>
         </div>
       </div>
 
@@ -107,9 +108,6 @@ export function renderEnebaTab(): string {
             <div style="font-size:0.8rem;color:var(--text-muted);">
               Eneba-specific metrics including discount percentages and competing third-party merchant offers. Click any header to sort.
             </div>
-          </div>
-          <div style="display:flex;gap:0.5rem;">
-            <button type="button" class="btn btn-sm btn-primary" onclick="triggerScrape({})">▶ Scrape Eneba Pages</button>
           </div>
         </div>
 

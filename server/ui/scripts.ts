@@ -911,7 +911,7 @@ export function renderClientScripts(): string {
       const summaryBody = document.getElementById('enebaSummaryBody');
       if (summaryBody) {
         if (!statuses || statuses.length === 0) {
-          summaryBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No Eneba scrape results yet. Click "Scrape Eneba Pages" above.</td></tr>';
+          summaryBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No Eneba scrape results yet. Click "Scrape Now" above.</td></tr>';
         } else {
           const sort = tableSortState.enebaSummary;
           const indexed = statuses.map((st, originalIdx) => {
