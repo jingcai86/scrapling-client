@@ -1070,7 +1070,7 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   bestDealPct(): string {
     const statuses = this.apiService.dashboardData()?.statuses || [];
     const maxDisc = Math.max(...statuses.map((s) => s.maxDiscountPct || 0), 0);
-    return maxDisc > 0 ? `-${maxDisc.toFixed(1)}%` : '—';
+    return maxDisc > 0 ? `${maxDisc.toFixed(1)}%` : '—';
   }
 
   bestDealTitle(): string {
@@ -1276,7 +1276,7 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
       }
     }
 
-    return maxPct > 0 ? `-${maxPct.toFixed(1)}%` : '—';
+    return maxPct > 0 ? `${maxPct.toFixed(1)}%` : '—';
   }
 
   private renderBestDiscountChart(): void {
