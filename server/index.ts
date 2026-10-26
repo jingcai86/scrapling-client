@@ -54,9 +54,19 @@ export async function createDashboardServer(options: {
   const runner = new ScrapeRunner(pageStore);
   await runner.hydrateFromDatabase();
 
-  const scheduler = new RandomizedDailyScheduler(async () => {
-    const results = await runner.runScrape();
-    return `Scraped ${results.length} page(s) via daily randomized schedule.`;
+  const scheduler = new RandomizedDailyScheduler(
+    async () => {
+      const results = await runner.runScrape();
+      return `Scraped ${results.length} page(s) via daily randomized schedule.`;
+    },
+    {
+      getLastScrapeTime: () => runner.getLatestScrapeTime(),
+    },
+  );
+
+  // When any scrape completes (manual button, batch, or cron), advance schedule to next day
+  runner.onScrapeComplete(() => {
+    scheduler.recordRunCompleted(new Date());
   });
 
   const app = createApp({

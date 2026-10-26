@@ -167,6 +167,21 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
     assert.equal(maxRoll.chosenOffsetMinutes, 60);
     assert.equal(maxRoll.nextRun.getHours(), 20);
     assert.equal(maxRoll.nextRun.getMinutes(), 0);
+
+    // Once-daily rule: If a scrape already ran today, next run MUST be scheduled for tomorrow
+    const scrapedTodayAt = new Date("2026-10-25T19:15:00");
+    const currentNow = new Date("2026-10-25T19:41:00");
+    const nextDayRoll = computeNextRandomizedRun(
+      "19:00",
+      60,
+      currentNow,
+      false,
+      () => 0.5,
+      scrapedTodayAt,
+    );
+    assert.equal(nextDayRoll.nextRun.getDate(), 26); // Oct 26 (tomorrow)
+    assert.equal(nextDayRoll.nextRun.getHours(), 19);
+    assert.equal(nextDayRoll.nextRun.getMinutes(), 30);
   });
 
   it("filters deals over the 20% discount threshold and renders the Resend HTML email template", () => {

@@ -19,6 +19,17 @@ export interface SchedulerState extends SchedulerConfig {
 }
 
 /**
+ * Checks if two dates fall on the same local calendar day.
+ */
+export function isSameCalendarDay(d1: Date, d2: Date): boolean {
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}
+
+/**
  * Parses a "HH:MM" 24-hour string into `{ hours, minutes }`. Defaults to 19:00 (7:00 PM) if invalid.
  */
 export function parseBaseTime(baseTime: string): {
@@ -40,6 +51,8 @@ export function parseBaseTime(baseTime: string): {
 
 /**
  * Computes the next scheduled timestamp given a base time ("19:00") and a random jitter window in minutes (e.g. 60).
+ * Adheres strictly to the once-daily scraping rule: if a scrape has already completed today, the next run
+ * is guaranteed to be scheduled for the next calendar day.
  */
 export function computeNextRandomizedRun(
   baseTime: string,
@@ -47,6 +60,7 @@ export function computeNextRandomizedRun(
   now: Date = new Date(),
   forceTomorrow = false,
   randomFn: () => number = Math.random,
+  lastRunAt?: Date | string | null,
 ): {
   windowStart: Date;
   windowEnd: Date;
@@ -60,6 +74,22 @@ export function computeNextRandomizedRun(
   const randomTotalSeconds =
     maxSeconds > 0 ? Math.floor(randomFn() * (maxSeconds + 1)) : 0;
 
+  // Once-daily rule: If already scraped today (or within the last 12 hours), the next run must be tomorrow
+  let alreadyScrapedToday = forceTomorrow;
+  if (!alreadyScrapedToday && lastRunAt) {
+    const lastDate =
+      typeof lastRunAt === "string" ? new Date(lastRunAt) : lastRunAt;
+    if (!isNaN(lastDate.getTime())) {
+      if (
+        isSameCalendarDay(lastDate, now) ||
+        (now.getTime() - lastDate.getTime() < 12 * 60 * 60 * 1000 &&
+          lastDate.getTime() <= now.getTime())
+      ) {
+        alreadyScrapedToday = true;
+      }
+    }
+  }
+
   const candidateWindowStart = new Date(now.getTime());
   candidateWindowStart.setHours(hours, minutes, 0, 0);
 
@@ -67,8 +97,8 @@ export function computeNextRandomizedRun(
     candidateWindowStart.getTime() + randomTotalSeconds * 1000,
   );
 
-  // If forced to tomorrow or if the randomized time for today has already passed, schedule for tomorrow's window
-  if (forceTomorrow || candidateNextRun.getTime() <= now.getTime() + 1000) {
+  // If already scraped today, forced to tomorrow, or candidate time for today has already passed:
+  if (alreadyScrapedToday || candidateNextRun.getTime() <= now.getTime() + 1000) {
     candidateWindowStart.setDate(candidateWindowStart.getDate() + 1);
     candidateWindowStart.setHours(hours, minutes, 0, 0);
     candidateNextRun = new Date(
@@ -104,9 +134,26 @@ export class RandomizedDailyScheduler {
   private lastRunStatus: "idle" | "running" | "success" | "error" = "idle";
   private lastRunSummary: string | null = null;
   private readonly jobCallback: () => Promise<string | void>;
+  private readonly getLastScrapeTime?: () => Date | string | null | undefined;
 
-  constructor(jobCallback: () => Promise<string | void>) {
+  constructor(
+    jobCallback: () => Promise<string | void>,
+    options?: {
+      getLastScrapeTime?: () => Date | string | null | undefined;
+      lastRunAt?: Date | string | null;
+    },
+  ) {
     this.jobCallback = jobCallback;
+    this.getLastScrapeTime = options?.getLastScrapeTime;
+    if (options?.lastRunAt) {
+      const dt =
+        typeof options.lastRunAt === "string"
+          ? new Date(options.lastRunAt)
+          : options.lastRunAt;
+      if (!isNaN(dt.getTime())) {
+        this.lastRunAt = dt.toISOString();
+      }
+    }
     this.reloadFromEnv();
   }
 
@@ -175,6 +222,17 @@ export class RandomizedDailyScheduler {
     return this.getState();
   }
 
+  /**
+   * Notifies scheduler that a scrape job just completed (e.g. manual button, batch, or cron).
+   * Automatically advances the next scheduled run to the next calendar day.
+   */
+  recordRunCompleted(completedAt: Date | string = new Date()): void {
+    const dt =
+      typeof completedAt === "string" ? new Date(completedAt) : completedAt;
+    this.lastRunAt = dt.toISOString();
+    this.reschedule(true);
+  }
+
   private clearTimer(): void {
     if (this.timer) {
       clearTimeout(this.timer);
@@ -193,11 +251,15 @@ export class RandomizedDailyScheduler {
       return;
     }
 
+    const effectiveLastRun =
+      this.lastRunAt || this.getLastScrapeTime?.() || null;
     const computed = computeNextRandomizedRun(
       this.baseTime,
       this.jitterMinutes,
       new Date(),
       forceTomorrow,
+      Math.random,
+      effectiveLastRun,
     );
     this.chosenOffsetMinutes = computed.chosenOffsetMinutes;
     this.chosenOffsetSeconds = computed.chosenOffsetSeconds;

@@ -234,7 +234,25 @@ export class HomeComponent {
     const sched = this.apiService.dashboardData()?.scheduler;
     if (!sched || !sched.enabled) return 'Disabled';
     if (!sched.nextRunAt) return 'Pending Roll';
-    return new Date(sched.nextRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const nextDate = new Date(sched.nextRunAt);
+    if (isNaN(nextDate.getTime())) return 'Pending Roll';
+
+    const now = new Date();
+    const isToday = nextDate.toDateString() === now.toDateString();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const isTomorrow = nextDate.toDateString() === tomorrow.toDateString();
+
+    const timeStr = nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = nextDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+
+    if (isTomorrow) {
+      return `Tomorrow (${dateStr}), ${timeStr}`;
+    }
+    if (isToday) {
+      return `Today (${dateStr}), ${timeStr}`;
+    }
+    return `${dateStr}, ${timeStr}`;
   }
 
   cronWindow(): string {

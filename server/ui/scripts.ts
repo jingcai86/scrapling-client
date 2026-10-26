@@ -224,13 +224,24 @@ export function renderClientScripts(): string {
       // Scheduler KPI & Read-Only View Card
       if (scheduler.enabled && scheduler.nextRunAt) {
         const nextDate = new Date(scheduler.nextRunAt);
-        document.getElementById('kpiNextCron').textContent = nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const now = new Date();
+        const isToday = nextDate.toDateString() === now.toDateString();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const isTomorrow = nextDate.toDateString() === tomorrow.toDateString();
+        const timeStr = nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const dateStr = nextDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        let cronLabel = dateStr + ', ' + timeStr;
+        if (isTomorrow) cronLabel = 'Tomorrow (' + dateStr + '), ' + timeStr;
+        else if (isToday) cronLabel = 'Today (' + dateStr + '), ' + timeStr;
+
+        document.getElementById('kpiNextCron').textContent = cronLabel;
         document.getElementById('kpiCronWindow').textContent =
           'Base ' + scheduler.baseTime + ' + ' + scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's jitter';
         document.getElementById('viewCronEnabled').innerHTML = '<span class="badge badge-discount">Enabled</span>';
         document.getElementById('viewCronWindow').textContent = scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]';
         document.getElementById('viewCronOffset').textContent = '+' + scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's';
-        document.getElementById('viewCronNext').textContent = nextDate.toLocaleString();
+        document.getElementById('viewCronNext').textContent = cronLabel;
       } else {
         document.getElementById('kpiNextCron').textContent = 'Disabled';
         document.getElementById('kpiCronWindow').textContent = 'Enable in Scraping & Targets tab';

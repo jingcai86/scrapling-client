@@ -321,7 +321,25 @@ export class ScrapingComponent {
 
   formatNextRun(dateStr?: string | null): string {
     if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleString();
+    const nextDate = new Date(dateStr);
+    if (isNaN(nextDate.getTime())) return 'N/A';
+
+    const now = new Date();
+    const isToday = nextDate.toDateString() === now.toDateString();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const isTomorrow = nextDate.toDateString() === tomorrow.toDateString();
+
+    const timeStr = nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStrFormatted = nextDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+
+    if (isTomorrow) {
+      return `Tomorrow (${dateStrFormatted}), ${timeStr}`;
+    }
+    if (isToday) {
+      return `Today (${dateStrFormatted}), ${timeStr}`;
+    }
+    return `${dateStrFormatted}, ${timeStr}`;
   }
 
   scrapeAll(withOffers: boolean) {

@@ -79,6 +79,7 @@ export class ScrapeRunner {
   private lastEmailDispatch: EmailDispatchResult | null = null;
   private recentLogs: string[] = [];
   private statusesByCategory = new Map<string, PageDealStatus>();
+  private onScrapeCompleteListeners: Array<(statuses: PageDealStatus[]) => void> = [];
 
   constructor(pageStore: PageStore) {
     this.pageStore = pageStore;
@@ -129,6 +130,24 @@ export class ScrapeRunner {
 
   getLatestStatuses(): PageDealStatus[] {
     return Array.from(this.statusesByCategory.values());
+  }
+
+  getLatestScrapeTime(): Date | null {
+    if (this.lastCompletedAt) {
+      const dt = new Date(this.lastCompletedAt);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    const statuses = this.getLatestStatuses();
+    if (!statuses.length) return null;
+    const timestamps = statuses
+      .map((s) => new Date(s.scrapedAt).getTime())
+      .filter((t) => !isNaN(t));
+    if (!timestamps.length) return null;
+    return new Date(Math.max(...timestamps));
+  }
+
+  onScrapeComplete(listener: (statuses: PageDealStatus[]) => void): void {
+    this.onScrapeCompleteListeners.push(listener);
   }
 
   getState(): RunnerState {
@@ -260,6 +279,11 @@ export class ScrapeRunner {
       }
 
       this.lastCompletedAt = new Date().toISOString();
+      for (const listener of this.onScrapeCompleteListeners) {
+        try {
+          listener(scrapedResults);
+        } catch {}
+      }
       this.currentStep = null;
       return scrapedResults;
     } catch (err) {
