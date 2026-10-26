@@ -130,10 +130,7 @@ interface ProviderRow {
         <!-- Chart 1: Scraping Success Rate Over Time (Apache ECharts) -->
         <mat-card class="main-card chart-card" appearance="outlined">
           <mat-card-header class="chart-header">
-            <mat-card-title class="chart-title">
-              <mat-icon class="chart-icon">monitoring</mat-icon>
-              <span>Scraping Success Rate</span>
-            </mat-card-title>
+            <mat-card-title class="chart-title">Scraping Success Rate</mat-card-title>
             <mat-card-subtitle>
               Real-time trend line of page extraction success rate (0% – 100%).
             </mat-card-subtitle>
@@ -174,10 +171,7 @@ interface ProviderRow {
         <!-- Chart 2: Number of Results Extracted Over Time (Apache ECharts) -->
         <mat-card class="main-card chart-card" appearance="outlined">
           <mat-card-header class="chart-header">
-            <mat-card-title class="chart-title">
-              <mat-icon class="chart-icon results-icon">bar_chart</mat-icon>
-              <span>Scraped Results Over Time</span>
-            </mat-card-title>
+            <mat-card-title class="chart-title">Scraped Results Over Time</mat-card-title>
             <mat-card-subtitle>
               Number of gift card deal results extracted per scrape run.
             </mat-card-subtitle>
@@ -308,18 +302,9 @@ interface ProviderRow {
       padding: 1.25rem 1.5rem 0.5rem;
     }
     .chart-title {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
       font-size: 1.25rem;
       font-weight: 700;
-    }
-    .chart-icon {
-      color: #10b981;
-      font-size: 1.5rem;
-    }
-    .results-icon {
-      color: #6366f1 !important;
+      text-align: left;
     }
     .highlight {
       color: #6366f1 !important;

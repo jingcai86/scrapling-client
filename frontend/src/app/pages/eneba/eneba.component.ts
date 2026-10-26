@@ -278,10 +278,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
         <!-- Best Discount in History Chart -->
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
-            <mat-card-title class="chart-header-title">
-              <mat-icon class="chart-icon">trending_up</mat-icon>
-              <span>Best Discount in History</span>
-            </mat-card-title>
+            <mat-card-title class="chart-header-title">Best Discount in History</mat-card-title>
             <mat-card-subtitle>
               Historical #1 highest discount across scrape runs. Hover point for seller, cost, and face value.
             </mat-card-subtitle>
@@ -844,13 +841,9 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       flex-direction: column;
     }
     .chart-header-title {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .chart-icon {
-      color: #10b981;
-      font-size: 1.35rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      text-align: left;
     }
     .peak-badge-box {
       font-size: 0.85rem;
