@@ -11,6 +11,7 @@ import {
   type DealAlertItem,
 } from "../core/index.js";
 import { createDashboardServer } from "./index.js";
+import { renderDashboardHtml } from "./ui.js";
 
 function createInMemoryConfigPool(): {
   pool: pg.Pool;
@@ -486,5 +487,26 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       }
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  it("renders modular dashboard HTML with all section tabs, tables, and dialogs", () => {
+    const html = renderDashboardHtml();
+    assert.ok(html.includes("Scrapling Monitor"));
+    assert.ok(html.includes('id="tab-home"'));
+    assert.ok(html.includes('id="tab-eneba"'));
+    assert.ok(html.includes('id="tab-scraping"'));
+    assert.ok(html.includes('id="tab-config"'));
+    assert.ok(html.includes('id="providersTable"'));
+    assert.ok(html.includes('id="enebaSummaryTable"'));
+    assert.ok(html.includes('id="enebaDealsTable"'));
+    assert.ok(html.includes('id="pagesTable"'));
+    assert.ok(html.includes('id="configTable"'));
+    assert.ok(html.includes('id="offersTable"'));
+    assert.ok(html.includes('id="pageFormDialog"'));
+    assert.ok(html.includes('id="cronFormDialog"'));
+    assert.ok(html.includes('id="emailPreviewDialog"'));
+    assert.ok(html.includes('id="sellerOffersDialog"'));
+    assert.ok(html.includes('id="scrapeBanner"'));
+    assert.ok(html.includes('id="toast"'));
   });
 });
