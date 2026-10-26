@@ -64,16 +64,6 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
             <div class="kpi-sub truncate" [title]="bestDealTitle()">{{ bestDealTitle() }}</div>
           </mat-card-content>
         </mat-card>
-
-        <mat-card class="kpi-card" appearance="outlined">
-          <mat-card-header>
-            <mat-card-subtitle>Competing Seller Offers</mat-card-subtitle>
-            <mat-card-title class="kpi-value">{{ totalOffersCount() }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="kpi-sub">Third-party vendor offers on #1 deals</div>
-          </mat-card-content>
-        </mat-card>
       </div>
 
       <!-- Eneba Action Bar -->
@@ -502,13 +492,6 @@ export class EnebaComponent {
       }
     }
     return best?.title || 'No active deals';
-  }
-
-  totalOffersCount(): number {
-    return (this.apiService.dashboardData()?.statuses || []).reduce(
-      (acc, s) => acc + (s.bestDealOffers?.length || 0),
-      0,
-    );
   }
 
   formatDate(dateStr?: string): string {

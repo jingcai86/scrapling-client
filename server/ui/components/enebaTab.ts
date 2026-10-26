@@ -16,11 +16,6 @@ export function renderEnebaTab(): string {
           <div class="kpi-value" style="color:#34d399;" id="enebaKpiBestPct">—</div>
           <div class="kpi-sub" id="enebaKpiBestTitle">—</div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Competing Seller Offers</div>
-          <div class="kpi-value" id="enebaKpiOffersCount">—</div>
-          <div class="kpi-sub">Third-party vendor offers on #1 deals</div>
-        </div>
       </div>
 
       <!-- Eneba Provider Action Bar & Modal Trigger -->

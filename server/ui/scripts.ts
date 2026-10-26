@@ -517,7 +517,6 @@ export function renderClientScripts(): string {
       document.getElementById('enebaKpiBestTitle').textContent = bestEneba
         ? bestEneba.title + ' ($' + (bestEneba.sellingPrice?.toFixed(2) ?? 'N/A') + ')'
         : 'No Eneba deals scraped yet';
-      document.getElementById('enebaKpiOffersCount').textContent = totalOffers + ' Offers';
 
       // Eneba Summary Table
       const summaryBody = document.getElementById('enebaSummaryBody');
