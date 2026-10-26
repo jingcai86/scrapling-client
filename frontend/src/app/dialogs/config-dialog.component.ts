@@ -62,9 +62,7 @@ interface ConfigRow {
       <!-- System & Database Configuration Card -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="card-header-flex">
-          <div>
-            <mat-card-title>Configuration Variables</mat-card-title>
-          </div>
+          <mat-card-title>Configuration Variables</mat-card-title>
           <div class="toolbar-actions">
             <button mat-stroked-button (click)="showSecrets = !showSecrets">
               {{ showSecrets ? '🙈 Hide Secrets' : '👁 Show Secrets' }}

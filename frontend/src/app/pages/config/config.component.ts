@@ -21,15 +21,13 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
     <div class="page-container">
       <mat-card class="modal-launcher-card" appearance="outlined">
         <mat-card-header>
-          <div class="card-header-icon">
+          <div class="card-header-icon" mat-card-avatar>
             <mat-icon class="icon">settings</mat-icon>
           </div>
-          <div>
-            <mat-card-title>System & Application Configuration</mat-card-title>
-            <mat-card-subtitle>
-              All configuration (color theme, database settings, and boot variables) is now presented in a modal dialog.
-            </mat-card-subtitle>
-          </div>
+          <mat-card-title>System & Application Configuration</mat-card-title>
+          <mat-card-subtitle>
+            All configuration (color theme, database settings, and boot variables) is now presented in a modal dialog.
+          </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="launcher-content">
           <p>

@@ -237,6 +237,8 @@ mat-card.mat-mdc-card {
 
 .mat-mdc-card-header-text {
   margin: 0 !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: flex-start !important;
@@ -253,6 +255,8 @@ mat-card.mat-mdc-card {
   font-size: 1.05rem !important;
   letter-spacing: -0.01em !important;
   text-align: left !important;
+  align-self: flex-start !important;
+  margin: 0 !important;
 }
 
 .mat-mdc-card-subtitle {
@@ -260,6 +264,7 @@ mat-card.mat-mdc-card {
   font-size: 0.82rem !important;
   margin-top: 0.25rem !important;
   text-align: left !important;
+  align-self: flex-start !important;
 }
 
 // =============================================================================
