@@ -21,6 +21,7 @@ import {
 } from "../core/index.js";
 import {
   ensureEnebaSchema,
+  getEnebaAlertThreshold,
   getEnebaConfig,
   updateEnebaConfig,
 } from "../eneba/db.js";
@@ -409,8 +410,9 @@ export async function createDashboardServer(options: {
 
       // 9. GET /api/email/preview (Preview Resend email template for >= threshold % deals)
       if (method === "GET" && pathname === "/api/email/preview") {
-        const thresholdPct =
-          Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT || "20") || 20;
+        const thresholdPct = await getEnebaAlertThreshold({
+          pool: options.pool,
+        });
         const liveItems = statusesToAlertItems(runner.getLatestStatuses());
         const matchingLive = filterAlertableDeals(liveItems, thresholdPct);
         const dealsForPreview =
@@ -428,8 +430,9 @@ export async function createDashboardServer(options: {
 
       // 10. POST /api/email/test (Send test alert email via Resend)
       if (method === "POST" && pathname === "/api/email/test") {
-        const thresholdPct =
-          Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT || "20") || 20;
+        const thresholdPct = await getEnebaAlertThreshold({
+          pool: options.pool,
+        });
         const liveItems = statusesToAlertItems(runner.getLatestStatuses());
         const matchingLive = filterAlertableDeals(liveItems, thresholdPct);
         const dealsToSend =

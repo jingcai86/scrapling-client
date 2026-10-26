@@ -8,6 +8,7 @@ import {
 import { EnebaGiftCardScraper } from "../eneba/baseScraper.js";
 import {
   fetchLatestEnebaStatusesFromDb,
+  getEnebaAlertThreshold,
   getEnebaTopDealsLimit,
   tryPersistScrapeResult,
   type DbPersistenceStatus,
@@ -240,7 +241,10 @@ export class ScrapeRunner {
       // Evaluate and send Resend deal alert email if threshold met
       this.currentStep = `Checking deals against discount alert threshold...`;
       const alertItems = statusesToAlertItems(scrapedResults);
-      const emailResult = await sendDealAlertEmail(alertItems);
+      const enebaThreshold = await getEnebaAlertThreshold().catch(() => 20);
+      const emailResult = await sendDealAlertEmail(alertItems, {
+        thresholdPct: enebaThreshold,
+      });
       this.lastEmailDispatch = emailResult;
 
       if (emailResult.sent) {

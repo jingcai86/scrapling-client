@@ -745,29 +745,46 @@ export function renderDashboardHtml(): string {
         <div class="card-header" style="flex-wrap:wrap;gap:1rem;">
           <div>
             <h2 class="card-title" style="display:flex;align-items:center;gap:0.5rem;">
-              <span>⚙️ Eneba Scraper Configuration</span>
+              <span>⚙️ Eneba Scraper &amp; Alert Configuration</span>
               <span class="badge badge-discount" style="font-size:0.75rem;">scrapling.eneba_config</span>
             </h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
-              Configure how many top ranked gift card deals to pull and persist per category (defaults to 10). Stored in PostgreSQL <code>scrapling.eneba_config</code>.
+              Configure how many top deals to pull per category and the minimum discount % to trigger email alerts. Stored in PostgreSQL <code>scrapling.eneba_config</code>.
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-            <label for="enebaTopDealsLimitInput" style="font-size:0.85rem;font-weight:600;color:var(--text);">
-              Top Deals to Pull:
-            </label>
-            <input
-              type="number"
-              id="enebaTopDealsLimitInput"
-              min="1"
-              max="50"
-              step="1"
-              value="10"
-              style="width:80px;padding:0.4rem 0.6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:700;text-align:center;"
-              aria-label="Number of top deals to pull per category"
-            />
+          <div style="display:flex;align-items:center;gap:0.85rem;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+              <label for="enebaTopDealsLimitInput" style="font-size:0.83rem;font-weight:600;color:var(--text);">
+                Pull Limit:
+              </label>
+              <input
+                type="number"
+                id="enebaTopDealsLimitInput"
+                min="1"
+                max="50"
+                step="1"
+                value="10"
+                style="width:72px;padding:0.35rem 0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:700;text-align:center;"
+                aria-label="Number of top deals to pull per category"
+              />
+            </div>
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+              <label for="enebaAlertThresholdInput" style="font-size:0.83rem;font-weight:600;color:var(--text);">
+                Alert Threshold (%):
+              </label>
+              <input
+                type="number"
+                id="enebaAlertThresholdInput"
+                min="0"
+                max="100"
+                step="1"
+                value="20"
+                style="width:72px;padding:0.35rem 0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:700;text-align:center;"
+                aria-label="Minimum discount percent to trigger alert email"
+              />
+            </div>
             <button type="button" class="btn btn-sm btn-primary" id="btnSaveEnebaConfig">
-              Save Limit
+              Save Configuration
             </button>
             <button type="button" class="btn btn-sm" onclick="triggerScrape({})">
               ▶ Scrape Now
@@ -1632,9 +1649,15 @@ export function renderDashboardHtml(): string {
 
       // Populate Eneba Category Filter & Render Eneba Top Deals Table
       const pullLimit = parseInt(dashboardData?.enebaConfig?.top_deals_limit || '10', 10) || 10;
+      const enebaAlertThreshold = parseFloat(dashboardData?.enebaConfig?.alert_discount_threshold_pct || '20') || 20;
+
       const limitInput = document.getElementById('enebaTopDealsLimitInput');
       if (limitInput && document.activeElement !== limitInput) {
         limitInput.value = pullLimit;
+      }
+      const thresholdInput = document.getElementById('enebaAlertThresholdInput');
+      if (thresholdInput && document.activeElement !== thresholdInput) {
+        thresholdInput.value = enebaAlertThreshold;
       }
       const badge = document.getElementById('enebaPullLimitBadge');
       if (badge) badge.textContent = pullLimit;
@@ -1686,12 +1709,12 @@ export function renderDashboardHtml(): string {
       }
 
       dealsBody.innerHTML = flatDeals.map((deal) => {
-        const isAlertMatch = Math.max(deal.discountPct, deal.effectiveDiscountPct) >= thresholdPct;
+        const isAlertMatch = Math.max(deal.discountPct, deal.effectiveDiscountPct) >= enebaAlertThreshold;
         const priceDisplay = deal.sellingPrice < 999999 ? '$' + deal.sellingPrice.toFixed(2) : 'N/A';
         return '<tr>' +
           '<th>#' + deal.rank + '</th>' +
           '<td><strong>' + escapeHtml(deal.title) + '</strong>' +
-            (isAlertMatch ? ' <span class="badge badge-alert" title="Meets email alert threshold">🔥 &ge;' + thresholdPct + '%</span>' : '') +
+            (isAlertMatch ? ' <span class="badge badge-alert" title="Meets email alert threshold">🔥 &ge;' + enebaAlertThreshold + '%</span>' : '') +
           '</td>' +
           '<td>' + escapeHtml(deal.category) + '</td>' +
           '<td>' + escapeHtml(deal.region) + '</td>' +
@@ -1856,22 +1879,32 @@ export function renderDashboardHtml(): string {
     document.getElementById('enebaCategoryFilter').addEventListener('change', () => renderAll());
     document.getElementById('enebaSearchInput').addEventListener('input', () => renderAll());
     document.getElementById('btnSaveEnebaConfig').addEventListener('click', async () => {
-      const val = parseInt(document.getElementById('enebaTopDealsLimitInput')?.value || '10', 10);
-      if (!val || val < 1 || val > 100) {
+      const pullVal = parseInt(document.getElementById('enebaTopDealsLimitInput')?.value || '10', 10);
+      if (!pullVal || pullVal < 1 || pullVal > 100) {
         showToast('Please enter a valid pull limit between 1 and 100.');
+        return;
+      }
+      const threshVal = parseFloat(document.getElementById('enebaAlertThresholdInput')?.value || '20');
+      if (Number.isNaN(threshVal) || threshVal < 0 || threshVal > 100) {
+        showToast('Please enter a valid alert discount threshold between 0 and 100%.');
         return;
       }
       try {
         const res = await fetch('/api/eneba/config', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ updates: { top_deals_limit: String(val) } }),
+          body: JSON.stringify({
+            updates: {
+              top_deals_limit: String(pullVal),
+              alert_discount_threshold_pct: String(threshVal),
+            },
+          }),
         });
         const data = await res.json();
         if (dashboardData) {
           dashboardData.enebaConfig = data.config;
         }
-        showToast('Eneba pull limit updated to ' + val + ' in scrapling.eneba_config!');
+        showToast('Eneba configuration saved! (Limit: ' + pullVal + ', Alert: ≥' + threshVal + '%) in scrapling.eneba_config');
         renderAll();
       } catch (err) {
         showToast('Failed to update Eneba config: ' + (err.message || err));

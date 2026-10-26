@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_product_offers (
   is_featured_offer BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- 6. Eneba-specific configuration table (e.g., how many top deals to pull per category)
+-- 6. Eneba-specific configuration table (e.g., how many top deals to pull per category and alert discount threshold)
 CREATE TABLE IF NOT EXISTS scrapling.eneba_config (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -103,7 +103,9 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_config (
 );
 
 INSERT INTO scrapling.eneba_config (key, value, description)
-VALUES ('top_deals_limit', '10', 'Number of top ranked deals to pull and persist per Eneba category')
+VALUES
+  ('top_deals_limit', '10', 'Number of top ranked deals to pull and persist per Eneba category'),
+  ('alert_discount_threshold_pct', '20', 'Minimum direct or effective discount % on Eneba to trigger deal alerts')
 ON CONFLICT (key) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_scrape_runs_scraped_at
@@ -230,7 +232,10 @@ export async function getEnebaConfig(
   try {
     if (!pool) {
       if (!process.env.DATABASE_URL?.trim()) {
-        return { top_deals_limit: "10" };
+        return {
+          top_deals_limit: "10",
+          alert_discount_threshold_pct: "20",
+        };
       }
       pool = createPgPool();
     }
@@ -238,13 +243,19 @@ export async function getEnebaConfig(
     const res = await pool.query<{ key: string; value: string }>(
       `SELECT key, value FROM scrapling.eneba_config ORDER BY key ASC`,
     );
-    const config: Record<string, string> = { top_deals_limit: "10" };
+    const config: Record<string, string> = {
+      top_deals_limit: "10",
+      alert_discount_threshold_pct: "20",
+    };
     for (const row of res.rows) {
       config[row.key] = row.value;
     }
     return config;
   } catch {
-    return { top_deals_limit: "10" };
+    return {
+      top_deals_limit: "10",
+      alert_discount_threshold_pct: "20",
+    };
   } finally {
     if (ownPool && pool) {
       await pool.end().catch(() => {});
@@ -261,6 +272,17 @@ export async function getEnebaTopDealsLimit(
   const cfg = await getEnebaConfig(options);
   const parsed = parseInt(cfg.top_deals_limit || "10", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+}
+
+/**
+ * Returns the configured Eneba alert discount threshold percentage (defaults to 20).
+ */
+export async function getEnebaAlertThreshold(
+  options: EnebaConfigOptions = {},
+): Promise<number> {
+  const cfg = await getEnebaConfig(options);
+  const parsed = parseFloat(cfg.alert_discount_threshold_pct || "20");
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 20;
 }
 
 /**

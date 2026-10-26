@@ -113,6 +113,12 @@ function createInMemoryConfigPool(): {
             value: "10",
           });
         }
+        if (!enebaConfigRows.has("alert_discount_threshold_pct")) {
+          enebaConfigRows.set("alert_discount_threshold_pct", {
+            key: "alert_discount_threshold_pct",
+            value: "20",
+          });
+        }
         const rows = Array.from(enebaConfigRows.values()).sort((a, b) =>
           a.key.localeCompare(b.key),
         );
@@ -353,18 +359,29 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
         config: Record<string, string>;
       };
       assert.equal(enebaCfg.config.top_deals_limit, "10");
+      assert.equal(enebaCfg.config.alert_discount_threshold_pct, "20");
 
       const updateEnebaRes = await fetch(`${baseUrl}/api/eneba/config`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates: { top_deals_limit: "25" } }),
+        body: JSON.stringify({
+          updates: {
+            top_deals_limit: "25",
+            alert_discount_threshold_pct: "18",
+          },
+        }),
       });
       assert.equal(updateEnebaRes.status, 200);
       const enebaUpdated = (await updateEnebaRes.json()) as {
         config: Record<string, string>;
       };
       assert.equal(enebaUpdated.config.top_deals_limit, "25");
+      assert.equal(enebaUpdated.config.alert_discount_threshold_pct, "18");
       assert.equal(enebaConfigRows.get("top_deals_limit")?.value, "25");
+      assert.equal(
+        enebaConfigRows.get("alert_discount_threshold_pct")?.value,
+        "18",
+      );
 
       // 6. Seed cached statuses (including a yesterday snapshot and today snapshot) and test /api/deals/search for Hermes
       const yesterdayDate = new Date();
