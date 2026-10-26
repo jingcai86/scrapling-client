@@ -176,13 +176,12 @@ export function renderModals(): string {
         </form>
       </div>
       <div tabindex="0" role="region" aria-labelledby="offers-modal-caption" class="table-wrapper">
-        <table id="offersTable" style="--label-2:'Price';--label-3:'Cashback';--label-4:'Rating';--label-5:'Badge';--label-6:'Store Link';">
+        <table id="offersTable" style="--label-2:'Price';--label-3:'Rating';--label-4:'Placement';--label-5:'Store Link';">
           <caption id="offers-modal-caption">Competing seller offers for selected product</caption>
           <thead>
             <tr>
               <th class="sortable" data-table="offers" data-sort-key="sellerName" aria-sort="none">Seller / Merchant <span class="sort-icon">↕</span></th>
               <th class="sortable" data-table="offers" data-sort-key="price" aria-sort="ascending">Price <span class="sort-icon">↑</span></th>
-              <th class="sortable" data-table="offers" data-sort-key="cashbackPct" aria-sort="none">Cashback <span class="sort-icon">↕</span></th>
               <th class="sortable" data-table="offers" data-sort-key="ratingScore" aria-sort="none">Rating <span class="sort-icon">↕</span></th>
               <th class="sortable" data-table="offers" data-sort-key="placement" aria-sort="none">Placement <span class="sort-icon">↕</span></th>
               <th>Vendor Link</th>

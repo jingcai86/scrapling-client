@@ -97,9 +97,9 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
     assert.equal(card1.originalPrice, 100);
     assert.equal(card1.sellingPrice, 86);
     assert.equal(card1.discountPct, 14);
-    assert.equal(card1.cashbackPct, 5);
-    assert.equal(card1.effectivePrice, 81.7);
-    assert.equal(card1.effectiveDiscountPct, 18.3);
+    assert.equal(card1.cashbackPct, 0);
+    assert.equal(card1.effectivePrice, 86);
+    assert.equal(card1.effectiveDiscountPct, 14);
     assert.equal(card1.inStock, true);
 
     const card2 = scraper.parseCardMarkdown(SAMPLE_FACE_VALUE_IMPLIED_CARD);
@@ -107,9 +107,9 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
     assert.equal(card2.sellingPrice, 45);
     assert.equal(card2.faceValue, 50);
     assert.equal(card2.discountPct, 10);
-    assert.equal(card2.cashbackPct, 10);
-    assert.equal(card2.effectivePrice, 40.5);
-    assert.equal(card2.effectiveDiscountPct, 19);
+    assert.equal(card2.cashbackPct, 0);
+    assert.equal(card2.effectivePrice, 45);
+    assert.equal(card2.effectiveDiscountPct, 10);
 
     const card3 = scraper.parseCardMarkdown(SAMPLE_SOLD_OUT_CARD);
     assert.ok(card3);
@@ -143,16 +143,16 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
     assert.equal(status.discountedCount, 2);
     assert.equal(status.averageDiscountPctOnDiscounted, 12);
     assert.equal(status.averageDiscountPctAllInStock, 12);
-    assert.equal(status.averageEffectiveDiscountPct, 18.65);
+    assert.equal(status.averageEffectiveDiscountPct, 12);
 
     assert.ok(status.bestDeal);
     assert.equal(status.bestDeal.discountPct, 14);
     assert.ok(status.bestEffectiveDeal);
-    assert.equal(status.bestEffectiveDeal.effectiveDiscountPct, 19);
+    assert.equal(status.bestEffectiveDeal.discountPct, 14);
 
     const report = formatPageStatusReport(status, { topN: 2 });
     assert.match(report, /Avg Discount \(Discounted\)\s*:\s*12\.00%/);
-    assert.match(report, /Best Direct Discount Deal on Page:/);
+    assert.match(report, /Best Deal on Page:/);
   });
 
   it("does not throw if PostgreSQL connection fails during tryPersistScrapeResult", async () => {

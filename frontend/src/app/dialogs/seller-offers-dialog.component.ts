@@ -30,14 +30,6 @@ import type { SellerOffer } from '../core/models/dashboard.model';
           </td>
         </ng-container>
 
-        <ng-container matColumnDef="cashbackPct">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Cashback</th>
-          <td mat-cell *matCellDef="let offer">
-            <span *ngIf="offer.cashbackPct > 0" class="cashback-badge">+{{ offer.cashbackPct }}% CB</span>
-            <span *ngIf="!offer.cashbackPct" class="muted">—</span>
-          </td>
-        </ng-container>
-
         <ng-container matColumnDef="ratingScore">
           <th mat-header-cell *matHeaderCellDef mat-sort-header>Rating</th>
           <td mat-cell *matCellDef="let offer">
@@ -88,15 +80,6 @@ import type { SellerOffer } from '../core/models/dashboard.model';
       font-weight: 700;
       color: var(--mat-sys-primary);
     }
-    .cashback-badge {
-      display: inline-block;
-      padding: 0.15rem 0.45rem;
-      border-radius: 6px;
-      background: rgba(16, 185, 129, 0.15);
-      color: #10b981;
-      font-weight: 700;
-      font-size: 0.75rem;
-    }
     .placement-badge {
       display: inline-block;
       padding: 0.15rem 0.45rem;
@@ -116,7 +99,7 @@ import type { SellerOffer } from '../core/models/dashboard.model';
   `],
 })
 export class SellerOffersDialogComponent {
-  displayedColumns: string[] = ['sellerName', 'price', 'cashbackPct', 'ratingScore', 'placement', 'url'];
+  displayedColumns: string[] = ['sellerName', 'price', 'ratingScore', 'placement', 'url'];
   sortedOffers: SellerOffer[] = [];
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: { title: string; offers: SellerOffer[] }) {
@@ -135,7 +118,6 @@ export class SellerOffersDialogComponent {
       switch (sort.active) {
         case 'sellerName': return compare(a.sellerName, b.sellerName, isAsc);
         case 'price': return compare(a.price, b.price, isAsc);
-        case 'cashbackPct': return compare(a.cashbackPct, b.cashbackPct, isAsc);
         case 'ratingScore': return compare(a.ratingScore, b.ratingScore, isAsc);
         case 'placement': return compare(a.placement, b.placement, isAsc);
         default: return 0;

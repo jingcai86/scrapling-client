@@ -134,7 +134,7 @@ export const ENV_SCHEMA: EnvFieldMeta[] = [
     label: "Alert Discount Threshold (%)",
     group: "email",
     description:
-      "Minimum discount percentage (direct or effective with cashback) that triggers an alert email (e.g., 20 for 20% off).",
+      "Minimum discount percentage that triggers an alert email (e.g., 20 for 20% off).",
     defaultValue: "20",
     inputType: "number",
   },

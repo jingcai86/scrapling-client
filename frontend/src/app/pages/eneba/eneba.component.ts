@@ -56,7 +56,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
 
         <mat-card class="kpi-card" appearance="outlined">
           <mat-card-header>
-            <mat-card-subtitle>Best Eneba Effective Deal (+CB)</mat-card-subtitle>
+            <mat-card-subtitle>Best Eneba Deal</mat-card-subtitle>
             <mat-card-title class="kpi-value best-pct">{{ bestDealPct() }}</mat-card-title>
           </mat-card-header>
           <mat-card-content>
@@ -110,9 +110,9 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="table-header">
           <div>
-            <mat-card-title>Eneba Gift Card Categories — Status, Cashback & Seller Offers</mat-card-title>
+            <mat-card-title>Eneba Gift Card Categories — Status & Seller Offers</mat-card-title>
             <mat-card-subtitle>
-              Category-specific metrics including Plus/Cashback effective discounts and competing merchant offers. Click any column header to sort.
+              Category-specific metrics including discount percentages and competing merchant offers. Click any column header to sort.
             </mat-card-subtitle>
           </div>
         </mat-card-header>
@@ -133,26 +133,19 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
             </ng-container>
 
             <ng-container matColumnDef="averageDiscountPctAllInStock">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Avg Direct Disc</th>
+              <th mat-header-cell *matHeaderCellDef mat-sort-header>Avg Discount</th>
               <td mat-cell *matCellDef="let s">
                 -{{ s.averageDiscountPctAllInStock.toFixed(2) }}%
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="averageEffectiveDiscountPct">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Avg Effective (+CB)</th>
-              <td mat-cell *matCellDef="let s" class="effective-cell">
-                -{{ s.averageEffectiveDiscountPct.toFixed(2) }}%
               </td>
             </ng-container>
 
             <ng-container matColumnDef="bestEffectiveDeal">
               <th mat-header-cell *matHeaderCellDef mat-sort-header>#1 Best Deal on Page</th>
               <td mat-cell *matCellDef="let s">
-                <span *ngIf="s.bestEffectiveDeal" class="deal-pill">
-                  -{{ s.bestEffectiveDeal.effectiveDiscountPct.toFixed(2) }}% ({{ s.bestEffectiveDeal.title }})
+                <span *ngIf="s.bestDeal" class="deal-pill">
+                  -{{ s.bestDeal.discountPct.toFixed(2) }}% ({{ s.bestDeal.title }})
                 </span>
-                <span *ngIf="!s.bestEffectiveDeal" class="muted">—</span>
+                <span *ngIf="!s.bestDeal" class="muted">—</span>
               </td>
             </ng-container>
 
@@ -191,7 +184,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
           <div>
             <mat-card-title>Eneba Top {{ topDealsLimit }} Ranked Gift Card Deals</mat-card-title>
             <mat-card-subtitle>
-              Includes region, face value baseline, direct discount %, and Eneba cashback %. Click any column header to sort.
+              Includes region, face value baseline, and discount %. Click any column header to sort.
             </mat-card-subtitle>
           </div>
           <div class="filter-controls">
@@ -244,17 +237,10 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
             </ng-container>
 
             <ng-container matColumnDef="discountPct">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Direct Disc</th>
+              <th mat-header-cell *matHeaderCellDef mat-sort-header>Discount</th>
               <td mat-cell *matCellDef="let deal">
                 <span *ngIf="deal.discountPct > 0" class="disc-badge">-{{ deal.discountPct.toFixed(1) }}%</span>
                 <span *ngIf="!deal.discountPct" class="muted">0%</span>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="effectiveDiscountPct">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Effective (+CB)</th>
-              <td mat-cell *matCellDef="let deal" class="effective-cell">
-                -{{ deal.effectiveDiscountPct.toFixed(1) }}%
               </td>
             </ng-container>
 
@@ -425,7 +411,6 @@ export class EnebaComponent {
     'category',
     'inStockCount',
     'averageDiscountPctAllInStock',
-    'averageEffectiveDiscountPct',
     'bestEffectiveDeal',
     'offersCount',
     'scrapedAt',
@@ -438,7 +423,6 @@ export class EnebaComponent {
     'region',
     'sellingPrice',
     'discountPct',
-    'effectiveDiscountPct',
     'scrapedAt',
     'url',
   ];
@@ -491,8 +475,8 @@ export class EnebaComponent {
       }
     }
 
-    // Sort by effectiveDiscountPct descending by default
-    collected.sort((a, b) => b.effectiveDiscountPct - a.effectiveDiscountPct);
+    // Sort by discountPct descending by default
+    collected.sort((a, b) => b.discountPct - a.discountPct);
     this.allDeals = collected;
     this.applyDealsFilter();
   }
@@ -511,17 +495,18 @@ export class EnebaComponent {
 
   bestDealPct(): string {
     const statuses = this.apiService.dashboardData()?.statuses || [];
-    const maxEff = Math.max(...statuses.map((s) => s.maxEffectiveDiscountPct || 0), 0);
-    return maxEff > 0 ? `-${maxEff.toFixed(1)}%` : '—';
+    const maxDisc = Math.max(...statuses.map((s) => s.maxDiscountPct || 0), 0);
+    return maxDisc > 0 ? `-${maxDisc.toFixed(1)}%` : '—';
   }
 
   bestDealTitle(): string {
     const statuses = this.apiService.dashboardData()?.statuses || [];
     let best: RankedDeal | null = null;
     for (const s of statuses) {
-      if (s.bestEffectiveDeal) {
-        if (!best || s.bestEffectiveDeal.effectiveDiscountPct > best.effectiveDiscountPct) {
-          best = s.bestEffectiveDeal;
+      const candidate = s.bestDeal || s.bestEffectiveDeal;
+      if (candidate) {
+        if (!best || candidate.discountPct > best.discountPct) {
+          best = candidate;
         }
       }
     }
@@ -591,7 +576,6 @@ export class EnebaComponent {
         case 'category': return compare(a.category, b.category, isAsc);
         case 'inStockCount': return compare(a.inStockCount, b.inStockCount, isAsc);
         case 'averageDiscountPctAllInStock': return compare(a.averageDiscountPctAllInStock, b.averageDiscountPctAllInStock, isAsc);
-        case 'averageEffectiveDiscountPct': return compare(a.averageEffectiveDiscountPct, b.averageEffectiveDiscountPct, isAsc);
         case 'offersCount': return compare(a.bestDealOffers?.length || 0, b.bestDealOffers?.length || 0, isAsc);
         case 'scrapedAt': return compare(a.scrapedAt, b.scrapedAt, isAsc);
         default: return 0;
@@ -614,7 +598,6 @@ export class EnebaComponent {
         case 'region': return compare(a.region, b.region, isAsc);
         case 'sellingPrice': return compare(a.sellingPrice, b.sellingPrice, isAsc);
         case 'discountPct': return compare(a.discountPct, b.discountPct, isAsc);
-        case 'effectiveDiscountPct': return compare(a.effectiveDiscountPct, b.effectiveDiscountPct, isAsc);
         case 'scrapedAt': return compare(a.scrapedAt || '', b.scrapedAt || '', isAsc);
         default: return 0;
       }

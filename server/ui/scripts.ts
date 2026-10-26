@@ -83,8 +83,8 @@ export function renderClientScripts(): string {
     // 3. Universal Table Sort State & Comparator (All tables sortable)
     const tableSortState = {
       providers: { key: 'provider', dir: 'asc' },
-      enebaSummary: { key: 'avgEffective', dir: 'desc' },
-      enebaDeals: { key: 'effectiveDiscountPct', dir: 'desc' },
+      enebaSummary: { key: 'avgDirect', dir: 'desc' },
+      enebaDeals: { key: 'discountPct', dir: 'desc' },
       pages: { key: 'categoryName', dir: 'asc' },
       config: { key: 'group', dir: 'asc' },
       offers: { key: 'price', dir: 'asc' },
@@ -388,13 +388,13 @@ export function renderClientScripts(): string {
       let totalOffers = 0;
       statuses.forEach((st) => {
         totalOffers += st.bestDealOffers ? st.bestDealOffers.length : 0;
-        const b = st.bestEffectiveDeal || st.bestDeal;
-        if (b && (!bestEneba || b.effectiveDiscountPct > bestEneba.effectiveDiscountPct)) {
+        const b = st.bestDeal || st.bestEffectiveDeal;
+        if (b && (!bestEneba || b.discountPct > bestEneba.discountPct)) {
           bestEneba = b;
         }
       });
 
-      document.getElementById('enebaKpiBestPct').textContent = bestEneba ? '-' + bestEneba.effectiveDiscountPct.toFixed(2) + '%' : '0.00%';
+      document.getElementById('enebaKpiBestPct').textContent = bestEneba ? '-' + bestEneba.discountPct.toFixed(2) + '%' : '0.00%';
       document.getElementById('enebaKpiBestTitle').textContent = bestEneba
         ? bestEneba.title + ' ($' + (bestEneba.sellingPrice?.toFixed(2) ?? 'N/A') + ')'
         : 'No Eneba deals scraped yet';
@@ -403,19 +403,18 @@ export function renderClientScripts(): string {
       // Eneba Summary Table
       const summaryBody = document.getElementById('enebaSummaryBody');
       if (!statuses || statuses.length === 0) {
-        summaryBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No Eneba scrape results yet. Click "Scrape Eneba Pages" above.</td></tr>';
+        summaryBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No Eneba scrape results yet. Click "Scrape Eneba Pages" above.</td></tr>';
       } else {
         const sort = tableSortState.enebaSummary;
         const indexed = statuses.map((st, originalIdx) => {
-          const best = st.bestEffectiveDeal || st.bestDeal;
+          const best = st.bestDeal || st.bestEffectiveDeal;
           return {
             st,
             originalIdx,
             category: st.category,
             inStockCount: st.inStockCount,
-            avgDirect: st.averageDiscountPctOnDiscounted,
-            avgEffective: st.averageEffectiveDiscountPct,
-            bestEffective: best ? best.effectiveDiscountPct : -1,
+            avgDirect: st.averageDiscountPctAllInStock,
+            bestDiscount: best ? best.discountPct : -1,
             offersCount: st.bestDealOffers ? st.bestDealOffers.length : 0,
             scrapedAt: new Date(st.scrapedAt).getTime(),
           };
@@ -425,19 +424,18 @@ export function renderClientScripts(): string {
 
         summaryBody.innerHTML = indexed.map((item) => {
           const { st, originalIdx } = item;
-          const best = st.bestEffectiveDeal || st.bestDeal;
+          const best = st.bestDeal || st.bestEffectiveDeal;
           const offersCount = st.bestDealOffers ? st.bestDealOffers.length : 0;
           const bestHtml = best
             ? '<a href="' + escapeHtml(best.url) + '" target="_blank" rel="noopener"><strong>-' +
-              best.effectiveDiscountPct.toFixed(2) + '% ($' + (best.sellingPrice?.toFixed(2) ?? 'N/A') + ')</strong> — ' +
+              best.discountPct.toFixed(2) + '% ($' + (best.sellingPrice?.toFixed(2) ?? 'N/A') + ')</strong> — ' +
               escapeHtml(best.title) + '</a>'
             : '<span style="color:var(--text-muted);">None in stock</span>';
 
           return '<tr>' +
             '<th>' + escapeHtml(st.category) + '</th>' +
             '<td>' + st.inStockCount + ' / ' + st.totalListings + '</td>' +
-            '<td>' + st.averageDiscountPctOnDiscounted.toFixed(2) + '%</td>' +
-            '<td><span class="badge badge-discount">' + st.averageEffectiveDiscountPct.toFixed(2) + '%</span></td>' +
+            '<td><span class="badge badge-discount">-' + st.averageDiscountPctAllInStock.toFixed(2) + '%</span></td>' +
             '<td>' + bestHtml + '</td>' +
             '<td>' + (offersCount > 0
               ? '<button type="button" class="btn btn-sm" onclick="openSellerOffers(' + originalIdx + ')">View ' + offersCount + ' Sellers</button>'
@@ -504,12 +502,12 @@ export function renderClientScripts(): string {
       flatDeals.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
 
       if (flatDeals.length === 0) {
-        dealsBody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);">No matching Eneba deals found.</td></tr>';
+        dealsBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No matching Eneba deals found.</td></tr>';
         return;
       }
 
       dealsBody.innerHTML = flatDeals.map((deal) => {
-        const isAlertMatch = Math.max(deal.discountPct, deal.effectiveDiscountPct) >= enebaAlertThreshold;
+        const isAlertMatch = deal.discountPct >= enebaAlertThreshold;
         const priceDisplay = deal.sellingPrice < 999999 ? '$' + deal.sellingPrice.toFixed(2) : 'N/A';
         return '<tr>' +
           '<th>#' + deal.rank + '</th>' +
@@ -521,10 +519,7 @@ export function renderClientScripts(): string {
           '<td><strong>' + priceDisplay + '</strong>' +
             (deal.originalPrice ? ' <span style="color:var(--text-muted);text-decoration:line-through;font-size:0.78rem;">$' + deal.originalPrice.toFixed(2) + '</span>' : '') +
           '</td>' +
-          '<td>-' + deal.discountPct.toFixed(2) + '%</td>' +
-          '<td><span class="badge badge-discount">-' + deal.effectiveDiscountPct.toFixed(2) + '%</span>' +
-            (deal.cashbackPct > 0 ? ' <span style="font-size:0.75rem;color:var(--text-muted);">(+' + deal.cashbackPct.toFixed(1) + '% CB → $' + (deal.effectivePrice?.toFixed(2) ?? '') + ')</span>' : '') +
-          '</td>' +
+          '<td><span class="badge badge-discount">-' + deal.discountPct.toFixed(2) + '%</span></td>' +
           '<td style="color:var(--text-muted);font-size:0.8rem;">' + (deal.scrapedAtIso ? new Date(deal.scrapedAtIso).toLocaleString() : '—') + '</td>' +
           '<td><a href="' + escapeHtml(deal.url) + '" target="_blank" rel="noopener" class="btn btn-sm">Eneba ↗</a></td>' +
         '</tr>';
@@ -772,7 +767,6 @@ export function renderClientScripts(): string {
         return '<tr>' +
           '<th>' + escapeHtml(o.sellerName) + '</th>' +
           '<td><strong>$' + Number(o.price).toFixed(2) + '</strong></td>' +
-          '<td>' + (o.cashbackPct > 0 ? o.cashbackPct.toFixed(1) + '%' : '—') + '</td>' +
           '<td>' + (o.ratingScore ? o.ratingScore.toFixed(2) + '%' : 'N/A') + (o.ratingLabel ? ' (' + escapeHtml(o.ratingLabel) + ')' : '') + '</td>' +
           '<td>' + (o.isLowestPrice ? '<span class="badge badge-discount">Lowest Price</span> ' : '') +
             (o.isFeaturedOffer ? '<span class="badge badge-provider">Recommended</span>' : '') + '</td>' +

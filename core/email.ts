@@ -93,7 +93,7 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * Filters deals whose direct or effective discount meets or exceeds `thresholdPct` (default: 20%).
+ * Filters deals whose discount meets or exceeds `thresholdPct` (default: 20%).
  */
 export function filterAlertableDeals(
   deals: DealAlertItem[],
@@ -105,10 +105,8 @@ export function filterAlertableDeals(
     (Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT ?? "20") || 20);
 
   return deals
-    .filter(
-      (d) => Math.max(d.discountPct ?? 0, d.effectiveDiscountPct ?? 0) >= threshold,
-    )
-    .sort((a, b) => b.effectiveDiscountPct - a.effectiveDiscountPct);
+    .filter((d) => (d.discountPct ?? 0) >= threshold)
+    .sort((a, b) => (b.discountPct ?? 0) - (a.discountPct ?? 0));
 }
 
 /**
@@ -144,7 +142,7 @@ export function renderDealAlertEmailTemplate(
   }
 
   const bestDiscount = deals.reduce(
-    (max, d) => Math.max(max, d.effectiveDiscountPct, d.discountPct),
+    (max, d) => Math.max(max, d.discountPct),
     0,
   );
 
@@ -162,10 +160,6 @@ export function renderDealAlertEmailTemplate(
         baseline !== null && baseline !== undefined
           ? `$${baseline.toFixed(2)}`
           : "N/A";
-      const effPriceStr =
-        deal.effectivePrice !== null
-          ? `$${deal.effectivePrice.toFixed(2)}`
-          : priceStr;
       const sellerLine = deal.lowestSellerName
         ? `<div style="font-size:12px;color:#64748b;margin-top:4px;">Best Seller: <strong>${escapeHtml(deal.lowestSellerName)}</strong>${deal.lowestSellerRating ? ` (${deal.lowestSellerRating.toFixed(2)}%)` : ""}</div>`
         : "";
@@ -186,13 +180,11 @@ export function renderDealAlertEmailTemplate(
           <td style="padding:14px 12px;text-align:right;white-space:nowrap;">
             <div style="font-size:15px;font-weight:700;color:#0f172a;">${priceStr}</div>
             <div style="font-size:12px;color:#94a3b8;text-decoration:line-through;">${baselineStr}</div>
-            ${deal.cashbackPct > 0 ? `<div style="font-size:11px;color:#059669;">Eff: ${effPriceStr} (+${deal.cashbackPct.toFixed(1)}% CB)</div>` : ""}
           </td>
           <td style="padding:14px 12px;text-align:right;white-space:nowrap;">
             <span style="display:inline-block;padding:4px 10px;border-radius:9999px;background:#dcfce7;color:#166534;font-weight:700;font-size:13px;">
-              -${deal.effectiveDiscountPct.toFixed(2)}%
+              -${deal.discountPct.toFixed(2)}%
             </span>
-            <div style="font-size:11px;color:#64748b;margin-top:4px;">Direct: -${deal.discountPct.toFixed(2)}%</div>
           </td>
           <td style="padding:14px 12px;text-align:right;white-space:nowrap;">
             <a href="${escapeHtml(deal.url)}" style="display:inline-block;padding:8px 14px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600;">
@@ -260,7 +252,7 @@ export function renderDealAlertEmailTemplate(
     ...deals.map(
       (d, idx) =>
         `${idx + 1}. [${d.provider.toUpperCase()} / ${d.category}] ${d.title} (${d.region})\n` +
-        `   Price: $${d.sellingPrice?.toFixed(2) ?? "N/A"} | Eff Discount: ${d.effectiveDiscountPct.toFixed(2)}% (Direct: ${d.discountPct.toFixed(2)}%, Cashback: ${d.cashbackPct.toFixed(2)}%)\n` +
+        `   Price: $${d.sellingPrice?.toFixed(2) ?? "N/A"} | Discount: ${d.discountPct.toFixed(2)}%\n` +
         `   Link: ${d.url}`,
     ),
   ];

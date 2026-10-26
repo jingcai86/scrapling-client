@@ -303,7 +303,7 @@ export async function searchDeals(
           FROM scrapling.eneba_top_deals td
           JOIN latest_runs lr ON lr.id = td.scrape_run_id
           ${whereClause}
-          ORDER BY td.effective_discount_pct DESC, td.discount_pct DESC, td.scraped_at DESC
+          ORDER BY td.discount_pct DESC, td.savings_amount DESC, td.scraped_at DESC
         `
           : `
           SELECT
@@ -326,7 +326,7 @@ export async function searchDeals(
             td.savings_amount
           FROM scrapling.eneba_top_deals td
           ${whereClause}
-          ORDER BY td.effective_discount_pct DESC, td.discount_pct DESC, td.scraped_at DESC
+          ORDER BY td.discount_pct DESC, td.savings_amount DESC, td.scraped_at DESC
           LIMIT 500
         `;
 
@@ -516,8 +516,8 @@ export async function searchDeals(
 
   allCachedDeals.sort(
     (a, b) =>
-      b.effectiveDiscountPct - a.effectiveDiscountPct ||
-      b.discountPct - a.discountPct,
+      b.discountPct - a.discountPct ||
+      (b.savingsAmount || 0) - (a.savingsAmount || 0),
   );
 
   const sliced = allCachedDeals.slice(0, limit);

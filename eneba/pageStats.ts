@@ -89,43 +89,28 @@ export function analyzePageDeals(
   const averageDiscountPctAllInStock = mean(
     inStockListings.map((item) => item.discountPct),
   );
-  const averageEffectiveDiscountPct = mean(
-    inStockListings.map((item) => item.effectiveDiscountPct),
-  );
+  const averageEffectiveDiscountPct = averageDiscountPctAllInStock;
 
-  // Sort in-stock listings by effectiveDiscountPct desc, then discountPct desc, then savingsAmount desc
+  // Sort in-stock listings by discountPct desc, then savingsAmount desc, then sellingPrice asc
   const rankedDeals = [...inStockListings].sort((a, b) => {
-    if (b.effectiveDiscountPct !== a.effectiveDiscountPct) {
-      return b.effectiveDiscountPct - a.effectiveDiscountPct;
-    }
     if (b.discountPct !== a.discountPct) {
       return b.discountPct - a.discountPct;
     }
-    return (b.savingsAmount || 0) - (a.savingsAmount || 0);
+    if ((b.savingsAmount || 0) !== (a.savingsAmount || 0)) {
+      return (b.savingsAmount || 0) - (a.savingsAmount || 0);
+    }
+    return (a.sellingPrice || 0) - (b.sellingPrice || 0);
   });
 
-  // Sort purely by direct discountPct desc for strict price-cut best deal
-  const rankedByDirectDiscount = [...inStockListings].sort((a, b) => {
-    if (b.discountPct !== a.discountPct) {
-      return b.discountPct - a.discountPct;
-    }
-    if (b.effectiveDiscountPct !== a.effectiveDiscountPct) {
-      return b.effectiveDiscountPct - a.effectiveDiscountPct;
-    }
-    return (b.savingsAmount || 0) - (a.savingsAmount || 0);
-  });
-
-  const bestDeal = rankedByDirectDiscount[0] ?? null;
+  const bestDeal = rankedDeals[0] ?? null;
   const bestEffectiveDeal = rankedDeals[0] ?? null;
 
-  if (bestEffectiveDeal && bestDealOffers.length > 0) {
-    bestEffectiveDeal.offers = bestDealOffers;
+  if (bestDeal && bestDealOffers.length > 0) {
+    bestDeal.offers = bestDealOffers;
   }
 
   const maxDiscountPct = bestDeal ? bestDeal.discountPct : 0;
-  const maxEffectiveDiscountPct = bestEffectiveDeal
-    ? bestEffectiveDeal.effectiveDiscountPct
-    : 0;
+  const maxEffectiveDiscountPct = maxDiscountPct;
 
   const topDeals: RankedGiftCardListing[] = rankedDeals
     .slice(0, topN)
@@ -183,9 +168,7 @@ export function formatPageStatusReport(
     `  • Cards With Direct Discount    : ${status.discountedCount} / ${status.inStockCount}`,
     `  • Avg Discount (Discounted)     : ${status.averageDiscountPctOnDiscounted.toFixed(2)}%`,
     `  • Avg Discount (All In-Stock)   : ${status.averageDiscountPctAllInStock.toFixed(2)}%`,
-    `  • Avg Effective Discount (+CB)  : ${status.averageEffectiveDiscountPct.toFixed(2)}%`,
-    `  • Max Direct Discount Seen      : ${status.maxDiscountPct.toFixed(2)}%`,
-    `  • Max Effective Discount (+CB)  : ${status.maxEffectiveDiscountPct.toFixed(2)}%`,
+    `  • Max Discount Seen             : ${status.maxDiscountPct.toFixed(2)}%`,
   ];
 
   if (status.bestDeal) {
@@ -195,12 +178,11 @@ export function formatPageStatusReport(
       (deal.faceValueCurrency === "USD" ? deal.faceValue : null);
     lines.push(
       subDivider,
-      `Best Direct Discount Deal on Page:`,
+      `Best Deal on Page:`,
       `  • Title            : ${deal.title}`,
       `  • Region           : ${deal.region}`,
       `  • Selling Price    : ${formatPrice(deal.sellingPrice)}${baseline ? ` (Baseline: ${formatPrice(baseline)}, Save ${formatPrice(deal.savingsAmount)})` : ""}`,
-      `  • Direct Discount  : ${deal.discountPct.toFixed(2)}%`,
-      `  • Cashback         : ${deal.cashbackPct.toFixed(2)}% (Effective Price: ${formatPrice(deal.effectivePrice)}, Effective Discount: ${deal.effectiveDiscountPct.toFixed(2)}%)`,
+      `  • Discount         : ${deal.discountPct.toFixed(2)}%`,
       `  • Link             : ${deal.url}`,
     );
   } else {
@@ -224,7 +206,7 @@ export function formatPageStatusReport(
           ? `${offer.ratingScore.toFixed(2)} (${offer.ratingLabel ?? "Rated"})`
           : "Unrated";
       lines.push(
-        `  ${idx + 1}. ${formatPrice(offer.price)} (CB: ${offer.cashbackPct.toFixed(1)}%) — ${offer.sellerName} [Rating: ${ratingStr}]${tagStr}`,
+        `  ${idx + 1}. ${formatPrice(offer.price)} — ${offer.sellerName} [Rating: ${ratingStr}]${tagStr}`,
       );
     });
   }
@@ -233,16 +215,14 @@ export function formatPageStatusReport(
   if (dealsToShow.length > 0) {
     lines.push(
       subDivider,
-      `Top ${dealsToShow.length} Deals (Ranked 1-${dealsToShow.length} by Effective Discount %):`,
+      `Top ${dealsToShow.length} Deals (Ranked 1-${dealsToShow.length} by Discount %):`,
     );
     dealsToShow.forEach((deal, idx) => {
       const rankStr = String(idx + 1).padStart(2);
       const priceStr = formatPrice(deal.sellingPrice).padStart(7);
       const discStr = `${deal.discountPct.toFixed(2)}%`.padStart(7);
-      const cbStr = `${deal.cashbackPct.toFixed(1)}%`.padStart(6);
-      const effStr = `${deal.effectiveDiscountPct.toFixed(2)}%`.padStart(7);
       lines.push(
-        `  ${rankStr}. [Eff: ${effStr} | Disc: ${discStr} | CB: ${cbStr}] ${priceStr} — ${deal.title} (${deal.region})\n      Link: ${deal.url}`,
+        `  ${rankStr}. [Disc: ${discStr}] ${priceStr} — ${deal.title} (${deal.region})\n      Link: ${deal.url}`,
       );
     });
   }

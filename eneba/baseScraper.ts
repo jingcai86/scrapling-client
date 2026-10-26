@@ -155,24 +155,9 @@ function computeListingMetrics(listing: {
     discountPct = Number(listedDiscountPct.toFixed(2));
   }
 
-  const effectivePrice = Number(
-    (sellingPrice * (1 - (cashbackPct || 0) / 100)).toFixed(2),
-  );
-
-  let effectiveDiscountPct: number;
-  if (baselinePrice !== null && baselinePrice > 0) {
-    effectiveDiscountPct = Math.max(
-      0,
-      Number(
-        (((baselinePrice - effectivePrice) / baselinePrice) * 100).toFixed(2),
-      ),
-    );
-  } else {
-    effectiveDiscountPct = Math.max(
-      0,
-      Number((discountPct + (cashbackPct || 0)).toFixed(2)),
-    );
-  }
+  // Cashback is ignored in calculation: effective price is direct selling price and effective discount is direct discount
+  const effectivePrice = sellingPrice;
+  const effectiveDiscountPct = discountPct;
 
   return {
     discountPct,
@@ -348,12 +333,8 @@ export class EnebaGiftCardScraper {
       }
     }
 
-    // Cashback badge: e.g. "5% Cashback" or "10% Cashback"
-    let cashbackPct = 0;
-    const cashbackMatch = rawCard.match(/(\d+(?:\.\d+)?)%\s*Cashback/i);
-    if (cashbackMatch) {
-      cashbackPct = Number.parseFloat(cashbackMatch[1]);
-    }
+    // Cashback is ignored in calculation and metrics
+    const cashbackPct = 0;
 
     const faceValueInfo = parseFaceValueFromTitle(title);
     const faceValue = faceValueInfo ? faceValueInfo.amount : null;
@@ -472,10 +453,8 @@ export class EnebaGiftCardScraper {
         : null;
       const ratingLabel = ratingMatch ? ratingMatch[2].trim() : null;
 
-      const cashbackMatch = cleanBlock.match(/(\d+(?:\.\d+)?)%\s*Cashback/i);
-      const cashbackPct = cashbackMatch
-        ? Number.parseFloat(cashbackMatch[1])
-        : 0;
+      // Cashback is ignored in calculation and metrics
+      const cashbackPct = 0;
 
       const isLowestPrice = /\bLowest price\b/i.test(cleanBlock);
       const isFeaturedOffer =

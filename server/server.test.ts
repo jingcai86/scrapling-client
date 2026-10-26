@@ -417,9 +417,9 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
           discountedCount: 2,
           averageDiscountPctOnDiscounted: 8,
           averageDiscountPctAllInStock: 8,
-          averageEffectiveDiscountPct: 10,
+          averageEffectiveDiscountPct: 8,
           maxDiscountPct: 10,
-          maxEffectiveDiscountPct: 12,
+          maxEffectiveDiscountPct: 10,
           bestDeal: null,
           bestEffectiveDeal: null,
           bestDealOffers: [],
@@ -435,11 +435,11 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
               faceValue: 100,
               faceValueCurrency: "USD",
               listedDiscountPct: 10,
-              cashbackPct: 2,
+              cashbackPct: 0,
               inStock: true,
               discountPct: 10,
-              effectiveDiscountPct: 11.8,
-              effectivePrice: 88.2,
+              effectiveDiscountPct: 10,
+              effectivePrice: 90,
               savingsAmount: 10,
             },
             {
@@ -491,7 +491,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
           searchData.bestDeal.title,
           "Apple Gift Card 100 USD Key UNITED STATES",
         );
-        assert.equal(searchData.bestDeal.effectiveDiscountPct, 11.8);
+        assert.equal(searchData.bestDeal.effectiveDiscountPct, 10);
       } finally {
         await app2.close();
       }
