@@ -231,6 +231,9 @@ export class HeaderComponent {
   ) {}
 
   openConfigModal(): void {
+    if (this.dialog.openDialogs.some((d) => d.componentInstance instanceof ConfigDialogComponent)) {
+      return;
+    }
     this.dialog.open(ConfigDialogComponent, {
       width: '1050px',
       maxWidth: '96vw',

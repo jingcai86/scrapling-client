@@ -306,6 +306,7 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
 export class ScrapingComponent {
   displayedColumns: string[] = ['categoryName', 'provider', 'url', 'withOffers', 'enabled', 'actions'];
   sortedPages: ScrapePageConfig[] = [];
+  private lastPagesRef?: ScrapePageConfig[];
 
   constructor(
     private apiService: ApiService,
@@ -314,7 +315,11 @@ export class ScrapingComponent {
   ) {}
 
   ngDoCheck() {
-    this.sortedPages = [...(this.apiService.dashboardData()?.pages || [])];
+    const pages = this.apiService.dashboardData()?.pages;
+    if (pages !== this.lastPagesRef) {
+      this.lastPagesRef = pages;
+      this.sortedPages = pages ? [...pages] : [];
+    }
   }
 
   isScraping(): boolean {

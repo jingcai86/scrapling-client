@@ -574,6 +574,7 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   @ViewChild('bestDiscountChartContainer') bestDiscountChartContainerRef?: ElementRef<HTMLDivElement>;
   private chartInstance?: echarts.ECharts;
   private resizeObserver?: ResizeObserver;
+  private lastDataRef?: any;
 
   categoryColumns: string[] = [
     'category',
@@ -625,7 +626,11 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   }
 
   ngDoCheck() {
-    this.syncData();
+    const data = this.apiService.dashboardData();
+    if (data !== this.lastDataRef) {
+      this.lastDataRef = data;
+      this.syncData();
+    }
   }
 
   private syncData() {

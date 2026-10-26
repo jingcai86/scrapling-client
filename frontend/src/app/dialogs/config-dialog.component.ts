@@ -1,4 +1,4 @@
-import { Component, OnInit, DoCheck } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialog, MatDialogRef } from '@angular/material/dialog';
@@ -98,7 +98,7 @@ interface ConfigRow {
               <h3>1. Server & Database Boot Variables</h3>
               <p class="section-hint">These variables sit in <code>.env</code> and require app restart if changed.</p>
               <div class="fields-grid">
-                <div *ngFor="let item of getItemsByGroup('boot')" class="field-item">
+                <div *ngFor="let item of bootItems; trackBy: trackByKey" class="field-item">
                   <mat-form-field appearance="outline" class="full-width" matTooltip="Change in .env and restart server if changed">
                     <mat-label>{{ item.key }}</mat-label>
                     <input matInput [value]="editFormValues[item.key] || ''" disabled />
@@ -111,7 +111,7 @@ interface ConfigRow {
             <div class="section-box">
               <h3>2. Scrapling Anti-Bot & Engine Configuration</h3>
               <div class="fields-grid">
-                <div *ngFor="let item of getItemsByGroup('scrapling')" class="field-item">
+                <div *ngFor="let item of scraplingItems; trackBy: trackByKey" class="field-item">
                   <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ item.key }}</mat-label>
                     <input matInput [(ngModel)]="editFormValues[item.key]" />
@@ -446,15 +446,18 @@ interface ConfigRow {
     }
   `],
 })
-export class ConfigDialogComponent implements DoCheck {
+export class ConfigDialogComponent implements OnInit, OnDestroy {
   displayedColumns: string[] = ['key', 'group', 'value', 'description'];
   showSecrets = false;
 
   sortedConfig: ConfigRow[] = [];
+  bootItems: ConfigRow[] = [];
+  scraplingItems: ConfigRow[] = [];
   editFormValues: Record<string, string> = {};
   testEmailRecipient: string = '';
   isSendingTestEmail = false;
-  private testEmailInitialized = false;
+  private initialized = false;
+  private checkTimer?: any;
 
   constructor(
     private apiService: ApiService,
@@ -463,8 +466,30 @@ export class ConfigDialogComponent implements DoCheck {
     private snackBar: MatSnackBar,
   ) {}
 
-  ngDoCheck() {
+  ngOnInit() {
     this.syncConfigData();
+    if (!this.initialized) {
+      this.checkTimer = setInterval(() => {
+        if (this.apiService.dashboardData()) {
+          this.syncConfigData();
+          if (this.initialized) {
+            clearInterval(this.checkTimer);
+            this.checkTimer = undefined;
+          }
+        }
+      }, 150);
+    }
+  }
+
+  ngOnDestroy() {
+    if (this.checkTimer) {
+      clearInterval(this.checkTimer);
+      this.checkTimer = undefined;
+    }
+  }
+
+  trackByKey(_index: number, item: ConfigRow): string {
+    return item.key;
   }
 
   private syncConfigData() {
@@ -513,16 +538,20 @@ export class ConfigDialogComponent implements DoCheck {
     }
 
     this.sortedConfig = rows;
-    if (!this.testEmailInitialized && values['ALERT_EMAIL_TO']) {
+    this.bootItems = rows.filter((item) => item.disabled);
+    this.scraplingItems = rows.filter((item) => item.group === 'scrapling');
+
+    if (!this.testEmailRecipient && values['ALERT_EMAIL_TO']) {
       this.testEmailRecipient = values['ALERT_EMAIL_TO'];
-      this.testEmailInitialized = true;
     }
-    if (Object.keys(this.editFormValues).length === 0) {
+
+    if (!this.initialized && Object.keys(values).length > 0) {
       this.editFormValues = {
         ...values,
         ENEBA_TOP_DEALS_LIMIT: eneba['top_deals_limit'] || '10',
         ENEBA_ALERT_THRESHOLD_PCT: eneba['alert_discount_threshold_pct'] || '20',
       };
+      this.initialized = true;
     }
   }
 
@@ -544,16 +573,6 @@ export class ConfigDialogComponent implements DoCheck {
       return '••••••••';
     }
     return row.value;
-  }
-
-  getItemsByGroup(group: string): ConfigRow[] {
-    return this.sortedConfig.filter((item) => {
-      if (group === 'boot') return item.disabled;
-      if (group === 'scrapling') return item.group === 'scrapling';
-      if (group === 'cron') return item.group === 'scheduler';
-      if (group === 'alert') return item.group === 'email';
-      return item.group === group;
-    });
   }
 
   saveAllConfig() {

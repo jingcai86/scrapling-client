@@ -94,6 +94,9 @@ export class ConfigComponent implements OnInit {
   }
 
   openModal() {
+    if (this.dialog.openDialogs.some((d) => d.componentInstance instanceof ConfigDialogComponent)) {
+      return;
+    }
     const dialogRef = this.dialog.open(ConfigDialogComponent, {
       width: '1050px',
       maxWidth: '96vw',

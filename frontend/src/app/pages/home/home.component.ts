@@ -410,6 +410,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
   private resultsResizeObserver?: ResizeObserver;
   private lastRenderedTheme?: string;
   private lastItemsCount = -1;
+  private lastDataRef?: any;
 
   constructor(
     private apiService: ApiService,
@@ -465,7 +466,11 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
   }
 
   ngDoCheck() {
-    this.updateProvidersList();
+    const data = this.apiService.dashboardData();
+    if (data !== this.lastDataRef) {
+      this.lastDataRef = data;
+      this.updateProvidersList();
+    }
     if (isPlatformBrowser(this.platformId)) {
       const currentTheme = this.themeService.themeMode();
       const currentCount = this.historyItems.length;
