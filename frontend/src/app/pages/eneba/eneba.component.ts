@@ -5,6 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -27,6 +28,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
     MatTableModule,
     MatSortModule,
     MatButtonModule,
+    MatIconModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -77,12 +79,12 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
           <mat-card-content>
             <div class="kpi-controls-actions">
               <button mat-stroked-button type="button" class="action-btn" (click)="openEnebaConfigModal()">
-                <span class="material-symbols-outlined btn-icon">settings</span>
-                Configuration
+                <mat-icon class="btn-icon">settings</mat-icon>
+                <span>Configuration</span>
               </button>
               <button mat-flat-button color="primary" type="button" class="action-btn" (click)="triggerScrape()">
-                <span class="material-symbols-outlined btn-icon">play_arrow</span>
-                Scrape Now
+                <mat-icon class="btn-icon">play_arrow</mat-icon>
+                <span>Scrape Now</span>
               </button>
             </div>
           </mat-card-content>
@@ -135,16 +137,16 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
               </ng-container>
 
               <ng-container matColumnDef="offersCount">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Competing Sellers</th>
-                <td mat-cell *matCellDef="let s">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-offers">Competing Sellers</th>
+                <td mat-cell *matCellDef="let s" class="col-offers">
                   <button
                     *ngIf="s.bestDealOffers?.length"
                     mat-stroked-button
-                    color="accent"
-                    class="btn-xs"
+                    class="offers-badge-btn"
                     (click)="openOffers(s)"
                   >
-                    🏪 View {{ s.bestDealOffers.length }} Offers
+                    <mat-icon class="offers-mat-icon">storefront</mat-icon>
+                    <span>View {{ s.bestDealOffers.length }} Offers</span>
                   </button>
                   <span *ngIf="!s.bestDealOffers?.length" class="muted">No competing offers</span>
                 </td>
@@ -168,8 +170,8 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
           <mat-card-header class="table-header">
             <div>
               <mat-card-title class="chart-header-title">
-                <span class="material-symbols-outlined chart-icon">trending_up</span>
-                Best Discount in History
+                <mat-icon class="chart-icon">trending_up</mat-icon>
+                <span>Best Discount in History</span>
               </mat-card-title>
               <mat-card-subtitle>
                 Historical #1 highest discount across scrape runs. Hover point for seller, cost, and face value.
@@ -258,10 +260,10 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
             </ng-container>
 
             <ng-container matColumnDef="url">
-              <th mat-header-cell *matHeaderCellDef>Eneba Link</th>
-              <td mat-cell *matCellDef="let deal">
-                <a [href]="deal.url" target="_blank" rel="noopener" mat-stroked-button color="primary" class="btn-xs">
-                  Buy ↗
+              <th mat-header-cell *matHeaderCellDef class="col-buy">Eneba Link</th>
+              <td mat-cell *matCellDef="let deal" class="col-buy">
+                <a [href]="deal.url" target="_blank" rel="noopener" mat-stroked-button color="primary" class="btn-xs buy-btn">
+                  <span>Buy ↗</span>
                 </a>
               </td>
             </ng-container>
@@ -413,8 +415,61 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
     }
     .btn-xs {
       font-size: 0.78rem;
-      padding: 0 0.6rem;
+      padding: 0 0.65rem;
       height: 28px;
+      line-height: 28px;
+      white-space: nowrap !important;
+    }
+    .col-offers {
+      white-space: nowrap !important;
+      min-width: 175px !important;
+    }
+    .offers-badge-btn {
+      white-space: nowrap !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 0.35rem !important;
+      height: 28px !important;
+      line-height: 28px !important;
+      padding: 0 0.75rem !important;
+      font-size: 0.78rem !important;
+      font-weight: 600 !important;
+      border-radius: 6px !important;
+      border: 1px solid rgba(99, 102, 241, 0.4) !important;
+      background: rgba(99, 102, 241, 0.08) !important;
+      color: var(--mat-sys-primary) !important;
+      min-width: max-content !important;
+      flex-shrink: 0 !important;
+      cursor: pointer !important;
+      transition: all 0.15s ease !important;
+
+      &:hover {
+        background: rgba(99, 102, 241, 0.18) !important;
+        border-color: var(--mat-sys-primary) !important;
+      }
+
+      .offers-mat-icon {
+        font-size: 16px !important;
+        width: 16px !important;
+        height: 16px !important;
+        line-height: 16px !important;
+        vertical-align: middle !important;
+      }
+
+      span {
+        white-space: nowrap !important;
+        line-height: 1 !important;
+      }
+    }
+    .col-buy {
+      white-space: nowrap !important;
+      width: 90px !important;
+    }
+    .buy-btn {
+      white-space: nowrap !important;
+      font-weight: 600 !important;
+      border-radius: 6px !important;
     }
     .muted {
       color: var(--mat-sys-outline);

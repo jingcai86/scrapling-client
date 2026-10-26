@@ -93,7 +93,7 @@ interface ProviderRow {
           <mat-card-header class="chart-header">
             <div>
               <mat-card-title class="chart-title">
-                <span class="material-symbols-outlined chart-icon">monitoring</span>
+                <mat-icon class="chart-icon">monitoring</mat-icon>
                 <span>Scraping Success Rate</span>
               </mat-card-title>
               <mat-card-subtitle>
@@ -120,7 +120,7 @@ interface ProviderRow {
             ></div>
 
             <div *ngIf="historyItems.length === 0" class="empty-chart">
-              <span class="material-symbols-outlined empty-icon">show_chart</span>
+              <mat-icon class="empty-icon">show_chart</mat-icon>
               <p>No scraping history recorded yet.</p>
             </div>
           </mat-card-content>
@@ -131,7 +131,7 @@ interface ProviderRow {
           <mat-card-header class="chart-header">
             <div>
               <mat-card-title class="chart-title">
-                <span class="material-symbols-outlined chart-icon results-icon">bar_chart</span>
+                <mat-icon class="chart-icon results-icon">bar_chart</mat-icon>
                 <span>Scraped Results Over Time</span>
               </mat-card-title>
               <mat-card-subtitle>
@@ -158,7 +158,7 @@ interface ProviderRow {
             ></div>
 
             <div *ngIf="historyItems.length === 0" class="empty-chart">
-              <span class="material-symbols-outlined empty-icon">bar_chart</span>
+              <mat-icon class="empty-icon">bar_chart</mat-icon>
               <p>No extraction results recorded yet.</p>
             </div>
           </mat-card-content>
@@ -176,7 +176,8 @@ interface ProviderRow {
           </div>
           <div class="table-actions">
             <a mat-stroked-button routerLink="/scheduler" class="action-btn">
-              <span class="material-symbols-outlined">schedule</span> Job Scheduler &amp; Targets
+              <mat-icon>schedule</mat-icon>
+              <span>Job Scheduler &amp; Targets</span>
             </a>
           </div>
         </mat-card-header>

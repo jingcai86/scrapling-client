@@ -1,19 +1,71 @@
 @use '@angular/material' as mat;
 
-// System / Light theme default
+$font-stack: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+// =============================================================================
+// Theme Definitions (M3 Themes with Palette Configuration)
+// =============================================================================
+
 :root {
   color-scheme: light dark;
 
   @include mat.theme((
     color: (
       theme-type: light,
-      primary: mat.$azure-palette,
+      primary: mat.$violet-palette,
       tertiary: mat.$blue-palette,
     ),
+    typography: (
+      brand-family: $font-stack,
+      plain-family: $font-stack,
+    ),
   ));
+
+  // Light Mode Colors (Crisp Slate & Indigo Palette)
+  --bg: #f8fafc;
+  --bg-panel: #ffffff;
+  --bg-panel-alt: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --border: #cbd5e1;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --success: #10b981;
+  --warning: #f59e0b;
+
+  --mat-sys-background: #f8fafc;
+  --mat-sys-surface: #ffffff;
+  --mat-sys-surface-container: #ffffff;
+  --mat-sys-surface-container-low: #f8fafc;
+  --mat-sys-surface-container-high: #f1f5f9;
+  --mat-sys-surface-container-highest: #e2e8f0;
+  --mat-sys-outline: #94a3b8;
+  --mat-sys-outline-variant: #e2e8f0;
+  --mat-sys-primary: #4f46e5;
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: rgba(79, 70, 229, 0.1);
+  --mat-sys-on-primary-container: #312e81;
+  --mat-sys-on-surface: #0f172a;
+  --mat-sys-on-surface-variant: #475569;
+  --mat-sys-on-background: #0f172a;
+
+  // Global Typography Token Overrides
+  --mat-sys-body-large-font: #{$font-stack} !important;
+  --mat-sys-body-medium-font: #{$font-stack} !important;
+  --mat-sys-body-small-font: #{$font-stack} !important;
+  --mat-sys-label-large-font: #{$font-stack} !important;
+  --mat-sys-label-medium-font: #{$font-stack} !important;
+  --mat-sys-label-small-font: #{$font-stack} !important;
+  --mat-sys-title-large-font: #{$font-stack} !important;
+  --mat-sys-title-medium-font: #{$font-stack} !important;
+  --mat-sys-title-small-font: #{$font-stack} !important;
+  --mat-sys-headline-large-font: #{$font-stack} !important;
+  --mat-sys-headline-medium-font: #{$font-stack} !important;
+  --mat-sys-headline-small-font: #{$font-stack} !important;
 }
 
-// Explicit Dark Theme Override or System Dark
+// Explicit Dark Theme Override or System Dark Mode
 :root[data-theme='dark'],
 .dark-theme {
   color-scheme: dark;
@@ -21,13 +73,45 @@
   @include mat.theme((
     color: (
       theme-type: dark,
-      primary: mat.$azure-palette,
+      primary: mat.$violet-palette,
       tertiary: mat.$blue-palette,
     ),
+    typography: (
+      brand-family: $font-stack,
+      plain-family: $font-stack,
+    ),
   ));
+
+  // Dark Mode Colors (Original Sleek Slate-900 & Indigo-500 Palette)
+  --bg: #0f172a;
+  --bg-panel: #1e293b;
+  --bg-panel-alt: #0b1120;
+  --bg-hover: #334155;
+  --border: #334155;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --primary: #818cf8;
+  --primary-hover: #6366f1;
+  --success: #10b981;
+  --warning: #f59e0b;
+
+  --mat-sys-background: #0f172a;
+  --mat-sys-surface: #1e293b;
+  --mat-sys-surface-container: #1e293b;
+  --mat-sys-surface-container-low: #0f172a;
+  --mat-sys-surface-container-high: #243144;
+  --mat-sys-surface-container-highest: #334155;
+  --mat-sys-outline: #64748b;
+  --mat-sys-outline-variant: #334155;
+  --mat-sys-primary: #818cf8;
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: rgba(99, 102, 241, 0.2);
+  --mat-sys-on-primary-container: #c7d2fe;
+  --mat-sys-on-surface: #f8fafc;
+  --mat-sys-on-surface-variant: #94a3b8;
+  --mat-sys-on-background: #f8fafc;
 }
 
-// Media query for system dark when not overridden to explicit light
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
@@ -35,54 +119,266 @@
     @include mat.theme((
       color: (
         theme-type: dark,
-        primary: mat.$azure-palette,
+        primary: mat.$violet-palette,
         tertiary: mat.$blue-palette,
       ),
+      typography: (
+        brand-family: $font-stack,
+        plain-family: $font-stack,
+      ),
     ));
+
+    --bg: #0f172a;
+    --bg-panel: #1e293b;
+    --bg-panel-alt: #0b1120;
+    --bg-hover: #334155;
+    --border: #334155;
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
+    --primary: #818cf8;
+    --primary-hover: #6366f1;
+    --success: #10b981;
+    --warning: #f59e0b;
+
+    --mat-sys-background: #0f172a;
+    --mat-sys-surface: #1e293b;
+    --mat-sys-surface-container: #1e293b;
+    --mat-sys-surface-container-low: #0f172a;
+    --mat-sys-surface-container-high: #243144;
+    --mat-sys-surface-container-highest: #334155;
+    --mat-sys-outline: #64748b;
+    --mat-sys-outline-variant: #334155;
+    --mat-sys-primary: #818cf8;
+    --mat-sys-on-primary: #ffffff;
+    --mat-sys-primary-container: rgba(99, 102, 241, 0.2);
+    --mat-sys-on-primary-container: #c7d2fe;
+    --mat-sys-on-surface: #f8fafc;
+    --mat-sys-on-surface-variant: #94a3b8;
+    --mat-sys-on-background: #f8fafc;
   }
 }
 
-body {
+// =============================================================================
+// Global Typography & Base Reset
+// =============================================================================
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
   margin: 0;
-  font-family: Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-family: $font-stack !important;
   background-color: var(--mat-sys-background);
   color: var(--mat-sys-on-background);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-// Brand & Heading Typography Contrast
-h1, h2, h3, h4, .brand-text h1 {
-  color: var(--mat-sys-on-surface);
+button, input, select, textarea, .mat-typography {
+  font-family: $font-stack !important;
 }
 
-mat-card-title {
-  color: var(--mat-sys-on-surface) !important;
-  font-weight: 700 !important;
+// =============================================================================
+// Angular Material Icons & Font Ligatures
+// =============================================================================
+
+.mat-icon,
+.material-icons,
+.material-symbols-outlined {
+  font-family: 'Material Icons', 'Material Symbols Outlined' !important;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'liga';
 }
 
-mat-card-subtitle {
-  color: var(--mat-sys-on-surface-variant) !important;
-}
+// =============================================================================
+// Card & Container Styling
+// =============================================================================
 
-// Clean, high-contrast Table Header styles
-th.mat-mdc-header-cell {
-  background-color: var(--mat-sys-surface-container-high) !important;
-  color: var(--mat-sys-on-surface) !important;
-  font-weight: 700 !important;
-  font-size: 0.8rem !important;
-  letter-spacing: 0.04em !important;
-  text-transform: uppercase !important;
-  border-bottom: 2px solid var(--mat-sys-outline-variant) !important;
-}
-
-tr.mat-mdc-header-row {
-  background-color: var(--mat-sys-surface-container-high) !important;
-}
-
-tr.mat-mdc-row:hover {
+mat-card.mat-mdc-card {
   background-color: var(--mat-sys-surface-container) !important;
+  border: 1px solid var(--mat-sys-outline-variant) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
 }
+
+.mat-mdc-card-header {
+  padding: 1rem 1.25rem 0.75rem !important;
+}
+
+.mat-mdc-card-title {
+  color: var(--mat-sys-on-surface) !important;
+  font-weight: 700 !important;
+  font-size: 1.05rem !important;
+  letter-spacing: -0.01em !important;
+}
+
+.mat-mdc-card-subtitle {
+  color: var(--mat-sys-on-surface-variant) !important;
+  font-size: 0.82rem !important;
+  margin-top: 0.25rem !important;
+}
+
+// =============================================================================
+// Angular Material Table Polish (Compact, High Contrast, Sleek)
+// =============================================================================
 
 .mat-mdc-table {
   background: transparent !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  width: 100% !important;
+  font-family: $font-stack !important;
+}
+
+th.mat-mdc-header-cell {
+  background-color: var(--mat-sys-surface-container-high) !important;
+  color: var(--mat-sys-on-surface) !important;
+  font-family: $font-stack !important;
+  font-weight: 700 !important;
+  font-size: 0.74rem !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  padding: 0.72rem 1rem !important;
+  border-bottom: 2px solid var(--mat-sys-outline-variant) !important;
+  white-space: nowrap !important;
+  user-select: none !important;
+  height: 44px !important;
+}
+
+td.mat-mdc-cell {
+  font-family: $font-stack !important;
+  font-size: 0.85rem !important;
+  padding: 0.68rem 1rem !important;
+  border-bottom: 1px solid var(--mat-sys-outline-variant) !important;
+  color: var(--mat-sys-on-surface) !important;
+  vertical-align: middle !important;
+  height: 46px !important;
+}
+
+tr.mat-mdc-row {
+  transition: background-color 0.15s ease !important;
+
+  &:hover {
+    background-color: var(--mat-sys-surface-container-highest) !important;
+  }
+}
+
+.mat-sort-header-arrow {
+  color: var(--mat-sys-primary) !important;
+}
+
+// =============================================================================
+// Angular Material Buttons Polish
+// =============================================================================
+
+.mat-mdc-button-base {
+  font-family: $font-stack !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+  border-radius: 8px !important;
+  transition: all 0.15s ease !important;
+}
+
+.mat-mdc-outlined-button {
+  border-radius: 8px !important;
+  border-color: var(--mat-sys-outline-variant) !important;
+  color: var(--mat-sys-on-surface) !important;
+  font-size: 0.84rem !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 0.95rem !important;
+
+  &:hover:not(:disabled) {
+    background-color: var(--mat-sys-surface-container-high) !important;
+    border-color: var(--mat-sys-primary) !important;
+  }
+}
+
+.mat-mdc-unelevated-button,
+.mat-mdc-flat-button {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 0.84rem !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 1rem !important;
+  box-shadow: none !important;
+}
+
+.mat-mdc-button {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 0.84rem !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 0.85rem !important;
+
+  &:hover:not(:disabled) {
+    background-color: var(--mat-sys-surface-container-high) !important;
+  }
+}
+
+.mat-mdc-icon-button {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 6px !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  .mat-icon {
+    font-size: 20px !important;
+    width: 20px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+  }
+}
+
+// Compact Button Modifiers
+.btn-xs,
+.btn-sm {
+  height: 28px !important;
+  min-height: 28px !important;
+  line-height: 28px !important;
+  padding: 0 0.65rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.3rem !important;
+}
+
+// =============================================================================
+// Dialogs & Form Overrides
+// =============================================================================
+
+.mat-mdc-dialog-container {
+  --mdc-dialog-container-shape: 14px;
+}
+
+.mat-mdc-form-field {
+  font-family: $font-stack !important;
 }

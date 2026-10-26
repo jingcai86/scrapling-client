@@ -45,7 +45,7 @@ interface ConfigRow {
   template: `
     <div class="dialog-header-bar">
       <div class="header-left">
-        <span class="material-symbols-outlined modal-icon">settings</span>
+        <mat-icon class="modal-icon">settings</mat-icon>
         <div>
           <h2 mat-dialog-title class="modal-title">System & Application Configuration</h2>
           <p class="modal-subtitle">
@@ -54,7 +54,7 @@ interface ConfigRow {
         </div>
       </div>
       <button mat-icon-button mat-dialog-close aria-label="Close dialog">
-        <span class="material-symbols-outlined">close</span>
+        <mat-icon>close</mat-icon>
       </button>
     </div>
 

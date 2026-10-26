@@ -169,13 +169,13 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
               <td mat-cell *matCellDef="let page">
                 <div class="row-actions">
                   <button mat-icon-button (click)="scrapeSingle(page)" matTooltip="Scrape this page now" [disabled]="isScraping()">
-                    <span class="material-symbols-outlined">play_arrow</span>
+                    <mat-icon>play_arrow</mat-icon>
                   </button>
                   <button mat-icon-button (click)="openEditPageDialog(page)" matTooltip="Edit page">
-                    <span class="material-symbols-outlined">edit</span>
+                    <mat-icon>edit</mat-icon>
                   </button>
                   <button mat-icon-button color="warn" (click)="deletePage(page)" matTooltip="Delete page">
-                    <span class="material-symbols-outlined">delete</span>
+                    <mat-icon>delete</mat-icon>
                   </button>
                 </div>
               </td>

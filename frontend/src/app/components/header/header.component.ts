@@ -38,7 +38,8 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
         <div class="header-actions">
           <nav class="nav-links">
             <button mat-button type="button" class="nav-btn config-btn" (click)="openConfigModal()">
-              <span class="material-symbols-outlined nav-icon">settings</span> Configuration
+              <mat-icon class="nav-icon">settings</mat-icon>
+              <span>Configuration</span>
             </button>
           </nav>
 
@@ -49,28 +50,28 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
             matTooltip="Change color theme (Light / Dark / System)"
             aria-label="Color scheme selection"
           >
-            <span class="material-symbols-outlined theme-icon" *ngIf="themeService.themeMode() === 'light'">light_mode</span>
-            <span class="material-symbols-outlined theme-icon" *ngIf="themeService.themeMode() === 'dark'">dark_mode</span>
-            <span class="material-symbols-outlined theme-icon" *ngIf="themeService.themeMode() === 'system'">desktop_windows</span>
+            <mat-icon class="theme-icon" *ngIf="themeService.themeMode() === 'light'">light_mode</mat-icon>
+            <mat-icon class="theme-icon" *ngIf="themeService.themeMode() === 'dark'">dark_mode</mat-icon>
+            <mat-icon class="theme-icon" *ngIf="themeService.themeMode() === 'system'">desktop_windows</mat-icon>
             <span class="theme-label">Theme: {{ themeService.themeMode() === 'system' ? 'System' : (themeService.themeMode() | titlecase) }}</span>
-            <span class="material-symbols-outlined dropdown-arrow">arrow_drop_down</span>
+            <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
           </button>
 
           <mat-menu #themeMenu="matMenu">
             <button mat-menu-item (click)="themeService.setTheme('light')">
-              <span class="material-symbols-outlined menu-icon">light_mode</span>
+              <mat-icon class="menu-icon">light_mode</mat-icon>
               <span>Light Theme</span>
-              <span class="material-symbols-outlined check-icon" *ngIf="themeService.themeMode() === 'light'">check</span>
+              <mat-icon class="check-icon" *ngIf="themeService.themeMode() === 'light'">check</mat-icon>
             </button>
             <button mat-menu-item (click)="themeService.setTheme('dark')">
-              <span class="material-symbols-outlined menu-icon">dark_mode</span>
+              <mat-icon class="menu-icon">dark_mode</mat-icon>
               <span>Dark Theme</span>
-              <span class="material-symbols-outlined check-icon" *ngIf="themeService.themeMode() === 'dark'">check</span>
+              <mat-icon class="check-icon" *ngIf="themeService.themeMode() === 'dark'">check</mat-icon>
             </button>
             <button mat-menu-item (click)="themeService.setTheme('system')">
-              <span class="material-symbols-outlined menu-icon">desktop_windows</span>
+              <mat-icon class="menu-icon">desktop_windows</mat-icon>
               <span>System Default</span>
-              <span class="material-symbols-outlined check-icon" *ngIf="themeService.themeMode() === 'system'">check</span>
+              <mat-icon class="check-icon" *ngIf="themeService.themeMode() === 'system'">check</mat-icon>
             </button>
           </mat-menu>
         </div>

@@ -35,7 +35,7 @@ export interface EnebaConfigDialogData {
         </p>
       </div>
       <button mat-icon-button mat-dialog-close aria-label="Close dialog">
-        <span class="material-symbols-outlined">close</span>
+        <mat-icon>close</mat-icon>
       </button>
     </div>
 

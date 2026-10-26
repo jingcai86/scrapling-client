@@ -22,7 +22,7 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
       <mat-card class="modal-launcher-card" appearance="outlined">
         <mat-card-header>
           <div class="card-header-icon">
-            <span class="material-symbols-outlined icon">settings</span>
+            <mat-icon class="icon">settings</mat-icon>
           </div>
           <div>
             <mat-card-title>System & Application Configuration</mat-card-title>
@@ -36,7 +36,8 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
             Click the button below (or use the <strong>⚙️ Configuration</strong> button in the navigation header) to open the configuration modal at any time.
           </p>
           <button mat-flat-button color="primary" class="launch-btn" (click)="openModal()">
-            <span class="material-symbols-outlined">open_in_new</span> Open Configuration Modal
+            <mat-icon>open_in_new</mat-icon>
+            <span>Open Configuration Modal</span>
           </button>
         </mat-card-content>
       </mat-card>
