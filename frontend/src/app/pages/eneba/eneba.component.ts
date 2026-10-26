@@ -174,7 +174,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
           <div>
             <mat-card-title>Eneba Top {{ topDealsLimit }} Ranked Gift Card Deals</mat-card-title>
             <mat-card-subtitle>
-              Includes region, face value baseline, and discount %. Click any column header to sort.
+              The top {{ topDealsLimit }} highest discount deals across monitored categories. Click any column header to sort.
             </mat-card-subtitle>
           </div>
           <div class="filter-controls">
@@ -457,16 +457,16 @@ export class EnebaComponent {
     // Gather categories
     this.availableCategories = Array.from(new Set(statuses.map((s) => s.category)));
 
-    // Gather all ranked deals
+    // Gather all ranked deals across all categories
     const collected: (RankedDeal & { scrapedAt?: string })[] = [];
     for (const st of statuses) {
       const deals = st.rankedDeals || st.topDeals || [];
-      for (const d of deals.slice(0, this.topDealsLimit)) {
+      for (const d of deals) {
         collected.push({ ...d, scrapedAt: st.scrapedAt });
       }
     }
 
-    // Sort by discountPct descending by default
+    // Sort by discountPct descending by default (highest discount first)
     collected.sort((a, b) => b.discountPct - a.discountPct);
     this.allDeals = collected;
     this.applyDealsFilter();
@@ -565,11 +565,19 @@ export class EnebaComponent {
     const q = this.searchQuery.trim().toLowerCase();
     const cat = this.selectedCategory;
 
-    this.filteredDeals = this.allDeals.filter((deal) => {
+    const matched = this.allDeals.filter((deal) => {
       const matchCat = cat === 'all' || deal.category === cat;
-      const matchQ = !q || deal.title.toLowerCase().includes(q) || deal.region.toLowerCase().includes(q);
+      const matchQ =
+        !q ||
+        deal.title.toLowerCase().includes(q) ||
+        deal.region.toLowerCase().includes(q) ||
+        deal.category.toLowerCase().includes(q);
       return matchCat && matchQ;
     });
+
+    // matched is already sorted by highest discount descending (b.discountPct - a.discountPct)
+    // Only show the top N with the highest discount across matching pages
+    this.filteredDeals = matched.slice(0, this.topDealsLimit);
   }
 
   sortCategories(sort: Sort) {
@@ -593,15 +601,16 @@ export class EnebaComponent {
   }
 
   sortDeals(sort: Sort) {
-    const data = [...this.filteredDeals];
     if (!sort.active || sort.direction === '') {
-      this.filteredDeals = data;
+      this.applyDealsFilter();
       return;
     }
 
+    const data = [...this.filteredDeals];
     this.filteredDeals = data.sort((a, b) => {
       const isAsc = sort.direction === 'asc';
       switch (sort.active) {
+        case 'rank': return compare(this.filteredDeals.indexOf(a), this.filteredDeals.indexOf(b), isAsc);
         case 'title': return compare(a.title, b.title, isAsc);
         case 'category': return compare(a.category, b.category, isAsc);
         case 'region': return compare(a.region, b.region, isAsc);

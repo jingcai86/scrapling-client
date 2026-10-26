@@ -133,13 +133,13 @@ export function renderEnebaTab(): string {
         </div>
       </div>
 
-      <!-- Eneba Table 2: Eneba Top Ranked Deals Per Category (Sortable) -->
+      <!-- Eneba Table 2: Eneba Top Ranked Deals Across Monitored Categories (Sortable) -->
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Eneba Top <span id="enebaPullLimitBadge">10</span> Ranked Gift Card Deals</h2>
+            <h2 class="card-title">Eneba Top <span id="enebaTableLimitTitle">10</span> Ranked Gift Card Deals</h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
-              Includes region, face value baseline, and discount %. Click any column header to sort.
+              The top <span id="enebaTableLimitSub">10</span> highest discount deals across monitored categories. Click any column header to sort.
             </div>
           </div>
           <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">

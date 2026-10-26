@@ -580,6 +580,10 @@ export function renderClientScripts(): string {
       if (badge) badge.textContent = pullLimit;
       const threshBadge = document.getElementById('enebaAlertThreshBadge');
       if (threshBadge) threshBadge.textContent = enebaAlertThreshold + '%';
+      const limitTitle = document.getElementById('enebaTableLimitTitle');
+      if (limitTitle) limitTitle.textContent = pullLimit;
+      const limitSub = document.getElementById('enebaTableLimitSub');
+      if (limitSub) limitSub.textContent = pullLimit;
 
       const catSelect = document.getElementById('enebaCategoryFilter');
       const currentCat = catSelect.value;
@@ -595,14 +599,12 @@ export function renderClientScripts(): string {
 
       const flatDeals = [];
       filteredStatuses.forEach((st) => {
-        (st.rankedDeals || []).slice(0, pullLimit).forEach((deal, idx) => {
-          const rank = idx + 1;
+        (st.rankedDeals || []).forEach((deal) => {
           if (searchQ) {
             const hay = (deal.title + ' ' + st.category + ' ' + deal.region).toLowerCase();
             if (!searchQ.split(/\\s+/).every((tok) => hay.includes(tok))) return;
           }
           flatDeals.push({
-            rank,
             title: deal.title,
             category: st.category,
             region: deal.region,
@@ -619,15 +621,28 @@ export function renderClientScripts(): string {
         });
       });
 
-      const sort = tableSortState.enebaDeals;
-      flatDeals.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+      // Sort by highest discount percentage descending
+      flatDeals.sort((a, b) => b.discountPct - a.discountPct);
 
-      if (flatDeals.length === 0) {
+      // Only show top N (pullLimit) with the highest discount across monitored pages
+      const topDeals = flatDeals.slice(0, pullLimit);
+
+      // Re-sort the top deals if a table column sort header was clicked
+      const sort = tableSortState.enebaDeals;
+      if (sort && (sort.key !== 'discountPct' || sort.dir !== 'desc')) {
+        topDeals.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+      }
+
+      topDeals.forEach((deal, idx) => {
+        deal.rank = idx + 1;
+      });
+
+      if (topDeals.length === 0) {
         dealsBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No matching Eneba deals found.</td></tr>';
         return;
       }
 
-      dealsBody.innerHTML = flatDeals.map((deal) => {
+      dealsBody.innerHTML = topDeals.map((deal) => {
         const isAlertMatch = deal.discountPct >= enebaAlertThreshold;
         const priceDisplay = deal.sellingPrice < 999999 ? '$' + deal.sellingPrice.toFixed(2) : 'N/A';
         return '<tr>' +
