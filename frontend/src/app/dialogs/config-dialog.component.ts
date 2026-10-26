@@ -110,6 +110,7 @@ interface ConfigRow {
             <!-- Group 2: Scrapling Anti-Bot & Engine -->
             <div class="section-box">
               <h3>2. Scrapling Anti-Bot & Engine Configuration</h3>
+              <p class="section-hint">Scrapling MCP server endpoint, request timeouts, and server timezone.</p>
               <div class="fields-grid">
                 <div *ngFor="let item of scraplingItems; trackBy: trackByKey" class="field-item">
                   <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
@@ -124,6 +125,7 @@ interface ConfigRow {
             <!-- Group 3: Cron Scheduler -->
             <div class="section-box">
               <h3>3. Daily Randomized Cron Schedule</h3>
+              <p class="section-hint">Automated background scraping window, daily start time, and random jitter interval.</p>
               <div class="fields-grid">
                 <!-- CRON_ENABLED as true/false dropdown -->
                 <div class="field-item">
@@ -416,14 +418,15 @@ interface ConfigRow {
       background: var(--mat-sys-surface-container-low);
 
       h3 {
-        margin: 0 0 0.25rem;
+        margin: 0 0 0.35rem;
         font-size: 1rem;
         font-weight: 700;
       }
     }
     .section-hint {
-      margin: 0 0 1rem;
-      font-size: 0.82rem;
+      margin: 0 0 1.25rem;
+      font-size: 0.84rem;
+      line-height: 1.45;
       color: var(--mat-sys-on-surface-variant);
     }
     .fields-grid {
