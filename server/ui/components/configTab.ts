@@ -26,10 +26,13 @@ export function renderConfigTab(): string {
             <div>
               <h4 style="margin:0;font-size:0.95rem;">Configuration Variables</h4>
             </div>
-            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
               <button type="button" class="btn btn-sm" id="btnToggleSecrets">👁 Show Secrets</button>
               <button type="button" class="btn btn-sm" id="btnPreviewEmailConfig">✉ Preview Alert Email</button>
-              <button type="button" class="btn btn-sm btn-success" id="btnSendTestEmail">🚀 Send Test Email</button>
+              <div style="display:inline-flex;align-items:center;gap:0.35rem;">
+                <input type="email" id="testEmailRecipientInput" class="form-control" style="font-size:0.8rem;padding:0.25rem 0.55rem;width:210px;height:31px;border-radius:6px;border:1px solid var(--border);background:var(--bg-panel);color:var(--text);" placeholder="Recipient email" title="Test email recipient (defaults to ALERT_EMAIL_TO)">
+                <button type="button" class="btn btn-sm btn-success" id="btnSendTestEmail">🚀 Send Test Email</button>
+              </div>
               <button type="button" class="btn btn-sm btn-primary" id="btnEnterConfigEdit">✎ Edit Configuration</button>
             </div>
           </div>

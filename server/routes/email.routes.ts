@@ -71,7 +71,7 @@ export function createEmailRouter(ctx: ServerContext): Router {
     }
   });
 
-  router.post("/test", async (_req, res, next) => {
+  router.post("/test", async (req, res, next) => {
     try {
       const thresholdPct = await getEnebaAlertThreshold({
         pool: ctx.pool,
@@ -81,9 +81,15 @@ export function createEmailRouter(ctx: ServerContext): Router {
       const dealsToSend =
         matchingLive.length > 0 ? matchingLive : SAMPLE_PREVIEW_DEALS;
 
+      const customTo =
+        typeof req.body?.to === "string" && req.body.to.trim()
+          ? req.body.to.trim()
+          : undefined;
+
       const result = await sendDealAlertEmail(dealsToSend, {
         force: true,
         thresholdPct,
+        customTo,
       });
       res.json(result);
     } catch (err) {

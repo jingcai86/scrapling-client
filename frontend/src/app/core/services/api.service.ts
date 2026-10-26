@@ -101,8 +101,8 @@ export class ApiService {
     return this.http.get<{ subject: string; html: string; isSampleData: boolean }>('/api/email/preview');
   }
 
-  sendTestEmail(): Observable<{ sent: boolean; messageId?: string; error?: string; reason?: string }> {
-    return this.http.post<{ sent: boolean; messageId?: string; error?: string; reason?: string }>('/api/email/test', {}).pipe(
+  sendTestEmail(to?: string): Observable<{ sent: boolean; messageId?: string; error?: string; reason?: string; recipients?: string[] }> {
+    return this.http.post<{ sent: boolean; messageId?: string; error?: string; reason?: string; recipients?: string[] }>('/api/email/test', { to }).pipe(
       tap(() => this.loadDashboard(false)),
     );
   }

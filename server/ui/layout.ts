@@ -9,11 +9,10 @@ export function renderHeader(): string {
         </div>
       </div>
 
-      <nav class="nav-tabs" aria-label="Main Navigation">
-        <button type="button" class="tab-btn" data-tab="config" data-route="/config">⚙️ Configuration</button>
-      </nav>
-
       <div class="header-actions">
+        <nav class="nav-tabs" aria-label="Main Navigation">
+          <button type="button" class="tab-btn" data-tab="config" data-route="/config">⚙️ Configuration</button>
+        </nav>
         <button type="button" class="theme-toggle-btn" id="themeToggleBtn" title="Switch theme (Light / Dark / System)" aria-label="Theme toggle">
           <span id="themeBtnIcon">🖥️</span>
           <span id="themeBtnLabel">Theme: System</span>

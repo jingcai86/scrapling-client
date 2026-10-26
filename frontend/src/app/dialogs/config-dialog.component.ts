@@ -72,9 +72,14 @@ interface ConfigRow {
             <button mat-stroked-button (click)="previewEmail()">
               ✉ Preview Alert Email
             </button>
-            <button mat-flat-button color="accent" (click)="sendTestEmail()">
-              🚀 Send Test Email
-            </button>
+            <div class="test-email-group">
+              <mat-form-field appearance="outline" class="test-email-field" subscriptSizing="dynamic">
+                <input matInput type="email" [(ngModel)]="testEmailRecipient" placeholder="Recipient email" aria-label="Test email recipient" />
+              </mat-form-field>
+              <button mat-flat-button color="accent" (click)="sendTestEmail()" [disabled]="isSendingTestEmail">
+                {{ isSendingTestEmail ? '⏳ Sending...' : '🚀 Send Test Email' }}
+              </button>
+            </div>
             <button
               mat-flat-button
               color="primary"
@@ -382,8 +387,26 @@ interface ConfigRow {
     }
     .toolbar-actions {
       display: flex;
+      align-items: center;
       gap: 0.5rem;
       flex-wrap: wrap;
+    }
+    .test-email-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .test-email-field {
+      width: 210px;
+    }
+    .test-email-field ::ng-deep .mat-mdc-text-field-wrapper {
+      height: 38px !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .test-email-field ::ng-deep .mat-mdc-form-field-flex {
+      height: 38px !important;
+      align-items: center !important;
     }
     .card-content-wrapper {
       padding: 0 1.25rem 1.25rem;
@@ -489,6 +512,9 @@ export class ConfigDialogComponent implements DoCheck {
 
   sortedConfig: ConfigRow[] = [];
   editFormValues: Record<string, string> = {};
+  testEmailRecipient: string = '';
+  isSendingTestEmail = false;
+  private testEmailInitialized = false;
 
   constructor(
     private apiService: ApiService,
@@ -545,6 +571,10 @@ export class ConfigDialogComponent implements DoCheck {
     }
 
     this.sortedConfig = rows;
+    if (!this.testEmailInitialized && values['ALERT_EMAIL_TO']) {
+      this.testEmailRecipient = values['ALERT_EMAIL_TO'];
+      this.testEmailInitialized = true;
+    }
     if (!this.isEditMode && Object.keys(this.editFormValues).length === 0) {
       this.editFormValues = {
         ...values,
@@ -631,12 +661,22 @@ export class ConfigDialogComponent implements DoCheck {
   }
 
   sendTestEmail() {
-    this.apiService.sendTestEmail().subscribe((res) => {
-      if (res.sent) {
-        this.snackBar.open(`Test email sent! Message ID: ${res.messageId}`, 'OK', { duration: 4000 });
-      } else {
-        this.snackBar.open(`Email failed: ${res.error || res.reason}`, 'OK', { duration: 5000 });
-      }
+    const to = this.testEmailRecipient?.trim() || undefined;
+    this.isSendingTestEmail = true;
+    this.apiService.sendTestEmail(to).subscribe({
+      next: (res) => {
+        this.isSendingTestEmail = false;
+        if (res.sent) {
+          const sentTo = res.recipients ? res.recipients.join(', ') : (to || 'ALERT_EMAIL_TO');
+          this.snackBar.open(`Test email sent to ${sentTo}! Message ID: ${res.messageId || 'OK'}`, 'OK', { duration: 4000 });
+        } else {
+          this.snackBar.open(`Email failed: ${res.error || res.reason}`, 'OK', { duration: 5000 });
+        }
+      },
+      error: (err) => {
+        this.isSendingTestEmail = false;
+        this.snackBar.open(`Error sending test email: ${err.message}`, 'OK', { duration: 5000 });
+      },
     });
   }
 

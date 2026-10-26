@@ -1033,6 +1033,17 @@ export function renderClientScripts(): string {
 
     function renderConfigTable(env) {
       safeSetText('envFilePathLabel', env.envFilePath || '.env');
+      const testEmailInput = document.getElementById('testEmailRecipientInput');
+      if (testEmailInput && !window._testEmailUserModified) {
+        testEmailInput.value = env.values['ALERT_EMAIL_TO'] || '';
+      }
+      if (testEmailInput && !testEmailInput._hasInputListener) {
+        testEmailInput._hasInputListener = true;
+        testEmailInput.addEventListener('input', () => {
+          window._testEmailUserModified = true;
+        });
+      }
+
       const tbody = document.getElementById('configTableBody');
       if (!tbody) return;
       const schemaByKey = new Map((env.schema || []).map((f) => [f.key, f]));
@@ -1442,16 +1453,37 @@ export function renderClientScripts(): string {
 
     document.getElementById('btnPreviewEmailConfig').addEventListener('click', openEmailPreview);
 
-    document.getElementById('btnSendTestEmail').addEventListener('click', async () => {
-      const res = await fetch('/api/email/test', { method: 'POST' });
-      const data = await res.json();
-      if (data.sent) {
-        showToast('Test email sent via Resend! Message ID: ' + data.messageId);
-      } else {
-        showToast('Email not sent: ' + (data.error || data.reason));
-      }
-      await fetchDashboard();
-    });
+    const btnSendTestEmail = document.getElementById('btnSendTestEmail');
+    if (btnSendTestEmail) {
+      btnSendTestEmail.addEventListener('click', async () => {
+        const recipientInput = document.getElementById('testEmailRecipientInput');
+        const customTo = recipientInput ? recipientInput.value.trim() : '';
+        const origText = btnSendTestEmail.textContent;
+        btnSendTestEmail.disabled = true;
+        btnSendTestEmail.textContent = '⏳ Sending...';
+
+        try {
+          const res = await fetch('/api/email/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: customTo || undefined }),
+          });
+          const data = await res.json();
+          if (data.sent) {
+            const targetRecipients = data.recipients ? data.recipients.join(', ') : (customTo || 'ALERT_EMAIL_TO');
+            showToast('Test email sent to ' + targetRecipients + '! Message ID: ' + (data.messageId || 'OK'));
+          } else {
+            showToast('Email not sent: ' + (data.error || data.reason));
+          }
+        } catch (err) {
+          showToast('Failed to send test email: ' + err.message);
+        } finally {
+          btnSendTestEmail.disabled = false;
+          btnSendTestEmail.textContent = origText;
+        }
+        await fetchDashboard();
+      });
+    }
 
     // Theme toggle (Light / Dark / System)
     const THEME_MODES = ['system', 'light', 'dark'];

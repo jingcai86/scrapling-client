@@ -368,6 +368,16 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       const prev = (await prevRes.json()) as { html: string; subject: string };
       assert.match(prev.html, /Scrapling Monitor Alert/);
 
+      // 5.1 POST /api/email/test with custom recipient
+      const testEmailRes = await fetch(`${baseUrl}/api/email/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: "custom-tester@example.com" }),
+      });
+      assert.equal(testEmailRes.status, 200);
+      const testEmailData = (await testEmailRes.json()) as { sent: boolean };
+      assert.ok("sent" in testEmailData);
+
       // 5.5 GET /api/eneba/config & PUT /api/eneba/config (scrapling.eneba_config)
       const enebaCfgRes = await fetch(`${baseUrl}/api/eneba/config`);
       assert.equal(enebaCfgRes.status, 200);

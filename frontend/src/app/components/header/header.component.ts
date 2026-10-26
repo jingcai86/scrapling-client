@@ -35,13 +35,13 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
           </div>
         </a>
 
-        <nav class="nav-links">
-          <button mat-button type="button" class="nav-btn config-btn" (click)="openConfigModal()">
-            <span class="material-symbols-outlined nav-icon">settings</span> Configuration
-          </button>
-        </nav>
-
         <div class="header-actions">
+          <nav class="nav-links">
+            <button mat-button type="button" class="nav-btn config-btn" (click)="openConfigModal()">
+              <span class="material-symbols-outlined nav-icon">settings</span> Configuration
+            </button>
+          </nav>
+
           <button
             mat-stroked-button
             class="theme-toggle-btn"
