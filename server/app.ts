@@ -8,7 +8,6 @@ import express, {
   type NextFunction,
 } from "express";
 import type { ServerContext } from "./types.js";
-import { createUiRouter } from "./routes/ui.routes.js";
 import { createDashboardRouter } from "./routes/dashboard.routes.js";
 import { createEnebaRouter } from "./routes/eneba.routes.js";
 import { createDealsRouter } from "./routes/deals.routes.js";
@@ -19,11 +18,15 @@ import { createSchedulerRouter } from "./routes/scheduler.routes.js";
 import { createEmailRouter } from "./routes/email.routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const FRONTEND_DIST = path.resolve(__dirname, "../frontend/dist/frontend");
+const DIRECT_FRONTEND_DIST = path.resolve(__dirname, "../frontend/dist/frontend");
+const COMPILED_FRONTEND_DIST = path.resolve(__dirname, "../../frontend/dist/frontend");
+const FRONTEND_DIST = fs.existsSync(DIRECT_FRONTEND_DIST)
+  ? DIRECT_FRONTEND_DIST
+  : COMPILED_FRONTEND_DIST;
 const BROWSER_DIST = path.resolve(FRONTEND_DIST, "browser");
 const SERVER_MJS = path.resolve(FRONTEND_DIST, "server/server.mjs");
 
-// Try loading Angular SSR request handler if built
+// Load Angular SSR request handler
 let angularReqHandler:
   | ((req: Request, res: Response, next: NextFunction) => void)
   | null = null;
@@ -34,7 +37,7 @@ if (fs.existsSync(SERVER_MJS)) {
     angularReqHandler = mod.reqHandler;
   } catch (err) {
     console.warn(
-      "⚠️  [SSR Warn] Failed to load Angular SSR handler (falling back to template UI):",
+      "⚠️  [SSR Warn] Failed to load Angular SSR handler (falling back to Angular CSR index.csr.html):",
       err,
     );
   }
@@ -56,7 +59,7 @@ export function createApp(ctx: ServerContext): Express {
   app.use("/api/scheduler", createSchedulerRouter(ctx));
   app.use("/api/email", createEmailRouter(ctx));
 
-  // 2. Serve static Angular browser assets (JS, CSS, images) if built
+  // 2. Serve static Angular browser assets (JS, CSS, images)
   if (fs.existsSync(BROWSER_DIST)) {
     app.use(
       express.static(BROWSER_DIST, {
@@ -67,22 +70,24 @@ export function createApp(ctx: ServerContext): Express {
     );
   }
 
-  // 3. Mount Angular SSR Handler or fallback UI router
-  if (angularReqHandler) {
-    app.use((req: Request, res: Response, next: NextFunction) => {
-      // Do not let Angular SSR swallow undefined /api/* routes
-      if (req.path.startsWith("/api/")) {
-        return next();
-      }
-      if (req.method === "GET") {
-        angularReqHandler!(req, res, next);
-      } else {
-        next();
-      }
-    });
-  } else {
-    app.use(createUiRouter());
-  }
+  // 3. Mount Angular SSR Handler (with CSR index.csr.html fallback for SPA routes)
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // Do not let Angular swallow undefined /api/* routes
+    if (req.path.startsWith("/api/")) {
+      return next();
+    }
+    if (req.method !== "GET") {
+      return next();
+    }
+    if (angularReqHandler) {
+      return angularReqHandler(req, res, next);
+    }
+    const csrIndex = path.join(BROWSER_DIST, "index.csr.html");
+    if (fs.existsSync(csrIndex)) {
+      return res.sendFile(csrIndex);
+    }
+    next();
+  });
 
   // 4. 404 Handler for undefined API or backend routes
   app.use((_req: Request, res: Response) => {

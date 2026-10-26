@@ -11,7 +11,6 @@ import {
   type DealAlertItem,
 } from "../core/index.js";
 import { createDashboardServer } from "./index.js";
-import { renderDashboardHtml } from "./ui.js";
 
 function createInMemoryConfigPool(): {
   pool: pg.Pool;
@@ -22,15 +21,38 @@ function createInMemoryConfigPool(): {
   const enebaConfigRows = new Map<string, { key: string; value: string }>();
 
   const pool = {
-    query: async (sql: string, params: unknown[] = []) => {
-      const normalized = sql.replace(/\s+/g, " ").trim();
+    query: async (
+      sqlOrConfig: string | { text: string; values?: unknown[]; rowMode?: string },
+      params: unknown[] = [],
+    ) => {
+      const sqlText =
+        typeof sqlOrConfig === "object" && sqlOrConfig !== null
+          ? sqlOrConfig.text
+          : String(sqlOrConfig);
+      const sqlParams =
+        (typeof sqlOrConfig === "object" &&
+          sqlOrConfig !== null &&
+          Array.isArray(sqlOrConfig.values) &&
+          sqlOrConfig.values) ||
+        params ||
+        [];
+      const isArrayMode =
+        typeof sqlOrConfig === "object" &&
+        sqlOrConfig !== null &&
+        sqlOrConfig.rowMode === "array";
+
+      const normalized = sqlText
+        .replace(/"/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const lower = normalized.toLowerCase();
 
       if (
-        normalized.startsWith("INSERT INTO scrapling.config") &&
-        normalized.includes("ON CONFLICT (key) DO NOTHING")
+        lower.includes("scrapling.config") &&
+        lower.includes("do nothing")
       ) {
-        const key = String(params[0] ?? "");
-        const value = String(params[1] ?? "");
+        const key = String(sqlParams[0] ?? "");
+        const value = String(sqlParams[1] ?? "");
         if (key && !configRows.has(key)) {
           configRows.set(key, { key, value });
         }
@@ -38,11 +60,11 @@ function createInMemoryConfigPool(): {
       }
 
       if (
-        normalized.startsWith("INSERT INTO scrapling.config") &&
-        normalized.includes("ON CONFLICT (key) DO UPDATE")
+        lower.includes("scrapling.config") &&
+        lower.includes("do update")
       ) {
-        const key = String(params[0] ?? "");
-        const value = String(params[1] ?? "");
+        const key = String(sqlParams[0] ?? "");
+        const value = String(sqlParams[4] ?? sqlParams[1] ?? "");
         if (key) {
           configRows.set(key, { key, value });
         }
@@ -50,41 +72,43 @@ function createInMemoryConfigPool(): {
       }
 
       if (
-        normalized.startsWith(
-          "SELECT key, value FROM scrapling.config ORDER BY key ASC",
-        )
+        lower.startsWith("select") &&
+        lower.includes("scrapling.config") &&
+        lower.includes("order by")
       ) {
         const rows = Array.from(configRows.values()).sort((a, b) =>
           a.key.localeCompare(b.key),
         );
-        return { rows, rowCount: rows.length };
+        return {
+          rows: isArrayMode ? rows.map((r) => [r.key, r.value]) : rows,
+          rowCount: rows.length,
+        };
       }
 
       if (
-        normalized.startsWith(
-          "UPDATE scrapling.config SET value = '', updated_at = NOW() WHERE key = $1",
-        )
+        lower.startsWith("update scrapling.config") &&
+        lower.includes("where")
       ) {
-        const key = String(params[0] ?? "");
+        const key = String(sqlParams[1] ?? sqlParams[0] ?? "");
         if (configRows.has(key)) {
           configRows.set(key, { key, value: "" });
         }
         return { rows: [], rowCount: 1 };
       }
 
-      if (normalized.startsWith("DELETE FROM scrapling.config WHERE key = $1")) {
-        const key = String(params[0] ?? "");
+      if (lower.startsWith("delete from scrapling.config where")) {
+        const key = String(sqlParams[0] ?? "");
         configRows.delete(key);
         return { rows: [], rowCount: 1 };
       }
 
       // Eneba configuration table queries
       if (
-        normalized.startsWith("INSERT INTO scrapling.eneba_config") &&
-        normalized.includes("ON CONFLICT (key) DO NOTHING")
+        lower.includes("scrapling.eneba_config") &&
+        lower.includes("do nothing")
       ) {
-        const key = String(params[0] ?? "top_deals_limit");
-        const value = String(params[1] ?? "10");
+        const key = String(sqlParams[0] ?? "top_deals_limit");
+        const value = String(sqlParams[1] ?? "10");
         if (!enebaConfigRows.has(key)) {
           enebaConfigRows.set(key, { key, value });
         }
@@ -92,11 +116,11 @@ function createInMemoryConfigPool(): {
       }
 
       if (
-        normalized.startsWith("INSERT INTO scrapling.eneba_config") &&
-        normalized.includes("ON CONFLICT (key) DO UPDATE")
+        lower.includes("scrapling.eneba_config") &&
+        lower.includes("do update")
       ) {
-        const key = String(params[0] ?? "");
-        const value = String(params[1] ?? "");
+        const key = String(sqlParams[0] ?? "");
+        const value = String(sqlParams[3] ?? sqlParams[1] ?? "");
         if (key) {
           enebaConfigRows.set(key, { key, value });
         }
@@ -104,9 +128,9 @@ function createInMemoryConfigPool(): {
       }
 
       if (
-        normalized.startsWith(
-          "SELECT key, value FROM scrapling.eneba_config ORDER BY key ASC",
-        )
+        lower.startsWith("select") &&
+        lower.includes("scrapling.eneba_config") &&
+        lower.includes("order by")
       ) {
         if (!enebaConfigRows.has("top_deals_limit")) {
           enebaConfigRows.set("top_deals_limit", {
@@ -123,7 +147,10 @@ function createInMemoryConfigPool(): {
         const rows = Array.from(enebaConfigRows.values()).sort((a, b) =>
           a.key.localeCompare(b.key),
         );
-        return { rows, rowCount: rows.length };
+        return {
+          rows: isArrayMode ? rows.map((r) => [r.key, r.value]) : rows,
+          rowCount: rows.length,
+        };
       }
 
       return { rows: [], rowCount: 0 };
@@ -514,25 +541,42 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
     }
   });
 
-  it("renders modular dashboard HTML with all section tabs, tables, and dialogs", () => {
-    const html = renderDashboardHtml();
-    assert.ok(html.includes("Scrapling Monitor"));
-    assert.ok(html.includes('id="tab-home"'));
-    assert.ok(html.includes('id="tab-eneba"'));
-    assert.ok(html.includes('id="tab-scraping"'));
-    assert.ok(html.includes('id="tab-config"'));
-    assert.ok(html.includes('id="providersTable"'));
-    assert.ok(html.includes('id="enebaSummaryTable"'));
-    assert.ok(html.includes('id="enebaDealsTable"'));
-    assert.ok(html.includes('id="pagesTable"'));
-    assert.ok(html.includes('id="envFieldsContainer"'));
-    assert.ok(html.includes('id="offersTable"'));
-    assert.ok(html.includes('id="pageFormDialog"'));
-    assert.ok(html.includes('id="cronFormDialog"'));
-    assert.ok(html.includes('id="emailPreviewDialog"'));
-    assert.ok(html.includes('id="sellerOffersDialog"'));
-    assert.ok(html.includes('id="scrapeBanner"'));
-    assert.ok(html.includes('id="toast"'));
+  it("serves Angular SPA dashboard application shell across all navigation routes", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "scrapling-angular-"));
+    const tmpEnvPath = path.join(tmpDir, ".env");
+    fs.writeFileSync(
+      tmpEnvPath,
+      "PORT=80\nDATABASE_URL=postgresql://mock:mock@127.0.0.1:1/postgres\n",
+      "utf8",
+    );
+
+    const { pool } = createInMemoryConfigPool();
+    const app = await createDashboardServer({
+      port: 0,
+      dataDir: path.join(tmpDir, "data"),
+      envPath: tmpEnvPath,
+      pool,
+    });
+
+    try {
+      assert.ok(app.app);
+      const base = `http://127.0.0.1:${app.port}`;
+
+      for (const route of ["/", "/eneba", "/scraping", "/config"]) {
+        const res = await fetch(`${base}${route}`);
+        assert.equal(res.status, 200);
+        assert.ok(
+          res.headers.get("content-type")?.toLowerCase().includes("text/html"),
+        );
+        const text = await res.text();
+        assert.ok(
+          text.includes("<app-root") || text.includes("Scrapling Monitor"),
+        );
+      }
+    } finally {
+      await app.close();
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it("exposes Express application, handles 404s, and serves UI routes across paths", async () => {

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { asc, eq, sql } from "drizzle-orm";
 import pg from "pg";
 import {
   ENV_ONLY_KEYS,
@@ -7,6 +8,11 @@ import {
   parseEnvContent,
   resolveEnvFilePath,
 } from "./env.js";
+import {
+  createDrizzleDb,
+  scraplingConfig,
+  type ScraplingDb,
+} from "./schema.js";
 
 loadEnv();
 
@@ -73,6 +79,7 @@ export async function initScraplingConfigOnStartup(
   loadEnv(options.envPath);
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
+  const db: ScraplingDb = createDrizzleDb(pool);
 
   try {
     // 1. Verify DB connectivity and create scrapling.config table
@@ -92,28 +99,35 @@ export async function initScraplingConfigOnStartup(
       const initialVal =
         fileEnvValues[field.key] !== undefined ? fileEnvValues[field.key] : "";
 
-      await pool.query(
-        `
-        INSERT INTO scrapling.config (key, value, group_name, description, updated_at)
-        VALUES ($1, $2, $3, $4, NOW())
-        ON CONFLICT (key) DO NOTHING
-        `,
-        [field.key, initialVal, field.group, field.description],
-      );
+      await db
+        .insert(scraplingConfig)
+        .values({
+          key: field.key,
+          value: initialVal,
+          groupName: field.group,
+          description: field.description,
+        })
+        .onConflictDoNothing({ target: scraplingConfig.key });
     }
 
     // 4. Also seed any custom keys found in .env (excluding PORT, DATABASE_URL, and legacy ALERT_DISCOUNT_THRESHOLD_PCT)
     const schemaKeySet = new Set(ENV_SCHEMA.map((f) => f.key));
     for (const [k, v] of Object.entries(fileEnvValues)) {
-      if (ENV_ONLY_KEYS.has(k) || schemaKeySet.has(k) || k === "ALERT_DISCOUNT_THRESHOLD_PCT") continue;
-      await pool.query(
-        `
-        INSERT INTO scrapling.config (key, value, group_name, description, updated_at)
-        VALUES ($1, $2, 'custom', 'Custom configuration variable', NOW())
-        ON CONFLICT (key) DO NOTHING
-        `,
-        [k, v ?? ""],
-      );
+      if (
+        ENV_ONLY_KEYS.has(k) ||
+        schemaKeySet.has(k) ||
+        k === "ALERT_DISCOUNT_THRESHOLD_PCT"
+      )
+        continue;
+      await db
+        .insert(scraplingConfig)
+        .values({
+          key: k,
+          value: v ?? "",
+          groupName: "custom",
+          description: "Custom configuration variable",
+        })
+        .onConflictDoNothing({ target: scraplingConfig.key });
     }
 
     return await readAllConfigValues({ pool, envPath: options.envPath });
@@ -149,14 +163,16 @@ export async function readAllConfigValues(
 
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
+  const db: ScraplingDb = createDrizzleDb(pool);
 
   try {
     await ensureScraplingConfigTable(pool);
-    const res = await pool.query<{ key: string; value: string }>(
-      `SELECT key, value FROM scrapling.config ORDER BY key ASC`,
-    );
+    const rows = await db
+      .select({ key: scraplingConfig.key, value: scraplingConfig.value })
+      .from(scraplingConfig)
+      .orderBy(asc(scraplingConfig.key));
 
-    for (const row of res.rows) {
+    for (const row of rows) {
       if (ENV_ONLY_KEYS.has(row.key)) continue;
       merged[row.key] = row.value ?? "";
       if (row.value !== "") {
@@ -196,6 +212,7 @@ export async function updateDbConfigValues(
 ): Promise<Record<string, string>> {
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
+  const db: ScraplingDb = createDrizzleDb(pool);
   const schemaByKey = new Map(ENV_SCHEMA.map((f) => [f.key, f]));
 
   try {
@@ -211,16 +228,21 @@ export async function updateDbConfigValues(
       const groupName = meta?.group ?? "custom";
       const description = meta?.description ?? "Custom configuration variable";
 
-      await pool.query(
-        `
-        INSERT INTO scrapling.config (key, value, group_name, description, updated_at)
-        VALUES ($1, $2, $3, $4, NOW())
-        ON CONFLICT (key) DO UPDATE SET
-          value = EXCLUDED.value,
-          updated_at = NOW()
-        `,
-        [key, val, groupName, description],
-      );
+      await db
+        .insert(scraplingConfig)
+        .values({
+          key,
+          value: val,
+          groupName,
+          description,
+        })
+        .onConflictDoUpdate({
+          target: scraplingConfig.key,
+          set: {
+            value: val,
+            updatedAt: sql`NOW()`,
+          },
+        });
 
       process.env[key] = val;
     }
@@ -249,20 +271,21 @@ export async function deleteDbConfigKey(
 
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
+  const db: ScraplingDb = createDrizzleDb(pool);
   const isSchemaKey = ENV_SCHEMA.some((f) => f.key === keyToRemove);
 
   try {
     await ensureScraplingConfigTable(pool);
     if (isSchemaKey) {
-      await pool.query(
-        `UPDATE scrapling.config SET value = '', updated_at = NOW() WHERE key = $1`,
-        [keyToRemove],
-      );
+      await db
+        .update(scraplingConfig)
+        .set({ value: "", updatedAt: sql`NOW()` })
+        .where(eq(scraplingConfig.key, keyToRemove));
       process.env[keyToRemove] = "";
     } else {
-      await pool.query(`DELETE FROM scrapling.config WHERE key = $1`, [
-        keyToRemove,
-      ]);
+      await db
+        .delete(scraplingConfig)
+        .where(eq(scraplingConfig.key, keyToRemove));
       delete process.env[keyToRemove];
     }
 

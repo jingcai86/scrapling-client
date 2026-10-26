@@ -20,6 +20,19 @@ export {
   type DbPoolOptions,
 } from "./db.js";
 export {
+  createDrizzleDb,
+  enebaConfig,
+  enebaProductOffers,
+  enebaProducts,
+  enebaScrapeRuns,
+  enebaSellers,
+  enebaTopDeals,
+  schema,
+  scraplingConfig,
+  scraplingSchema,
+  type ScraplingDb,
+} from "./schema.js";
+export {
   ENV_ONLY_KEYS,
   ENV_SCHEMA,
   deleteEnvKey,

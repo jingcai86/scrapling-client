@@ -1,6 +1,18 @@
 import crypto from "node:crypto";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type pg from "pg";
-import { createPgPool, TerminalSpinner } from "../core/index.js";
+import {
+  createDrizzleDb,
+  createPgPool,
+  enebaConfig,
+  enebaProductOffers,
+  enebaProducts,
+  enebaScrapeRuns,
+  enebaSellers,
+  enebaTopDeals,
+  TerminalSpinner,
+  type ScraplingDb,
+} from "../core/index.js";
 import type { SellerOffer } from "./baseScraper.js";
 import type { PageDealStatus } from "./pageStats.js";
 
@@ -94,7 +106,7 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_product_offers (
   is_featured_offer BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- 6. Eneba-specific configuration table (e.g., how many top deals to pull per category and alert discount threshold)
+-- 6. Eneba-specific configuration table
 CREATE TABLE IF NOT EXISTS scrapling.eneba_config (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -123,8 +135,6 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_top_deals_product_time
 CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_product_offers_product_time
   ON scrapling.eneba_product_offers (product_id, scraped_at DESC);
 
--- Automatically migrate legacy eneba.* tables into scrapling.eneba_* if present and target is empty,
--- and ensure the rank check constraint allows arbitrary limits (>= 1).
 DO $$
 BEGIN
   IF EXISTS (
@@ -240,14 +250,17 @@ export async function getEnebaConfig(
       pool = createPgPool();
     }
     await ensureEnebaSchema(pool);
-    const res = await pool.query<{ key: string; value: string }>(
-      `SELECT key, value FROM scrapling.eneba_config ORDER BY key ASC`,
-    );
+    const db: ScraplingDb = createDrizzleDb(pool);
+    const rows = await db
+      .select({ key: enebaConfig.key, value: enebaConfig.value })
+      .from(enebaConfig)
+      .orderBy(asc(enebaConfig.key));
+
     const config: Record<string, string> = {
       top_deals_limit: "10",
       alert_discount_threshold_pct: "20",
     };
-    for (const row of res.rows) {
+    for (const row of rows) {
       config[row.key] = row.value;
     }
     return config;
@@ -294,22 +307,27 @@ export async function updateEnebaConfig(
 ): Promise<Record<string, string>> {
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
+  const db: ScraplingDb = createDrizzleDb(pool);
   try {
     await ensureEnebaSchema(pool);
     for (const [rawKey, rawVal] of Object.entries(updates)) {
       const key = rawKey.trim();
       if (!key) continue;
       const strVal = String(rawVal ?? "").trim();
-      await pool.query(
-        `
-        INSERT INTO scrapling.eneba_config (key, value, description, updated_at)
-        VALUES ($1, $2, 'Eneba configuration setting', NOW())
-        ON CONFLICT (key) DO UPDATE SET
-          value = EXCLUDED.value,
-          updated_at = NOW()
-        `,
-        [key, strVal],
-      );
+      await db
+        .insert(enebaConfig)
+        .values({
+          key,
+          value: strVal,
+          description: "Eneba configuration setting",
+        })
+        .onConflictDoUpdate({
+          target: enebaConfig.key,
+          set: {
+            value: strVal,
+            updatedAt: sql`NOW()`,
+          },
+        });
     }
     return await getEnebaConfig({ pool });
   } finally {
@@ -330,169 +348,129 @@ export async function savePageDealsToDb(
   const statusList = Array.isArray(statuses) ? statuses : [statuses];
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
+  const db: ScraplingDb = createDrizzleDb(pool);
   const batchId = options.batchId ?? crypto.randomUUID();
   const maxRank = Math.min(100, Math.max(1, options.maxRank ?? 10));
-  const batchTimestamp =
+  const batchDate =
     options.scrapedAt instanceof Date
-      ? options.scrapedAt.toISOString()
+      ? options.scrapedAt
       : typeof options.scrapedAt === "string"
-        ? new Date(options.scrapedAt).toISOString()
-        : statusList[0]?.scrapedAt ?? new Date().toISOString();
+        ? new Date(options.scrapedAt)
+        : statusList[0]?.scrapedAt
+          ? new Date(statusList[0].scrapedAt)
+          : new Date();
+  const batchTimestamp = batchDate.toISOString();
 
   try {
     await ensureEnebaSchema(pool);
-    const client = await pool.connect();
     let scrapeRunsInserted = 0;
     let topDealsInserted = 0;
 
-    try {
-      await client.query("BEGIN");
-
+    await db.transaction(async (tx) => {
       for (const status of statusList) {
         // 1. Insert the page-level scrape run into scrapling.eneba_scrape_runs
-        const runRes = await client.query<{ id: string }>(
-          `
-          INSERT INTO scrapling.eneba_scrape_runs (
-            batch_id,
-            scraped_at,
-            category,
-            page_url,
-            page_number,
-            total_listings,
-            in_stock_count,
-            out_of_stock_count,
-            discounted_count,
-            avg_discount_pct_on_discounted,
-            avg_discount_pct_all_in_stock,
-            avg_effective_discount_pct,
-            max_discount_pct,
-            max_effective_discount_pct
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
-          )
-          RETURNING id
-          `,
-          [
+        const runRes = await tx
+          .insert(enebaScrapeRuns)
+          .values({
             batchId,
-            batchTimestamp,
-            status.category,
-            status.pageUrl,
-            status.pageNumber ?? 1,
-            status.totalListings,
-            status.inStockCount,
-            status.outOfStockCount,
-            status.discountedCount,
-            status.averageDiscountPctOnDiscounted,
-            status.averageDiscountPctAllInStock,
-            status.averageEffectiveDiscountPct,
-            status.maxDiscountPct,
-            status.maxEffectiveDiscountPct,
-          ],
-        );
-        const scrapeRunId = runRes.rows[0].id;
+            scrapedAt: batchDate,
+            category: status.category,
+            pageUrl: status.pageUrl,
+            pageNumber: status.pageNumber ?? 1,
+            totalListings: status.totalListings,
+            inStockCount: status.inStockCount,
+            outOfStockCount: status.outOfStockCount,
+            discountedCount: status.discountedCount,
+            avgDiscountPctOnDiscounted: String(
+              status.averageDiscountPctOnDiscounted,
+            ),
+            avgDiscountPctAllInStock: String(
+              status.averageDiscountPctAllInStock,
+            ),
+            avgEffectiveDiscountPct: String(
+              status.averageEffectiveDiscountPct,
+            ),
+            maxDiscountPct: String(status.maxDiscountPct),
+            maxEffectiveDiscountPct: String(status.maxEffectiveDiscountPct),
+          })
+          .returning({ id: enebaScrapeRuns.id });
+
+        const scrapeRunId = runRes[0].id;
         scrapeRunsInserted++;
 
-        // 2. Upsert each top 1..10 product into scrapling.eneba_products and insert the ranked deal into scrapling.eneba_top_deals
+        // 2. Upsert each top 1..N product into scrapling.eneba_products and insert the ranked deal into scrapling.eneba_top_deals
         const topDeals = status.rankedDeals.slice(0, maxRank);
         for (let i = 0; i < topDeals.length; i++) {
           const deal = topDeals[i];
           const rank = i + 1;
           const slug = extractProductSlug(deal.url);
 
-          const prodRes = await client.query<{ id: string }>(
-            `
-            INSERT INTO scrapling.eneba_products (
+          const prodRes = await tx
+            .insert(enebaProducts)
+            .values({
               slug,
-              url,
-              category,
-              title,
-              region,
-              face_value,
-              face_value_currency,
-              first_seen_at,
-              last_seen_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-            ON CONFLICT (url) DO UPDATE SET
-              title = EXCLUDED.title,
-              region = EXCLUDED.region,
-              face_value = COALESCE(EXCLUDED.face_value, scrapling.eneba_products.face_value),
-              face_value_currency = COALESCE(EXCLUDED.face_value_currency, scrapling.eneba_products.face_value_currency),
-              last_seen_at = EXCLUDED.last_seen_at
-            RETURNING id
-            `,
-            [
-              slug,
-              deal.url,
-              status.category,
-              deal.title,
-              deal.region,
-              deal.faceValue,
-              deal.faceValueCurrency,
-              batchTimestamp,
-            ],
-          );
-          const productId = prodRes.rows[0].id;
+              url: deal.url,
+              category: status.category,
+              title: deal.title,
+              region: deal.region,
+              faceValue:
+                deal.faceValue != null ? String(deal.faceValue) : null,
+              faceValueCurrency: deal.faceValueCurrency,
+              firstSeenAt: batchDate,
+              lastSeenAt: batchDate,
+            })
+            .onConflictDoUpdate({
+              target: enebaProducts.url,
+              set: {
+                title: deal.title,
+                region: deal.region,
+                faceValue:
+                  deal.faceValue != null
+                    ? String(deal.faceValue)
+                    : sql`COALESCE(${enebaProducts.faceValue}, NULL)`,
+                faceValueCurrency:
+                  deal.faceValueCurrency != null
+                    ? deal.faceValueCurrency
+                    : sql`COALESCE(${enebaProducts.faceValueCurrency}, NULL)`,
+                lastSeenAt: batchDate,
+              },
+            })
+            .returning({ id: enebaProducts.id });
 
-          await client.query(
-            `
-            INSERT INTO scrapling.eneba_top_deals (
-              scrape_run_id,
-              product_id,
-              scraped_at,
-              rank,
-              category,
-              title,
-              url,
-              region,
-              selling_price,
-              original_price,
-              face_value,
-              face_value_currency,
-              listed_discount_pct,
-              cashback_pct,
-              in_stock,
-              discount_pct,
-              effective_discount_pct,
-              effective_price,
-              savings_amount
-            ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-              $11, $12, $13, $14, $15, $16, $17, $18, $19
-            )
-            `,
-            [
-              scrapeRunId,
-              productId,
-              batchTimestamp,
-              rank,
-              status.category,
-              deal.title,
-              deal.url,
-              deal.region,
-              deal.sellingPrice,
-              deal.originalPrice,
-              deal.faceValue,
-              deal.faceValueCurrency,
-              deal.listedDiscountPct,
-              deal.cashbackPct,
-              deal.inStock,
-              deal.discountPct,
-              deal.effectiveDiscountPct,
-              deal.effectivePrice,
-              deal.savingsAmount,
-            ],
-          );
+          const productId = prodRes[0].id;
+
+          await tx.insert(enebaTopDeals).values({
+            scrapeRunId,
+            productId,
+            scrapedAt: batchDate,
+            rank,
+            category: status.category,
+            title: deal.title,
+            url: deal.url,
+            region: deal.region,
+            sellingPrice:
+              deal.sellingPrice != null ? String(deal.sellingPrice) : null,
+            originalPrice:
+              deal.originalPrice != null ? String(deal.originalPrice) : null,
+            faceValue:
+              deal.faceValue != null ? String(deal.faceValue) : null,
+            faceValueCurrency: deal.faceValueCurrency,
+            listedDiscountPct:
+              deal.listedDiscountPct != null
+                ? String(deal.listedDiscountPct)
+                : null,
+            cashbackPct: String(deal.cashbackPct ?? 0),
+            inStock: deal.inStock ?? true,
+            discountPct: String(deal.discountPct ?? 0),
+            effectiveDiscountPct: String(deal.effectiveDiscountPct ?? 0),
+            effectivePrice:
+              deal.effectivePrice != null ? String(deal.effectivePrice) : null,
+            savingsAmount: String(deal.savingsAmount ?? 0),
+          });
           topDealsInserted++;
         }
       }
-
-      await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
 
     return {
       batchId,
@@ -529,104 +507,93 @@ export async function saveProductOffersToDb(
 
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
-  const scrapedAtIso =
+  const db: ScraplingDb = createDrizzleDb(pool);
+  const scrapedDate =
     options.scrapedAt instanceof Date
-      ? options.scrapedAt.toISOString()
+      ? options.scrapedAt
       : typeof options.scrapedAt === "string"
-        ? new Date(options.scrapedAt).toISOString()
-        : new Date().toISOString();
+        ? new Date(options.scrapedAt)
+        : new Date();
 
   try {
     await ensureEnebaSchema(pool);
-    const client = await pool.connect();
     let sellersUpserted = 0;
     let offersInserted = 0;
 
-    try {
-      await client.query("BEGIN");
+    await db.transaction(async (tx) => {
+      const prodRows = await tx
+        .select({ id: enebaProducts.id })
+        .from(enebaProducts)
+        .where(eq(enebaProducts.url, productUrl))
+        .limit(1);
 
-      const prodRes = await client.query<{ id: string }>(
-        `SELECT id FROM scrapling.eneba_products WHERE url = $1 LIMIT 1`,
-        [productUrl],
-      );
-      if (prodRes.rows.length === 0) {
-        await client.query("ROLLBACK");
-        return { sellersUpserted: 0, offersInserted: 0 };
+      if (prodRows.length === 0) {
+        return;
       }
-      const productId = prodRes.rows[0].id;
+      const productId = prodRows[0].id;
 
-      const latestDealRes = await client.query<{ scrape_run_id: string }>(
-        `SELECT scrape_run_id FROM scrapling.eneba_top_deals WHERE product_id = $1 ORDER BY scraped_at DESC LIMIT 1`,
-        [productId],
-      );
-      const scrapeRunId = latestDealRes.rows[0]?.scrape_run_id ?? null;
+      const latestDealRows = await tx
+        .select({ scrapeRunId: enebaTopDeals.scrapeRunId })
+        .from(enebaTopDeals)
+        .where(eq(enebaTopDeals.productId, productId))
+        .orderBy(desc(enebaTopDeals.scrapedAt))
+        .limit(1);
+
+      const scrapeRunId = latestDealRows[0]?.scrapeRunId ?? null;
 
       for (const offer of offers) {
-        const sellerRes = await client.query<{ id: string }>(
-          `
-          INSERT INTO scrapling.eneba_sellers (
-            seller_name,
-            seller_slug,
-            seller_url,
-            rating_pct,
-            rating_label,
-            first_seen_at,
-            last_seen_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $6)
-          ON CONFLICT (seller_name) DO UPDATE SET
-            seller_slug = COALESCE(EXCLUDED.seller_slug, scrapling.eneba_sellers.seller_slug),
-            seller_url = COALESCE(EXCLUDED.seller_url, scrapling.eneba_sellers.seller_url),
-            rating_pct = COALESCE(EXCLUDED.rating_pct, scrapling.eneba_sellers.rating_pct),
-            rating_label = COALESCE(EXCLUDED.rating_label, scrapling.eneba_sellers.rating_label),
-            last_seen_at = EXCLUDED.last_seen_at
-          RETURNING id
-          `,
-          [
-            offer.sellerName,
-            offer.sellerSlug,
-            offer.sellerUrl,
-            offer.ratingScore,
-            offer.ratingLabel,
-            scrapedAtIso,
-          ],
-        );
-        const sellerId = sellerRes.rows[0].id;
+        const sellerRows = await tx
+          .insert(enebaSellers)
+          .values({
+            sellerName: offer.sellerName,
+            sellerSlug: offer.sellerSlug,
+            sellerUrl: offer.sellerUrl,
+            ratingPct:
+              offer.ratingScore != null ? String(offer.ratingScore) : null,
+            ratingLabel: offer.ratingLabel,
+            firstSeenAt: scrapedDate,
+            lastSeenAt: scrapedDate,
+          })
+          .onConflictDoUpdate({
+            target: enebaSellers.sellerName,
+            set: {
+              sellerSlug:
+                offer.sellerSlug != null
+                  ? offer.sellerSlug
+                  : sql`COALESCE(${enebaSellers.sellerSlug}, NULL)`,
+              sellerUrl:
+                offer.sellerUrl != null
+                  ? offer.sellerUrl
+                  : sql`COALESCE(${enebaSellers.sellerUrl}, NULL)`,
+              ratingPct:
+                offer.ratingScore != null
+                  ? String(offer.ratingScore)
+                  : sql`COALESCE(${enebaSellers.ratingPct}, NULL)`,
+              ratingLabel:
+                offer.ratingLabel != null
+                  ? offer.ratingLabel
+                  : sql`COALESCE(${enebaSellers.ratingLabel}, NULL)`,
+              lastSeenAt: scrapedDate,
+            },
+          })
+          .returning({ id: enebaSellers.id });
+
+        const sellerId = sellerRows[0].id;
         sellersUpserted++;
 
-        await client.query(
-          `
-          INSERT INTO scrapling.eneba_product_offers (
-            product_id,
-            seller_id,
-            scrape_run_id,
-            scraped_at,
-            price,
-            cashback_pct,
-            is_lowest_price,
-            is_featured_offer
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          `,
-          [
-            productId,
-            sellerId,
-            scrapeRunId,
-            scrapedAtIso,
-            offer.price,
-            offer.cashbackPct,
-            offer.isLowestPrice,
-            offer.isFeaturedOffer,
-          ],
-        );
+        await tx.insert(enebaProductOffers).values({
+          productId,
+          sellerId,
+          scrapeRunId,
+          scrapedAt: scrapedDate,
+          price: String(offer.price),
+          cashbackPct: String(offer.cashbackPct ?? 0),
+          isLowestPrice: offer.isLowestPrice ?? false,
+          isFeaturedOffer: offer.isFeaturedOffer ?? false,
+        });
         offersInserted++;
       }
-
-      await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
 
     return { sellersUpserted, offersInserted };
   } finally {
@@ -730,7 +697,7 @@ export async function tryPersistScrapeResult(
     }
     return dbStatus;
   } finally {
-    if (pool) {
+    if (ownPool && pool) {
       await pool.end().catch(() => {});
     }
   }
@@ -750,153 +717,75 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
   try {
     pool = createPgPool();
     await ensureEnebaSchema(pool);
+    const db: ScraplingDb = createDrizzleDb(pool);
 
-    const runsRes = await pool.query<{
-      id: string;
-      batch_id: string;
-      scraped_at: Date;
-      category: string;
-      page_url: string;
-      page_number: number;
-      total_listings: number;
-      in_stock_count: number;
-      out_of_stock_count: number;
-      discounted_count: number;
-      avg_discount_pct_on_discounted: string;
-      avg_discount_pct_all_in_stock: string;
-      avg_effective_discount_pct: string;
-      max_discount_pct: string;
-      max_effective_discount_pct: string;
-    }>(`
-      SELECT DISTINCT ON (category)
-        id,
-        batch_id,
-        scraped_at,
-        category,
-        page_url,
-        page_number,
-        total_listings,
-        in_stock_count,
-        out_of_stock_count,
-        discounted_count,
-        avg_discount_pct_on_discounted,
-        avg_discount_pct_all_in_stock,
-        avg_effective_discount_pct,
-        max_discount_pct,
-        max_effective_discount_pct
-      FROM scrapling.eneba_scrape_runs
-      ORDER BY category, scraped_at DESC
-    `);
+    const runs = await db
+      .selectDistinctOn([enebaScrapeRuns.category])
+      .from(enebaScrapeRuns)
+      .orderBy(enebaScrapeRuns.category, desc(enebaScrapeRuns.scrapedAt));
 
     const statuses: PageDealStatus[] = [];
 
-    for (const run of runsRes.rows) {
-      const dealsRes = await pool.query<{
-        rank: number;
-        category: string;
-        title: string;
-        url: string;
-        region: string;
-        selling_price: string | null;
-        original_price: string | null;
-        face_value: string | null;
-        face_value_currency: string | null;
-        listed_discount_pct: string | null;
-        cashback_pct: string;
-        in_stock: boolean;
-        discount_pct: string;
-        effective_discount_pct: string;
-        effective_price: string | null;
-        savings_amount: string;
-      }>(
-        `
-        SELECT
-          rank,
-          category,
-          title,
-          url,
-          region,
-          selling_price,
-          original_price,
-          face_value,
-          face_value_currency,
-          listed_discount_pct,
-          cashback_pct,
-          in_stock,
-          discount_pct,
-          effective_discount_pct,
-          effective_price,
-          savings_amount
-        FROM scrapling.eneba_top_deals
-        WHERE scrape_run_id = $1
-        ORDER BY rank ASC
-        `,
-        [run.id],
-      );
+    for (const run of runs) {
+      const deals = await db
+        .select()
+        .from(enebaTopDeals)
+        .where(eq(enebaTopDeals.scrapeRunId, run.id))
+        .orderBy(asc(enebaTopDeals.rank));
 
-      const rankedDeals = dealsRes.rows.map((d) => ({
+      const rankedDeals = deals.map((d) => ({
         rank: Number(d.rank),
         category: d.category,
         title: d.title,
         url: d.url,
         region: d.region,
         sellingPrice:
-          d.selling_price !== null ? Number(d.selling_price) : null,
+          d.sellingPrice !== null ? Number(d.sellingPrice) : null,
         originalPrice:
-          d.original_price !== null ? Number(d.original_price) : null,
-        faceValue: d.face_value !== null ? Number(d.face_value) : null,
-        faceValueCurrency: d.face_value_currency,
+          d.originalPrice !== null ? Number(d.originalPrice) : null,
+        faceValue: d.faceValue !== null ? Number(d.faceValue) : null,
+        faceValueCurrency: d.faceValueCurrency,
         listedDiscountPct:
-          d.listed_discount_pct !== null ? Number(d.listed_discount_pct) : null,
-        cashbackPct: Number(d.cashback_pct),
-        inStock: d.in_stock,
-        discountPct: Number(d.discount_pct),
-        effectiveDiscountPct: Number(d.effective_discount_pct),
+          d.listedDiscountPct !== null ? Number(d.listedDiscountPct) : null,
+        cashbackPct: Number(d.cashbackPct),
+        inStock: d.inStock,
+        discountPct: Number(d.discountPct),
+        effectiveDiscountPct: Number(d.effectiveDiscountPct),
         effectivePrice:
-          d.effective_price !== null ? Number(d.effective_price) : null,
-        savingsAmount: Number(d.savings_amount),
+          d.effectivePrice !== null ? Number(d.effectivePrice) : null,
+        savingsAmount: Number(d.savingsAmount),
       }));
 
-      const offersRes = await pool.query<{
-        seller_name: string;
-        seller_slug: string | null;
-        seller_url: string | null;
-        rating_pct: string | null;
-        rating_label: string | null;
-        price: string;
-        cashback_pct: string;
-        is_lowest_price: boolean;
-        is_featured_offer: boolean;
-      }>(
-        `
-        SELECT
-          s.seller_name,
-          s.seller_slug,
-          s.seller_url,
-          s.rating_pct,
-          s.rating_label,
-          po.price,
-          po.cashback_pct,
-          po.is_lowest_price,
-          po.is_featured_offer
-        FROM scrapling.eneba_product_offers po
-        JOIN scrapling.eneba_sellers s ON s.id = po.seller_id
-        WHERE po.scrape_run_id = $1
-        ORDER BY po.price ASC
-        `,
-        [run.id],
-      );
+      const offers = await db
+        .select({
+          sellerName: enebaSellers.sellerName,
+          sellerSlug: enebaSellers.sellerSlug,
+          sellerUrl: enebaSellers.sellerUrl,
+          ratingPct: enebaSellers.ratingPct,
+          ratingLabel: enebaSellers.ratingLabel,
+          price: enebaProductOffers.price,
+          cashbackPct: enebaProductOffers.cashbackPct,
+          isLowestPrice: enebaProductOffers.isLowestPrice,
+          isFeaturedOffer: enebaProductOffers.isFeaturedOffer,
+        })
+        .from(enebaProductOffers)
+        .innerJoin(
+          enebaSellers,
+          eq(enebaSellers.id, enebaProductOffers.sellerId),
+        )
+        .where(eq(enebaProductOffers.scrapeRunId, run.id))
+        .orderBy(asc(enebaProductOffers.price));
 
-      const bestDealOffers: SellerOffer[] = offersRes.rows.map((o) => ({
-        sellerName: o.seller_name,
-        sellerSlug: o.seller_slug ?? o.seller_name,
-        sellerUrl: o.seller_url ?? "",
-        ratingScore: o.rating_pct !== null ? Number(o.rating_pct) : null,
-        ratingLabel: o.rating_label,
+      const bestDealOffers: SellerOffer[] = offers.map((o) => ({
+        sellerName: o.sellerName,
+        sellerSlug: o.sellerSlug ?? o.sellerName,
+        sellerUrl: o.sellerUrl ?? "",
+        ratingScore: o.ratingPct !== null ? Number(o.ratingPct) : null,
+        ratingLabel: o.ratingLabel,
         price: Number(o.price),
-        cashbackPct: Number(o.cashback_pct),
-        isLowestPrice: o.is_lowest_price,
-        isFeaturedOffer: o.is_featured_offer,
+        cashbackPct: Number(o.cashbackPct),
+        isLowestPrice: o.isLowestPrice,
+        isFeaturedOffer: o.isFeaturedOffer,
       }));
 
       const bestEffectiveDeal = rankedDeals[0] ?? null;
@@ -906,20 +795,20 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
 
       statuses.push({
         category: run.category,
-        pageUrl: run.page_url,
-        pageNumber: run.page_number,
-        scrapedAt: new Date(run.scraped_at).toISOString(),
-        totalListings: run.total_listings,
-        inStockCount: run.in_stock_count,
-        outOfStockCount: run.out_of_stock_count,
-        discountedCount: run.discounted_count,
+        pageUrl: run.pageUrl,
+        pageNumber: run.pageNumber,
+        scrapedAt: new Date(run.scrapedAt).toISOString(),
+        totalListings: run.totalListings,
+        inStockCount: run.inStockCount,
+        outOfStockCount: run.outOfStockCount,
+        discountedCount: run.discountedCount,
         averageDiscountPctOnDiscounted: Number(
-          run.avg_discount_pct_on_discounted,
+          run.avgDiscountPctOnDiscounted,
         ),
-        averageDiscountPctAllInStock: Number(run.avg_discount_pct_all_in_stock),
-        averageEffectiveDiscountPct: Number(run.avg_effective_discount_pct),
-        maxDiscountPct: Number(run.max_discount_pct),
-        maxEffectiveDiscountPct: Number(run.max_effective_discount_pct),
+        averageDiscountPctAllInStock: Number(run.avgDiscountPctAllInStock),
+        averageEffectiveDiscountPct: Number(run.avgEffectiveDiscountPct),
+        maxDiscountPct: Number(run.maxDiscountPct),
+        maxEffectiveDiscountPct: Number(run.maxEffectiveDiscountPct),
         bestDeal: bestDirectDeal,
         bestEffectiveDeal,
         bestDealOffers,
@@ -969,77 +858,76 @@ export async function fetchScrapeHistoryFromDb(
   const ownPool = !pool;
   const p = pool || createPgPool();
   try {
-    const res = await p.query<{
-      batch_id: string;
-      scraped_at: Date;
-      total_pages: string;
-      successful_pages: string;
-      total_listings: string;
-      in_stock_count: string;
-    }>(`
-      SELECT
-        batch_id,
-        MIN(scraped_at) as scraped_at,
-        COUNT(*)::int as total_pages,
-        COUNT(CASE WHEN total_listings > 0 THEN 1 END)::int as successful_pages,
-        COALESCE(SUM(total_listings), 0)::int as total_listings,
-        COALESCE(SUM(in_stock_count), 0)::int as in_stock_count
-      FROM scrapling.eneba_scrape_runs
-      GROUP BY batch_id
-      ORDER BY MIN(scraped_at) ASC
-      LIMIT $1
-    `, [limit]);
+    const db: ScraplingDb = createDrizzleDb(p);
+    const res = await db
+      .select({
+        batchId: enebaScrapeRuns.batchId,
+        scrapedAt: sql<Date>`MIN(${enebaScrapeRuns.scrapedAt})`,
+        totalPages: sql<number>`COUNT(*)::int`,
+        successfulPages: sql<number>`COUNT(CASE WHEN ${enebaScrapeRuns.totalListings} > 0 THEN 1 END)::int`,
+        totalListings: sql<number>`COALESCE(SUM(${enebaScrapeRuns.totalListings}), 0)::int`,
+        inStockCount: sql<number>`COALESCE(SUM(${enebaScrapeRuns.inStockCount}), 0)::int`,
+      })
+      .from(enebaScrapeRuns)
+      .groupBy(enebaScrapeRuns.batchId)
+      .orderBy(asc(sql`MIN(${enebaScrapeRuns.scrapedAt})`))
+      .limit(limit);
 
-    const batchIds = res.rows.map((r) => r.batch_id).filter(Boolean);
-    const dealsByBatch = new Map<string, {
-      title: string;
-      category: string;
-      sellerName: string;
-      cost: number;
-      faceValue: number;
-      discountPct: number;
-      url?: string;
-    }>();
+    const batchIds = res.map((r) => r.batchId).filter(Boolean);
+    const dealsByBatch = new Map<
+      string,
+      {
+        title: string;
+        category: string;
+        sellerName: string;
+        cost: number;
+        faceValue: number;
+        discountPct: number;
+        url?: string;
+      }
+    >();
 
     if (batchIds.length > 0) {
       try {
-        const topDealsRes = await p.query<{
-          batch_id: string;
-          title: string;
-          category: string;
-          selling_price: string | null;
-          face_value: string | null;
-          original_price: string | null;
-          discount_pct: string;
-          url: string;
-          seller_name: string | null;
-        }>(`
-          SELECT DISTINCT ON (r.batch_id)
-            r.batch_id,
-            d.title,
-            d.category,
-            d.selling_price,
-            d.face_value,
-            d.original_price,
-            d.discount_pct,
-            d.url,
-            COALESCE(s.seller_name, 'Top Merchant') as seller_name
-          FROM scrapling.eneba_top_deals d
-          JOIN scrapling.eneba_scrape_runs r ON d.scrape_run_id = r.id
-          LEFT JOIN scrapling.eneba_product_offers o ON o.product_id = d.product_id AND o.is_lowest_price = TRUE
-          LEFT JOIN scrapling.eneba_sellers s ON o.seller_id = s.id
-          WHERE r.batch_id = ANY($1::uuid[])
-          ORDER BY r.batch_id, d.discount_pct DESC
-        `, [batchIds]);
+        const topDealsRes = await db
+          .selectDistinctOn([enebaScrapeRuns.batchId], {
+            batchId: enebaScrapeRuns.batchId,
+            title: enebaTopDeals.title,
+            category: enebaTopDeals.category,
+            sellingPrice: enebaTopDeals.sellingPrice,
+            faceValue: enebaTopDeals.faceValue,
+            originalPrice: enebaTopDeals.originalPrice,
+            discountPct: enebaTopDeals.discountPct,
+            url: enebaTopDeals.url,
+            sellerName: sql<string>`COALESCE(${enebaSellers.sellerName}, 'Top Merchant')`,
+          })
+          .from(enebaTopDeals)
+          .innerJoin(
+            enebaScrapeRuns,
+            eq(enebaTopDeals.scrapeRunId, enebaScrapeRuns.id),
+          )
+          .leftJoin(
+            enebaProductOffers,
+            and(
+              eq(enebaProductOffers.productId, enebaTopDeals.productId),
+              eq(enebaProductOffers.isLowestPrice, true),
+            ),
+          )
+          .leftJoin(
+            enebaSellers,
+            eq(enebaProductOffers.sellerId, enebaSellers.id),
+          )
+          .where(inArray(enebaScrapeRuns.batchId, batchIds))
+          .orderBy(enebaScrapeRuns.batchId, desc(enebaTopDeals.discountPct));
 
-        for (const dr of topDealsRes.rows) {
-          dealsByBatch.set(dr.batch_id, {
+        for (const dr of topDealsRes) {
+          dealsByBatch.set(dr.batchId, {
             title: dr.title,
             category: dr.category,
-            sellerName: dr.seller_name || 'Top Merchant',
-            cost: Number(dr.selling_price) || 0,
-            faceValue: Number(dr.face_value) || Number(dr.original_price) || 0,
-            discountPct: Number(dr.discount_pct) || 0,
+            sellerName: dr.sellerName || "Top Merchant",
+            cost: Number(dr.sellingPrice) || 0,
+            faceValue: Number(dr.faceValue) || Number(dr.originalPrice) || 0,
+            discountPct: Number(dr.discountPct) || 0,
             url: dr.url,
           });
         }
@@ -1048,19 +936,21 @@ export async function fetchScrapeHistoryFromDb(
       }
     }
 
-    return res.rows.map((r) => {
-      const totalPages = Number(r.total_pages) || 1;
-      const successfulPages = Number(r.successful_pages) || 0;
-      const successRate = Number(((successfulPages / totalPages) * 100).toFixed(1));
+    return res.map((r) => {
+      const totalPages = Number(r.totalPages) || 1;
+      const successfulPages = Number(r.successfulPages) || 0;
+      const successRate = Number(
+        ((successfulPages / totalPages) * 100).toFixed(1),
+      );
       return {
-        id: r.batch_id,
-        timestamp: new Date(r.scraped_at).toISOString(),
+        id: r.batchId,
+        timestamp: new Date(r.scrapedAt).toISOString(),
         totalPages,
         successfulPages,
         successRate,
-        totalListings: Number(r.total_listings) || 0,
-        inStockCount: Number(r.in_stock_count) || 0,
-        bestDeal: dealsByBatch.get(r.batch_id),
+        totalListings: Number(r.totalListings) || 0,
+        inStockCount: Number(r.inStockCount) || 0,
+        bestDeal: dealsByBatch.get(r.batchId),
       };
     });
   } catch {
