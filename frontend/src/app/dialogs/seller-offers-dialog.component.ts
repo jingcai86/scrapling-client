@@ -15,46 +15,50 @@ import type { SellerOffer } from '../core/models/dashboard.model';
     <div mat-dialog-content>
       <p class="sub-title">{{ data.title }}</p>
 
-      <table mat-table [dataSource]="sortedOffers" matSort (matSortChange)="sortData($event)" class="offers-table">
-        <ng-container matColumnDef="sellerName">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Seller / Merchant</th>
-          <td mat-cell *matCellDef="let offer">
-            <span class="seller-name">{{ offer.sellerName }}</span>
-          </td>
-        </ng-container>
+      <div class="table-wrapper">
+        <table mat-table [dataSource]="sortedOffers" matSort (matSortChange)="sortData($event)" class="offers-table">
+          <ng-container matColumnDef="sellerName">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Seller / Merchant</th>
+            <td mat-cell *matCellDef="let offer">
+              <strong class="seller-name">{{ offer.sellerName }}</strong>
+            </td>
+          </ng-container>
 
-        <ng-container matColumnDef="price">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Price</th>
-          <td mat-cell *matCellDef="let offer" class="price-cell">
-            \${{ offer.price.toFixed(2) }}
-          </td>
-        </ng-container>
+          <ng-container matColumnDef="price">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Price</th>
+            <td mat-cell *matCellDef="let offer" class="price-cell">
+              <strong>\${{ offer.price.toFixed(2) }}</strong>
+            </td>
+          </ng-container>
 
-        <ng-container matColumnDef="ratingScore">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Rating</th>
-          <td mat-cell *matCellDef="let offer">
-            <span *ngIf="offer.ratingScore > 0">★ {{ offer.ratingScore.toFixed(1) }}%</span>
-            <span *ngIf="!offer.ratingScore" class="muted">—</span>
-          </td>
-        </ng-container>
+          <ng-container matColumnDef="ratingScore">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Rating</th>
+            <td mat-cell *matCellDef="let offer">
+              <span *ngIf="offer.ratingScore > 0" class="badge badge-discount">★ {{ offer.ratingScore.toFixed(1) }}%</span>
+              <span *ngIf="!offer.ratingScore" class="muted">—</span>
+            </td>
+          </ng-container>
 
-        <ng-container matColumnDef="placement">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Placement</th>
-          <td mat-cell *matCellDef="let offer">
-            <span class="placement-badge">{{ offer.placement || 'Organic' }}</span>
-          </td>
-        </ng-container>
+          <ng-container matColumnDef="placement">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Placement</th>
+            <td mat-cell *matCellDef="let offer">
+              <span class="badge badge-region">{{ offer.placement || 'Organic' }}</span>
+            </td>
+          </ng-container>
 
-        <ng-container matColumnDef="url">
-          <th mat-header-cell *matHeaderCellDef>Vendor Link</th>
-          <td mat-cell *matCellDef="let offer">
-            <a [href]="offer.url" target="_blank" rel="noopener" class="offer-link">Store Link ↗</a>
-          </td>
-        </ng-container>
+          <ng-container matColumnDef="url">
+            <th mat-header-cell *matHeaderCellDef>Vendor Link</th>
+            <td mat-cell *matCellDef="let offer">
+              <a [href]="offer.url" target="_blank" rel="noopener" mat-stroked-button color="primary" class="btn-xs">
+                <span>Store Link ↗</span>
+              </a>
+            </td>
+          </ng-container>
 
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-      </table>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+      </div>
     </div>
 
     <div mat-dialog-actions align="end">
@@ -69,9 +73,7 @@ import type { SellerOffer } from '../core/models/dashboard.model';
     }
     .offers-table {
       width: 100%;
-      min-width: 600px;
-      border: 1px solid var(--mat-sys-outline-variant);
-      border-radius: 8px;
+      min-width: 580px;
     }
     .seller-name {
       font-weight: 600;

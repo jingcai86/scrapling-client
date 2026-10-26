@@ -182,47 +182,49 @@ interface ProviderRow {
           </div>
         </mat-card-header>
         <mat-card-content class="card-table-content">
-          <table mat-table [dataSource]="sortedProviders" matSort (matSortChange)="sortProviders($event)" class="data-table">
-            <ng-container matColumnDef="provider">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Provider</th>
-              <td mat-cell *matCellDef="let p">
-                <span class="provider-pill">{{ p.provider | uppercase }}</span>
-              </td>
-            </ng-container>
+          <div class="table-wrapper">
+            <table mat-table [dataSource]="sortedProviders" matSort (matSortChange)="sortProviders($event)" class="data-table">
+              <ng-container matColumnDef="provider">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Provider</th>
+                <td mat-cell *matCellDef="let p">
+                  <span class="badge badge-provider">{{ p.provider | uppercase }}</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="activePages">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Tracked Pages</th>
-              <td mat-cell *matCellDef="let p">
-                <strong>{{ p.activePages }}</strong> pages enabled
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="activePages">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Tracked Pages</th>
+                <td mat-cell *matCellDef="let p">
+                  <strong>{{ p.activePages }}</strong> pages enabled
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
-              <td mat-cell *matCellDef="let p">
-                <span class="status-badge" [class.active]="p.status === 'Active'">
-                  ● {{ p.status }}
-                </span>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="status">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
+                <td mat-cell *matCellDef="let p">
+                  <span class="badge" [ngClass]="p.status === 'Active' ? 'badge-discount' : 'badge-muted'">
+                    ● {{ p.status }}
+                  </span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="lastScraped">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Last Scraped</th>
-              <td mat-cell *matCellDef="let p">{{ p.lastScraped }}</td>
-            </ng-container>
+              <ng-container matColumnDef="lastScraped">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Last Scraped</th>
+                <td mat-cell *matCellDef="let p" class="scraped-date">{{ p.lastScraped }}</td>
+              </ng-container>
 
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>Provider Details</th>
-              <td mat-cell *matCellDef="let p">
-                <a mat-stroked-button color="primary" [routerLink]="['/' + p.provider]" class="btn-xs" (click)="$event.stopPropagation()">
-                  {{ p.provider === 'eneba' ? 'Eneba Provider detail' : (p.provider | titlecase) + ' Provider detail' }} →
-                </a>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Provider Details</th>
+                <td mat-cell *matCellDef="let p">
+                  <a mat-stroked-button color="primary" [routerLink]="['/' + p.provider]" class="btn-xs action-link" (click)="$event.stopPropagation()">
+                    <span>{{ p.provider === 'eneba' ? 'Eneba Provider Details' : (p.provider | titlecase) + ' Provider Details' }} →</span>
+                  </a>
+                </td>
+              </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row" [routerLink]="['/' + row.provider]"></tr>
-          </table>
+              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row" [routerLink]="['/' + row.provider]"></tr>
+            </table>
+          </div>
         </mat-card-content>
       </mat-card>
     </div>
@@ -372,38 +374,27 @@ interface ProviderRow {
       }
     }
     .card-table-content {
-      padding: 0 !important;
+      padding: 0 1.25rem 1.25rem !important;
       overflow-x: auto;
     }
     .data-table {
       width: 100%;
       background: transparent;
     }
-    .provider-pill {
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      color: var(--mat-sys-primary);
+    .scraped-date {
+      font-size: 0.8rem;
+      color: var(--mat-sys-on-surface-variant);
+      white-space: nowrap;
     }
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      padding: 0.2rem 0.6rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      background: var(--mat-sys-surface-container-high);
-      color: var(--mat-sys-outline);
-
-      &.active {
-        background: rgba(16, 185, 129, 0.15);
-        color: #10b981;
-      }
+    .action-link {
+      white-space: nowrap !important;
+      font-weight: 600 !important;
+      border-radius: 6px !important;
     }
     .btn-xs {
       font-size: 0.8rem;
       padding: 0 0.75rem;
-      height: 32px;
+      height: 30px;
     }
   `],
 })

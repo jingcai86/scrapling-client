@@ -104,64 +104,69 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
             </div>
           </mat-card-header>
           <mat-card-content class="card-table-content">
-            <table mat-table [dataSource]="sortedCategories" matSort (matSortChange)="sortCategories($event)" class="data-table">
-              <ng-container matColumnDef="category">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Category</th>
-                <td mat-cell *matCellDef="let s">
-                  <span class="cat-title">{{ s.category }}</span>
-                </td>
-              </ng-container>
+            <div class="table-wrapper">
+              <table mat-table [dataSource]="sortedCategories" matSort (matSortChange)="sortCategories($event)" class="data-table">
+                <ng-container matColumnDef="category">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Category</th>
+                  <td mat-cell *matCellDef="let s">
+                    <span class="cat-title">{{ s.category }}</span>
+                  </td>
+                </ng-container>
 
-              <ng-container matColumnDef="inStockCount">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>In Stock</th>
-                <td mat-cell *matCellDef="let s">
-                  {{ s.inStockCount }} / {{ s.totalListings }}
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="inStockCount">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>In Stock</th>
+                  <td mat-cell *matCellDef="let s">
+                    <span class="badge badge-muted">{{ s.inStockCount }} / {{ s.totalListings }}</span>
+                  </td>
+                </ng-container>
 
-              <ng-container matColumnDef="averageDiscountPctAllInStock">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Avg Discount</th>
-                <td mat-cell *matCellDef="let s">
-                  -{{ s.averageDiscountPctAllInStock.toFixed(2) }}%
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="averageDiscountPctAllInStock">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Avg Discount</th>
+                  <td mat-cell *matCellDef="let s">
+                    <span class="badge badge-discount">-{{ s.averageDiscountPctAllInStock.toFixed(2) }}%</span>
+                  </td>
+                </ng-container>
 
-              <ng-container matColumnDef="bestEffectiveDeal">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>#1 Best Deal on Page</th>
-                <td mat-cell *matCellDef="let s">
-                  <span *ngIf="s.bestDeal" class="deal-pill">
-                    -{{ s.bestDeal.discountPct.toFixed(2) }}% ({{ s.bestDeal.title }})
-                  </span>
-                  <span *ngIf="!s.bestDeal" class="muted">—</span>
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="bestEffectiveDeal">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>#1 Best Deal on Page</th>
+                  <td mat-cell *matCellDef="let s">
+                    <a *ngIf="s.bestDeal" [href]="s.bestDeal.url" target="_blank" rel="noopener" class="deal-cell-link" [title]="s.bestDeal.title">
+                      <span class="badge badge-discount">-{{ s.bestDeal.discountPct.toFixed(2) }}%</span>
+                      <strong class="deal-price-text" *ngIf="s.bestDeal.sellingPrice">(\${{ s.bestDeal.sellingPrice.toFixed(2) }})</strong>
+                      <span class="deal-title-text">{{ s.bestDeal.title }}</span>
+                      <span class="deal-arrow">↗</span>
+                    </a>
+                    <span *ngIf="!s.bestDeal" class="muted">—</span>
+                  </td>
+                </ng-container>
 
-              <ng-container matColumnDef="offersCount">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-offers">Competing Sellers</th>
-                <td mat-cell *matCellDef="let s" class="col-offers">
-                  <button
-                    *ngIf="s.bestDealOffers?.length"
-                    mat-stroked-button
-                    class="offers-badge-btn"
-                    (click)="openOffers(s)"
-                  >
-                    <mat-icon class="offers-mat-icon">storefront</mat-icon>
-                    <span>View {{ s.bestDealOffers.length }} Offers</span>
-                  </button>
-                  <span *ngIf="!s.bestDealOffers?.length" class="muted">No competing offers</span>
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="offersCount">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-offers">Competing Sellers</th>
+                  <td mat-cell *matCellDef="let s" class="col-offers">
+                    <button
+                      *ngIf="s.bestDealOffers?.length"
+                      mat-stroked-button
+                      class="offers-badge-btn"
+                      (click)="openOffers(s)"
+                    >
+                      <mat-icon class="offers-mat-icon">storefront</mat-icon>
+                      <span>View {{ s.bestDealOffers.length }} Offers</span>
+                    </button>
+                    <span *ngIf="!s.bestDealOffers?.length" class="muted">No competing offers</span>
+                  </td>
+                </ng-container>
 
-              <ng-container matColumnDef="scrapedAt">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Last Scraped</th>
-                <td mat-cell *matCellDef="let s">
-                  {{ formatDate(s.scrapedAt) }}
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="scrapedAt">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Last Scraped</th>
+                  <td mat-cell *matCellDef="let s" class="scraped-date">
+                    {{ formatDate(s.scrapedAt) }}
+                  </td>
+                </ng-container>
 
-              <tr mat-header-row *matHeaderRowDef="categoryColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: categoryColumns;"></tr>
-            </table>
+                <tr mat-header-row *matHeaderRowDef="categoryColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: categoryColumns;"></tr>
+              </table>
+            </div>
           </mat-card-content>
         </mat-card>
 
@@ -212,65 +217,77 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
           </div>
         </mat-card-header>
         <mat-card-content class="card-table-content">
-          <table mat-table [dataSource]="filteredDeals" matSort (matSortChange)="sortDeals($event)" class="data-table">
-            <ng-container matColumnDef="rank">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Rank</th>
-              <td mat-cell *matCellDef="let deal; let i = index">
-                <span class="rank-badge">#{{ i + 1 }}</span>
-              </td>
-            </ng-container>
+          <div class="table-wrapper">
+            <table mat-table [dataSource]="filteredDeals" matSort (matSortChange)="sortDeals($event)" class="data-table">
+              <ng-container matColumnDef="rank">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-rank">Rank</th>
+                <td mat-cell *matCellDef="let deal; let i = index" class="col-rank">
+                  <span class="badge-rank">#{{ i + 1 }}</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="title">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Product Title</th>
-              <td mat-cell *matCellDef="let deal">
-                <span class="deal-title">{{ deal.title }}</span>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="title">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Product Title</th>
+                <td mat-cell *matCellDef="let deal">
+                  <div class="deal-title-wrapper">
+                    <span class="deal-title">{{ deal.title }}</span>
+                    <span *ngIf="deal.discountPct >= alertThresholdPct" class="badge badge-alert" title="Meets email alert threshold">
+                      🔥 ≥{{ alertThresholdPct }}%
+                    </span>
+                  </div>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="category">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Category</th>
-              <td mat-cell *matCellDef="let deal">{{ deal.category }}</td>
-            </ng-container>
+              <ng-container matColumnDef="category">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Category</th>
+                <td mat-cell *matCellDef="let deal">
+                  <span class="badge badge-muted">{{ deal.category }}</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="region">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Region</th>
-              <td mat-cell *matCellDef="let deal">
-                <span class="region-badge">{{ deal.region }}</span>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="region">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Region</th>
+                <td mat-cell *matCellDef="let deal">
+                  <span class="badge-region">{{ deal.region }}</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="sellingPrice">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Selling Price</th>
-              <td mat-cell *matCellDef="let deal" class="price-cell">
-                \${{ deal.sellingPrice.toFixed(2) }}
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="sellingPrice">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Selling Price</th>
+                <td mat-cell *matCellDef="let deal" class="price-cell">
+                  <strong>\${{ deal.sellingPrice.toFixed(2) }}</strong>
+                  <span *ngIf="deal.originalPrice && deal.originalPrice > deal.sellingPrice" class="strike-price">
+                    \${{ deal.originalPrice.toFixed(2) }}
+                  </span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="discountPct">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Discount</th>
-              <td mat-cell *matCellDef="let deal">
-                <span *ngIf="deal.discountPct > 0" class="disc-badge">-{{ deal.discountPct.toFixed(1) }}%</span>
-                <span *ngIf="!deal.discountPct" class="muted">0%</span>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="discountPct">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Discount</th>
+                <td mat-cell *matCellDef="let deal">
+                  <span *ngIf="deal.discountPct > 0" class="badge badge-discount">-{{ deal.discountPct.toFixed(1) }}%</span>
+                  <span *ngIf="!deal.discountPct" class="muted">0%</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="scrapedAt">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Scraped At</th>
-              <td mat-cell *matCellDef="let deal">{{ formatDate(deal.scrapedAt) }}</td>
-            </ng-container>
+              <ng-container matColumnDef="scrapedAt">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Scraped At</th>
+                <td mat-cell *matCellDef="let deal" class="scraped-date">{{ formatDate(deal.scrapedAt) }}</td>
+              </ng-container>
 
-            <ng-container matColumnDef="url">
-              <th mat-header-cell *matHeaderCellDef class="col-buy">Eneba Link</th>
-              <td mat-cell *matCellDef="let deal" class="col-buy">
-                <a [href]="deal.url" target="_blank" rel="noopener" mat-stroked-button color="primary" class="btn-xs buy-btn">
-                  <span>Buy ↗</span>
-                </a>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="url">
+                <th mat-header-cell *matHeaderCellDef class="col-buy">Eneba Link</th>
+                <td mat-cell *matCellDef="let deal" class="col-buy">
+                  <a [href]="deal.url" target="_blank" rel="noopener" mat-stroked-button color="primary" class="btn-xs buy-btn">
+                    <span>Buy ↗</span>
+                  </a>
+                </td>
+              </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="dealColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: dealColumns;"></tr>
-          </table>
+              <tr mat-header-row *matHeaderRowDef="dealColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: dealColumns;"></tr>
+            </table>
+          </div>
         </mat-card-content>
       </mat-card>
     </div>
@@ -377,7 +394,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       margin-bottom: -1.25em;
     }
     .card-table-content {
-      padding: 0 !important;
+      padding: 0 1.25rem 1.25rem !important;
       overflow-x: auto;
     }
     .data-table {
@@ -386,32 +403,65 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
     }
     .cat-title {
       font-weight: 700;
+      color: var(--mat-sys-on-surface);
     }
-    .effective-cell {
+    .deal-title-wrapper {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .deal-title {
+      font-weight: 600;
+      color: var(--mat-sys-on-surface);
+    }
+    .deal-cell-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      text-decoration: none;
+      color: var(--mat-sys-on-surface);
+      max-width: 320px;
+      line-height: 1.3;
+
+      &:hover {
+        .deal-title-text {
+          text-decoration: underline;
+          color: var(--mat-sys-primary);
+        }
+      }
+    }
+    .deal-price-text {
+      color: var(--mat-sys-primary);
+      font-size: 0.82rem;
       font-weight: 700;
-      color: #10b981;
+      white-space: nowrap;
+    }
+    .deal-title-text {
+      font-size: 0.82rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 160px;
+    }
+    .deal-arrow {
+      color: var(--mat-sys-primary);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+    .scraped-date {
+      font-size: 0.78rem;
+      color: var(--mat-sys-on-surface-variant);
+      white-space: nowrap;
+    }
+    .col-rank {
+      width: 55px !important;
+      text-align: center;
     }
     .price-cell {
       font-weight: 700;
-      color: var(--mat-sys-primary);
-    }
-    .deal-pill {
-      font-weight: 600;
-      color: var(--mat-sys-primary);
-    }
-    .rank-badge {
-      font-weight: 800;
-      color: var(--mat-sys-outline);
-    }
-    .region-badge {
-      font-size: 0.75rem;
-      padding: 0.15rem 0.45rem;
-      border-radius: 4px;
-      background: var(--mat-sys-surface-container-high);
-    }
-    .disc-badge {
-      font-weight: 700;
-      color: #f59e0b;
+      color: var(--mat-sys-on-surface);
+      white-space: nowrap;
     }
     .btn-xs {
       font-size: 0.78rem;

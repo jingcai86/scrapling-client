@@ -238,8 +238,44 @@ mat-card.mat-mdc-card {
 }
 
 // =============================================================================
-// Angular Material Table Polish (Compact, High Contrast, Sleek)
+// Angular Material Table Polish & Container (Compact, High Contrast, Sleek)
 // =============================================================================
+
+.table-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 10px;
+  background-color: var(--mat-sys-surface-container-low);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--mat-sys-outline-variant);
+    border-radius: 3px;
+  }
+
+  .mat-mdc-table {
+    tr.mat-mdc-header-row th:first-child {
+      border-top-left-radius: 9px;
+    }
+    tr.mat-mdc-header-row th:last-child {
+      border-top-right-radius: 9px;
+    }
+    tr.mat-mdc-row:last-child td:first-child {
+      border-bottom-left-radius: 9px;
+    }
+    tr.mat-mdc-row:last-child td:last-child {
+      border-bottom-right-radius: 9px;
+    }
+  }
+}
 
 .mat-mdc-table {
   background: transparent !important;
@@ -247,43 +283,161 @@ mat-card.mat-mdc-card {
   border-spacing: 0 !important;
   width: 100% !important;
   font-family: $font-stack !important;
+
+  a {
+    color: var(--mat-sys-primary);
+    text-decoration: none;
+    font-weight: 600;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
 
 th.mat-mdc-header-cell {
   background-color: var(--mat-sys-surface-container-high) !important;
-  color: var(--mat-sys-on-surface) !important;
+  color: var(--mat-sys-on-surface-variant) !important;
   font-family: $font-stack !important;
   font-weight: 700 !important;
-  font-size: 0.74rem !important;
-  letter-spacing: 0.05em !important;
+  font-size: 0.72rem !important;
+  letter-spacing: 0.06em !important;
   text-transform: uppercase !important;
-  padding: 0.72rem 1rem !important;
+  padding: 0.75rem 1rem !important;
   border-bottom: 2px solid var(--mat-sys-outline-variant) !important;
   white-space: nowrap !important;
   user-select: none !important;
   height: 44px !important;
+  transition: color 0.15s ease, background-color 0.15s ease !important;
+
+  &:hover {
+    color: var(--mat-sys-on-surface) !important;
+    background-color: var(--mat-sys-surface-container-highest) !important;
+  }
+
+  &[aria-sort='ascending'],
+  &[aria-sort='descending'] {
+    color: var(--mat-sys-primary) !important;
+    background-color: var(--mat-sys-primary-container) !important;
+  }
 }
 
 td.mat-mdc-cell {
   font-family: $font-stack !important;
   font-size: 0.85rem !important;
-  padding: 0.68rem 1rem !important;
+  line-height: 1.4 !important;
+  padding: 0.72rem 1rem !important;
   border-bottom: 1px solid var(--mat-sys-outline-variant) !important;
   color: var(--mat-sys-on-surface) !important;
   vertical-align: middle !important;
-  height: 46px !important;
+  height: 48px !important;
 }
 
 tr.mat-mdc-row {
   transition: background-color 0.15s ease !important;
 
+  &:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.015);
+  }
+
   &:hover {
     background-color: var(--mat-sys-surface-container-highest) !important;
+  }
+
+  &:last-child td.mat-mdc-cell {
+    border-bottom: none !important;
   }
 }
 
 .mat-sort-header-arrow {
   color: var(--mat-sys-primary) !important;
+}
+
+.mat-sort-header-container {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+}
+
+// =============================================================================
+// Modern Table Badges, Data Formats & Cell Utilities
+// =============================================================================
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.badge-discount {
+  background: rgba(16, 185, 129, 0.14) !important;
+  color: #10b981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  font-weight: 700 !important;
+}
+
+.badge-alert {
+  background: rgba(245, 158, 11, 0.14) !important;
+  color: #f59e0b !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  font-weight: 700 !important;
+}
+
+.badge-provider {
+  background: rgba(99, 102, 241, 0.14) !important;
+  color: #818cf8 !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  font-weight: 700 !important;
+}
+
+.badge-muted {
+  background: var(--mat-sys-surface-container-high) !important;
+  color: var(--mat-sys-on-surface-variant) !important;
+  border: 1px solid var(--mat-sys-outline-variant) !important;
+  font-weight: 600 !important;
+}
+
+.badge-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  min-width: 28px;
+}
+
+.badge-region {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+  border: 1px solid var(--mat-sys-outline-variant);
+}
+
+.strike-price {
+  color: var(--mat-sys-on-surface-variant);
+  text-decoration: line-through;
+  font-size: 0.78rem;
+  font-weight: 500;
+  margin-left: 0.35rem;
 }
 
 // =============================================================================

@@ -115,75 +115,77 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
           </button>
         </mat-card-header>
         <mat-card-content class="card-table-content">
-          <table mat-table [dataSource]="sortedPages" matSort (matSortChange)="sortPages($event)" class="data-table">
-            <ng-container matColumnDef="categoryName">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Category Name</th>
-              <td mat-cell *matCellDef="let page">
-                <span class="cat-title">{{ page.categoryName }}</span>
-              </td>
-            </ng-container>
+          <div class="table-wrapper">
+            <table mat-table [dataSource]="sortedPages" matSort (matSortChange)="sortPages($event)" class="data-table">
+              <ng-container matColumnDef="categoryName">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Category Name</th>
+                <td mat-cell *matCellDef="let page">
+                  <strong class="cat-title">{{ page.categoryName }}</strong>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="provider">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Provider</th>
-              <td mat-cell *matCellDef="let page">
-                <span class="provider-pill">{{ page.provider }}</span>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="provider">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Provider</th>
+                <td mat-cell *matCellDef="let page">
+                  <span class="badge badge-provider">{{ page.provider }}</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="url">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Store Page URL</th>
-              <td mat-cell *matCellDef="let page" class="url-cell">
-                <a [href]="page.url" target="_blank" rel="noopener" class="store-link">
-                  {{ page.url }} ↗
-                </a>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="url">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Store Page URL</th>
+                <td mat-cell *matCellDef="let page" class="url-cell">
+                  <a [href]="page.url" target="_blank" rel="noopener" class="store-link" [title]="page.url">
+                    <span class="url-text">{{ page.url }}</span> ↗
+                  </a>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="withOffers">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Seller Details</th>
-              <td mat-cell *matCellDef="let page">
-                <mat-slide-toggle
-                  [checked]="page.withOffers"
-                  (change)="toggleOffers(page, $event.checked)"
-                  [matTooltip]="page.withOffers ? 'Scraping seller details enabled' : 'Catalog only (faster)'"
-                >
-                  <span style="font-size:0.8rem;font-weight:600;" [style.color]="page.withOffers ? '#10b981' : 'var(--mat-sys-outline)'">
-                    {{ page.withOffers ? 'Include Sellers' : 'Catalog Only' }}
-                  </span>
-                </mat-slide-toggle>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="withOffers">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Seller Details</th>
+                <td mat-cell *matCellDef="let page">
+                  <mat-slide-toggle
+                    [checked]="page.withOffers"
+                    (change)="toggleOffers(page, $event.checked)"
+                    [matTooltip]="page.withOffers ? 'Scraping seller details enabled' : 'Catalog only (faster)'"
+                  >
+                    <span style="font-size:0.8rem;font-weight:600;" [style.color]="page.withOffers ? '#10b981' : 'var(--mat-sys-outline)'">
+                      {{ page.withOffers ? 'Include Sellers' : 'Catalog Only' }}
+                    </span>
+                  </mat-slide-toggle>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="enabled">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
-              <td mat-cell *matCellDef="let page">
-                <mat-slide-toggle
-                  [checked]="page.enabled"
-                  (change)="toggleEnabled(page, $event.checked)"
-                ></mat-slide-toggle>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="enabled">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
+                <td mat-cell *matCellDef="let page">
+                  <mat-slide-toggle
+                    [checked]="page.enabled"
+                    (change)="toggleEnabled(page, $event.checked)"
+                  ></mat-slide-toggle>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>Actions</th>
-              <td mat-cell *matCellDef="let page">
-                <div class="row-actions">
-                  <button mat-icon-button (click)="scrapeSingle(page)" matTooltip="Scrape this page now" [disabled]="isScraping()">
-                    <mat-icon>play_arrow</mat-icon>
-                  </button>
-                  <button mat-icon-button (click)="openEditPageDialog(page)" matTooltip="Edit page">
-                    <mat-icon>edit</mat-icon>
-                  </button>
-                  <button mat-icon-button color="warn" (click)="deletePage(page)" matTooltip="Delete page">
-                    <mat-icon>delete</mat-icon>
-                  </button>
-                </div>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef class="col-actions">Actions</th>
+                <td mat-cell *matCellDef="let page" class="col-actions">
+                  <div class="row-actions">
+                    <button mat-icon-button (click)="scrapeSingle(page)" matTooltip="Scrape this page now" [disabled]="isScraping()">
+                      <mat-icon>play_arrow</mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="openEditPageDialog(page)" matTooltip="Edit page">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" (click)="deletePage(page)" matTooltip="Delete page">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                </td>
+              </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          </table>
+              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+            </table>
+          </div>
         </mat-card-content>
       </mat-card>
     </div>
@@ -258,7 +260,7 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
       }
     }
     .card-table-content {
-      padding: 0 !important;
+      padding: 0 1.25rem 1.25rem !important;
       overflow-x: auto;
     }
     .data-table {
@@ -266,16 +268,8 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
       background: transparent;
     }
     .cat-title {
-      font-weight: 600;
-    }
-    .provider-pill {
       font-weight: 700;
-      text-transform: capitalize;
-      font-size: 0.75rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 6px;
-      background: var(--mat-sys-secondary-container);
-      color: var(--mat-sys-on-secondary-container);
+      color: var(--mat-sys-on-surface);
     }
     .url-cell {
       max-width: 320px;
@@ -287,10 +281,23 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
       color: var(--mat-sys-primary);
       text-decoration: none;
       font-size: 0.85rem;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
       &:hover { text-decoration: underline; }
     }
+    .url-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .col-actions {
+      width: 120px !important;
+      text-align: right;
+    }
     .row-actions {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 0.25rem;
     }
