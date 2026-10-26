@@ -305,6 +305,7 @@ export function renderClientScripts(): string {
 
       // Render HOME Page Tables (Provider Overview, No Deals)
       renderProvidersOverviewTable(pages, statuses);
+      renderScrapeSuccessChart(dashboardData?.history || [], statuses);
 
       // Render ENEBA Dedicated Page KPIs & Tables
       renderEnebaPage(pages, statuses, thresholdPct);
@@ -324,6 +325,124 @@ export function renderClientScripts(): string {
         renderEnvEditorFields(env);
       }
     }
+
+    // HOME LINE CHART: Scraping Success Rate Over Time
+    function renderScrapeSuccessChart(historyList, statuses) {
+      const container = document.getElementById('scrapeSuccessChartContainer');
+      const tooltipBar = document.getElementById('chartTooltipBar');
+      const avgLabel = document.getElementById('chartAvgSuccessRate');
+      const totalRunsLabel = document.getElementById('chartTotalRuns');
+      if (!container) return;
+
+      let items = historyList || [];
+      if (items.length === 0 && statuses && statuses.length > 0) {
+        const successful = statuses.filter((s) => s.totalListings > 0).length;
+        items = [{
+          timestamp: statuses[0].scrapedAt,
+          totalPages: statuses.length,
+          successfulPages: successful,
+          successRate: Number(((successful / statuses.length) * 100).toFixed(1)),
+          totalListings: statuses.reduce((acc, s) => acc + (s.totalListings || 0), 0),
+        }];
+      }
+
+      if (totalRunsLabel) totalRunsLabel.textContent = String(items.length);
+      if (items.length === 0) {
+        if (avgLabel) avgLabel.textContent = '—';
+        container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);gap:0.5rem;">' +
+          '<div style="font-size:2rem;">📉</div>' +
+          '<div>No scraping history recorded yet. Run a scrape to populate success rate metrics.</div>' +
+        '</div>';
+        return;
+      }
+
+      const sum = items.reduce((acc, i) => acc + i.successRate, 0);
+      const avg = Number((sum / items.length).toFixed(1));
+      if (avgLabel) avgLabel.textContent = avg + '%';
+
+      const padLeft = 60;
+      const padRight = 30;
+      const chartW = 840 - padLeft - padRight;
+      const topY = 25;
+      const bottomY = 215;
+      const chartH = bottomY - topY;
+
+      const pts = items.map((item, idx) => {
+        const x = items.length === 1
+          ? padLeft + chartW / 2
+          : padLeft + (idx / (items.length - 1)) * chartW;
+        const rate = Math.max(0, Math.min(100, item.successRate));
+        const y = bottomY - (rate / 100) * chartH;
+        const d = new Date(item.timestamp);
+        const timeLabel = isNaN(d.getTime()) ? 'Recent' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const fullTime = isNaN(d.getTime()) ? 'Recent' : d.toLocaleString();
+        return {
+          x,
+          y,
+          rate,
+          timeLabel,
+          fullTime,
+          totalPages: item.totalPages,
+          successfulPages: item.successfulPages,
+        };
+      });
+
+      const lineD = pts.length === 1
+        ? 'M ' + (pts[0].x - 50) + ' ' + pts[0].y + ' L ' + (pts[0].x + 50) + ' ' + pts[0].y
+        : pts.map((p, i) => (i === 0 ? 'M' : 'L') + ' ' + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+
+      const areaD = pts.length === 1
+        ? 'M ' + (pts[0].x - 50) + ' ' + bottomY + ' L ' + (pts[0].x - 50) + ' ' + pts[0].y + ' L ' + (pts[0].x + 50) + ' ' + pts[0].y + ' L ' + (pts[0].x + 50) + ' ' + bottomY + ' Z'
+        : lineD + ' L ' + pts[pts.length - 1].x.toFixed(1) + ' ' + bottomY + ' L ' + pts[0].x.toFixed(1) + ' ' + bottomY + ' Z';
+
+      const circlesHtml = pts.map((pt, i) => {
+        return '<g>' +
+          '<circle cx="' + pt.x.toFixed(1) + '" cy="' + pt.y.toFixed(1) + '" r="6" fill="#10b981" stroke="var(--bg-panel)" stroke-width="2.5" style="cursor:pointer;" onmouseenter="showChartTooltip(' + i + ')" onmouseleave="hideChartTooltip()">' +
+            '<title>' + escapeHtml(pt.fullTime) + ': ' + pt.rate + '% (' + pt.successfulPages + '/' + pt.totalPages + ' pages)</title>' +
+          '</circle>' +
+          '<text x="' + pt.x.toFixed(1) + '" y="245" font-size="11" fill="var(--text-muted)" text-anchor="middle" font-family="inherit">' + escapeHtml(pt.timeLabel) + '</text>' +
+        '</g>';
+      }).join('');
+
+      container.innerHTML = '<svg viewBox="0 0 840 260" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible;">' +
+        '<defs>' +
+          '<linearGradient id="chartGradientFallback" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0%" stop-color="#10b981" stop-opacity="0.32" />' +
+            '<stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />' +
+          '</linearGradient>' +
+        '</defs>' +
+        '<line x1="60" y1="25" x2="810" y2="25" stroke="var(--border)" stroke-dasharray="4 4" stroke-width="1" opacity="0.6" />' +
+        '<text x="50" y="29" font-size="11" fill="var(--text-muted)" text-anchor="end">100%</text>' +
+        '<line x1="60" y1="72.5" x2="810" y2="72.5" stroke="var(--border)" stroke-dasharray="4 4" stroke-width="1" opacity="0.6" />' +
+        '<text x="50" y="76.5" font-size="11" fill="var(--text-muted)" text-anchor="end">75%</text>' +
+        '<line x1="60" y1="120" x2="810" y2="120" stroke="var(--border)" stroke-dasharray="4 4" stroke-width="1" opacity="0.6" />' +
+        '<text x="50" y="124" font-size="11" fill="var(--text-muted)" text-anchor="end">50%</text>' +
+        '<line x1="60" y1="167.5" x2="810" y2="167.5" stroke="var(--border)" stroke-dasharray="4 4" stroke-width="1" opacity="0.6" />' +
+        '<text x="50" y="171.5" font-size="11" fill="var(--text-muted)" text-anchor="end">25%</text>' +
+        '<line x1="60" y1="215" x2="810" y2="215" stroke="var(--border)" stroke-width="1" opacity="0.8" />' +
+        '<text x="50" y="219" font-size="11" fill="var(--text-muted)" text-anchor="end">0%</text>' +
+        '<path d="' + areaD + '" fill="url(#chartGradientFallback)" />' +
+        '<path d="' + lineD + '" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />' +
+        circlesHtml +
+      '</svg>';
+
+      window._chartPts = pts;
+    }
+
+    window.showChartTooltip = (idx) => {
+      const bar = document.getElementById('chartTooltipBar');
+      const pt = window._chartPts?.[idx];
+      if (!bar || !pt) return;
+      bar.style.display = 'flex';
+      bar.innerHTML = '<span>🕒 <strong>' + escapeHtml(pt.fullTime) + '</strong></span>' +
+        '<span style="margin-inline-start:1rem;color:#10b981;font-weight:700;">● ' + pt.rate + '% Success Rate</span>' +
+        '<span style="margin-inline-start:0.5rem;color:var(--text-muted);">(' + pt.successfulPages + '/' + pt.totalPages + ' pages extracted)</span>';
+    };
+
+    window.hideChartTooltip = () => {
+      const bar = document.getElementById('chartTooltipBar');
+      if (bar) bar.style.display = 'none';
+    };
 
     // HOME TABLE 1: Monitored Store Providers Overview (No Deals)
     function renderProvidersOverviewTable(pages, statuses) {

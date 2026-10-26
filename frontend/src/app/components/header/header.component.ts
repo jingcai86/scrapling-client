@@ -27,18 +27,15 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
   template: `
     <header class="app-header">
       <div class="header-inner">
-        <div class="brand">
+        <a routerLink="/" class="brand" aria-label="Scrapling Monitor Home">
           <div class="brand-badge">S</div>
           <div class="brand-text">
             <h1>Scrapling Monitor</h1>
             <p>Multi-Provider Scraper • Randomized Cron • Resend Alerts</p>
           </div>
-        </div>
+        </a>
 
         <nav class="nav-links">
-          <a mat-button routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
-            <span class="material-symbols-outlined nav-icon">home</span> Home
-          </a>
           <a mat-button routerLink="/eneba" routerLinkActive="active">
             <span class="material-symbols-outlined nav-icon">sports_esports</span> Eneba Deals
           </a>
@@ -112,6 +109,13 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
       display: flex;
       align-items: center;
       gap: 0.75rem;
+      text-decoration: none;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: opacity 0.2s ease;
+      &:hover {
+        opacity: 0.9;
+      }
     }
 
     .brand-badge {

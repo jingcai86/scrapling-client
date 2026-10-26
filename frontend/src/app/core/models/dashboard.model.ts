@@ -91,6 +91,16 @@ export interface EnvFieldSchema {
   type?: 'text' | 'number' | 'time' | 'url' | 'boolean';
 }
 
+export interface ScrapeHistoryItem {
+  id?: string;
+  timestamp: string;
+  totalPages: number;
+  successfulPages: number;
+  successRate: number; // 0..100 (%)
+  totalListings?: number;
+  inStockCount?: number;
+}
+
 export interface DashboardData {
   pages: ScrapePageConfig[];
   providers: string[];
@@ -98,6 +108,7 @@ export interface DashboardData {
   runner: RunnerState;
   scheduler: SchedulerState;
   enebaConfig?: Record<string, string>;
+  history?: ScrapeHistoryItem[];
   env: {
     schema: Record<string, EnvFieldSchema>;
     values: Record<string, string>;

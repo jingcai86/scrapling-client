@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import {
   ScraplingClient,
   getEmailConfigStatus,
@@ -8,13 +9,14 @@ import {
 import { EnebaGiftCardScraper } from "../../eneba/baseScraper.js";
 import {
   fetchLatestEnebaStatusesFromDb,
+  fetchScrapeHistoryFromDb,
   getEnebaAlertThreshold,
   getEnebaTopDealsLimit,
   tryPersistScrapeResult,
   type DbPersistenceStatus,
 } from "../../eneba/db.js";
 import type { PageDealStatus } from "../../eneba/pageStats.js";
-import type { PageStore, ScrapePageConfig } from "./pageStore.js";
+import type { PageStore, ScrapePageConfig, ScrapeHistoryItem } from "./pageStore.js";
 
 export interface RunnerState {
   isScraping: boolean;
@@ -79,6 +81,7 @@ export class ScrapeRunner {
   private lastEmailDispatch: EmailDispatchResult | null = null;
   private recentLogs: string[] = [];
   private statusesByCategory = new Map<string, PageDealStatus>();
+  private scrapeHistory: ScrapeHistoryItem[] = [];
   private onScrapeCompleteListeners: Array<(statuses: PageDealStatus[]) => void> = [];
 
   constructor(pageStore: PageStore) {
@@ -86,6 +89,7 @@ export class ScrapeRunner {
     for (const st of this.pageStore.loadLatestStatuses()) {
       this.statusesByCategory.set(st.category, st);
     }
+    this.scrapeHistory = this.pageStore.loadHistory();
     const emailStatus = getEmailConfigStatus();
     if (emailStatus.warningMessage) {
       this.addLog(`[Startup Warning] ${emailStatus.warningMessage}`);
@@ -122,6 +126,17 @@ export class ScrapeRunner {
         this.addLog(
           `Loaded ${dbStatuses.length} category snapshots from PostgreSQL (scrapling.eneba_* tables).`,
         );
+      }
+
+      const dbHistory = await fetchScrapeHistoryFromDb(undefined, 30);
+      if (dbHistory.length > 0) {
+        const map = new Map<string, ScrapeHistoryItem>();
+        for (const h of this.scrapeHistory) map.set(h.id, h);
+        for (const h of dbHistory) map.set(h.id, h);
+        this.scrapeHistory = Array.from(map.values()).sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        );
+        this.pageStore.saveHistory(this.scrapeHistory);
       }
     } catch {
       // Non-blocking if DB is unavailable
@@ -279,6 +294,22 @@ export class ScrapeRunner {
       }
 
       this.lastCompletedAt = new Date().toISOString();
+
+      const totalPages = targetPages.length;
+      const successfulPages = scrapedResults.filter((s) => s.totalListings > 0).length;
+      const successRate = totalPages > 0 ? Number(((successfulPages / totalPages) * 100).toFixed(1)) : 100;
+      const historyItem: ScrapeHistoryItem = {
+        id: dbStatus?.batchId || crypto.randomUUID(),
+        timestamp: this.lastCompletedAt,
+        totalPages,
+        successfulPages,
+        successRate,
+        totalListings: scrapedResults.reduce((acc, s) => acc + (s.totalListings || 0), 0),
+        inStockCount: scrapedResults.reduce((acc, s) => acc + (s.inStockCount || 0), 0),
+      };
+      this.scrapeHistory.push(historyItem);
+      this.pageStore.addHistoryItem(historyItem);
+
       for (const listener of this.onScrapeCompleteListeners) {
         try {
           listener(scrapedResults);
@@ -295,5 +326,26 @@ export class ScrapeRunner {
       this.isScraping = false;
       this.currentStep = null;
     }
+  }
+
+  getHistory(): ScrapeHistoryItem[] {
+    if (this.scrapeHistory.length === 0 && this.statusesByCategory.size > 0) {
+      const statuses = Array.from(this.statusesByCategory.values());
+      const latestTime = this.getLatestScrapeTime() || new Date();
+      const successfulPages = statuses.filter((s) => s.totalListings > 0).length;
+      const totalPages = statuses.length;
+      return [
+        {
+          id: "initial-snapshot",
+          timestamp: latestTime.toISOString(),
+          totalPages,
+          successfulPages,
+          successRate: totalPages > 0 ? Number(((successfulPages / totalPages) * 100).toFixed(1)) : 100,
+          totalListings: statuses.reduce((acc, s) => acc + (s.totalListings || 0), 0),
+          inStockCount: statuses.reduce((acc, s) => acc + (s.inStockCount || 0), 0),
+        },
+      ];
+    }
+    return [...this.scrapeHistory];
   }
 }

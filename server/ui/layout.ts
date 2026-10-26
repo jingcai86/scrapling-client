@@ -1,7 +1,7 @@
 export function renderHeader(): string {
   return `  <header class="app-header">
     <div class="header-inner">
-      <div class="brand">
+      <div class="brand" onclick="switchTab('home')" style="cursor:pointer;" title="Go to Home">
         <div class="brand-badge">S</div>
         <div>
           <h1>Scrapling Monitor</h1>
@@ -10,7 +10,6 @@ export function renderHeader(): string {
       </div>
 
       <nav class="nav-tabs" aria-label="Main Navigation">
-        <button type="button" class="tab-btn active" data-tab="home" data-route="/">🏠 Home</button>
         <button type="button" class="tab-btn" data-tab="eneba" data-route="/eneba">🎮 Eneba Deals</button>
         <button type="button" class="tab-btn" data-tab="scraping" data-route="/scraping">⚡ Scraping &amp; Targets (<span id="navPagesCount">0</span>)</button>
         <button type="button" class="tab-btn" data-tab="config" data-route="/config">⚙️ Configuration</button>

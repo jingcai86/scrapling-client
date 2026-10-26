@@ -27,6 +27,7 @@ export function createDashboardRouter(ctx: ServerContext): Router {
         runner: ctx.runner.getState(),
         scheduler: ctx.scheduler.getState(),
         enebaConfig,
+        history: ctx.runner.getHistory(),
         env: {
           schema: ENV_SCHEMA,
           values: configValues,

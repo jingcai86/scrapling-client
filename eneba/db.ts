@@ -937,3 +937,69 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
     }
   }
 }
+
+/**
+ * Loads scraping history and success rate records aggregated by batch_id from PostgreSQL.
+ */
+export async function fetchScrapeHistoryFromDb(
+  pool?: pg.Pool,
+  limit = 30,
+): Promise<Array<{
+  id: string;
+  timestamp: string;
+  totalPages: number;
+  successfulPages: number;
+  successRate: number;
+  totalListings: number;
+  inStockCount: number;
+}>> {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return [];
+  }
+
+  const ownPool = !pool;
+  const p = pool || createPgPool();
+  try {
+    const res = await p.query<{
+      batch_id: string;
+      scraped_at: Date;
+      total_pages: string;
+      successful_pages: string;
+      total_listings: string;
+      in_stock_count: string;
+    }>(`
+      SELECT
+        batch_id,
+        MIN(scraped_at) as scraped_at,
+        COUNT(*)::int as total_pages,
+        COUNT(CASE WHEN total_listings > 0 THEN 1 END)::int as successful_pages,
+        COALESCE(SUM(total_listings), 0)::int as total_listings,
+        COALESCE(SUM(in_stock_count), 0)::int as in_stock_count
+      FROM scrapling.eneba_scrape_runs
+      GROUP BY batch_id
+      ORDER BY MIN(scraped_at) ASC
+      LIMIT $1
+    `, [limit]);
+
+    return res.rows.map((r) => {
+      const totalPages = Number(r.total_pages) || 1;
+      const successfulPages = Number(r.successful_pages) || 0;
+      const successRate = Number(((successfulPages / totalPages) * 100).toFixed(1));
+      return {
+        id: r.batch_id,
+        timestamp: new Date(r.scraped_at).toISOString(),
+        totalPages,
+        successfulPages,
+        successRate,
+        totalListings: Number(r.total_listings) || 0,
+        inStockCount: Number(r.in_stock_count) || 0,
+      };
+    });
+  } catch {
+    return [];
+  } finally {
+    if (ownPool) {
+      await p.end().catch(() => {});
+    }
+  }
+}

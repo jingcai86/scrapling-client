@@ -23,6 +23,16 @@ export interface ScrapePageConfig {
   createdAt: string;
 }
 
+export interface ScrapeHistoryItem {
+  id: string;
+  timestamp: string;
+  totalPages: number;
+  successfulPages: number;
+  successRate: number; // 0..100
+  totalListings: number;
+  inStockCount: number;
+}
+
 export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   {
     id: "eneba-psn",
@@ -74,11 +84,13 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
 export class PageStore {
   private readonly pagesFilePath: string;
   private readonly resultsFilePath: string;
+  private readonly historyFilePath: string;
 
   constructor(dataDir: string = DEFAULT_DATA_DIR) {
     fs.mkdirSync(dataDir, { recursive: true });
     this.pagesFilePath = path.join(dataDir, "scrape-pages.json");
     this.resultsFilePath = path.join(dataDir, "latest-results.json");
+    this.historyFilePath = path.join(dataDir, "scrape-history.json");
   }
 
   /**
@@ -248,5 +260,43 @@ export class PageStore {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Loads the scraping success rate and execution history log from disk.
+   */
+  loadHistory(): ScrapeHistoryItem[] {
+    if (!fs.existsSync(this.historyFilePath)) return [];
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.historyFilePath, "utf8"));
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Saves scraping history on disk.
+   */
+  saveHistory(history: ScrapeHistoryItem[]): void {
+    try {
+      const trimmed = history.slice(-60);
+      fs.writeFileSync(
+        this.historyFilePath,
+        JSON.stringify(trimmed, null, 2) + "\n",
+        "utf8",
+      );
+    } catch {
+      // Ignore write failures
+    }
+  }
+
+  /**
+   * Appends a new scrape history item and persists to disk.
+   */
+  addHistoryItem(item: ScrapeHistoryItem): void {
+    const list = this.loadHistory();
+    list.push(item);
+    this.saveHistory(list);
   }
 }

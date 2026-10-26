@@ -23,6 +23,37 @@ export function renderHomeTab(): string {
         </div>
       </div>
 
+      <!-- Home Chart: Scraping Success Rate Over Time (Line Chart) -->
+      <div class="card" style="margin-block-end:1.25rem;">
+        <div class="card-header" style="flex-wrap:wrap;gap:1rem;">
+          <div>
+            <h2 class="card-title" style="display:flex;align-items:center;gap:0.5rem;">
+              <span>📈 Scraping Success Rate Over Time</span>
+            </h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Real-time trend line of page extraction success rate (0% – 100%) across scheduled and manual runs.
+            </div>
+          </div>
+          <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+            <div style="font-size:0.82rem;background:var(--bg-panel-alt);padding:0.3rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
+              <span style="color:var(--text-muted);">Avg Success:</span>
+              <strong id="chartAvgSuccessRate" style="color:#34d399;margin-inline-start:0.35rem;">100%</strong>
+            </div>
+            <div style="font-size:0.82rem;background:var(--bg-panel-alt);padding:0.3rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
+              <span style="color:var(--text-muted);">Total Runs:</span>
+              <strong id="chartTotalRuns" style="margin-inline-start:0.35rem;">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:0.5rem 1rem 1rem;">
+          <div id="chartTooltipBar" style="display:none;font-size:0.82rem;padding:0.4rem 0.75rem;border-radius:6px;background:var(--bg-panel-alt);margin-block-end:0.75rem;border:1px solid var(--border);"></div>
+          <div id="scrapeSuccessChartContainer" style="width:100%;height:260px;position:relative;">
+            <!-- SVG rendered dynamically by renderScrapeSuccessChart -->
+          </div>
+        </div>
+      </div>
+
       <!-- Home Table: Providers Overview (Provider-Agnostic, No Deals) -->
       <div class="card">
         <div class="card-header">
