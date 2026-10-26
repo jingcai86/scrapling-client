@@ -20,7 +20,6 @@ interface ConfigRow {
   group: string;
   value: string;
   description: string;
-  isSecret: boolean;
   disabled: boolean;
 }
 
@@ -64,9 +63,6 @@ interface ConfigRow {
         <mat-card-header class="card-header-flex">
           <mat-card-title>Configuration Variables</mat-card-title>
           <div class="toolbar-actions">
-            <button mat-stroked-button (click)="showSecrets = !showSecrets">
-              {{ showSecrets ? '🙈 Hide Secrets' : '👁 Show Secrets' }}
-            </button>
             <button mat-stroked-button (click)="previewEmail()">
               ✉ Preview Alert Email
             </button>
@@ -455,7 +451,6 @@ interface ConfigRow {
 })
 export class ConfigDialogComponent implements OnInit, OnDestroy {
   displayedColumns: string[] = ['key', 'group', 'value', 'description'];
-  showSecrets = false;
 
   sortedConfig: ConfigRow[] = [];
   bootItems: ConfigRow[] = [];
@@ -517,7 +512,6 @@ export class ConfigDialogComponent implements OnInit, OnDestroy {
         group: s?.group || 'custom',
         value: values[key] ?? '',
         description: s?.description || 'Configuration variable',
-        isSecret: Boolean(s?.isSecret || key.toLowerCase().includes('key') || key.toLowerCase().includes('pass')),
         disabled: Boolean(s?.envOnly || key === 'PORT' || key === 'DATABASE_URL'),
       };
     });
@@ -546,14 +540,6 @@ export class ConfigDialogComponent implements OnInit, OnDestroy {
 
   envPath(): string {
     return this.apiService.dashboardData()?.env?.envFilePath || '.env';
-  }
-
-  displayValue(row: ConfigRow): string {
-    if (!row.value) return '(empty string)';
-    if (row.isSecret && !this.showSecrets) {
-      return '••••••••';
-    }
-    return row.value;
   }
 
   saveAllConfig() {
