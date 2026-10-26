@@ -289,10 +289,10 @@ interface ConfigRow {
               </div>
             </div>
 
-            <!-- Group 5: Eneba Scraper & Alert Configuration (scrapling.eneba_config) -->
+            <!-- Group 5: Eneba Scraper & Alert Configuration -->
             <div class="section-box">
-              <h3>5. Eneba Scraper &amp; Alert Configuration (scrapling.eneba_config)</h3>
-              <p class="section-hint">PostgreSQL table <code>scrapling.eneba_config</code> controlling category deal limits and alerts.</p>
+              <h3>5. Eneba Scraper &amp; Alert Configuration</h3>
+              <p class="section-hint">Settings controlling category deal limits and alerts.</p>
               <div class="fields-grid">
                 <div class="field-item">
                   <mat-form-field appearance="outline" class="full-width">
@@ -554,7 +554,7 @@ export class ConfigDialogComponent implements DoCheck {
         key: 'ENEBA_TOP_DEALS_LIMIT',
         group: 'eneba',
         value: eneba['top_deals_limit'],
-        description: 'Number of top-ranked deals to persist per category in PostgreSQL (scrapling.eneba_config).',
+        description: 'Number of top-ranked deals to persist per category in PostgreSQL.',
         isSecret: false,
         disabled: false,
       });
@@ -564,7 +564,7 @@ export class ConfigDialogComponent implements DoCheck {
         key: 'ENEBA_ALERT_THRESHOLD_PCT',
         group: 'eneba',
         value: eneba['alert_discount_threshold_pct'],
-        description: 'Minimum direct discount % on Eneba to trigger alert email (scrapling.eneba_config).',
+        description: 'Minimum direct discount % on Eneba to trigger alert email.',
         isSecret: false,
         disabled: false,
       });

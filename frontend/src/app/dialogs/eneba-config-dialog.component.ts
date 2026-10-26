@@ -29,10 +29,9 @@ export interface EnebaConfigDialogData {
       <div class="header-left">
         <h2 mat-dialog-title class="dialog-title">
           <span>⚙️ Eneba Scraper &amp; Alert Configuration</span>
-          <span class="schema-badge">scrapling.eneba_config</span>
         </h2>
         <p class="dialog-subtitle">
-          Configure how many top deals to pull per category and the minimum discount % to trigger email alerts. Stored in PostgreSQL <code>scrapling.eneba_config</code>.
+          Configure how many top deals to pull per category and the minimum discount % to trigger email alerts.
         </p>
       </div>
       <button mat-icon-button mat-dialog-close aria-label="Close dialog">

@@ -69,7 +69,6 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
       <!-- Eneba Action Bar -->
       <div class="eneba-action-bar">
         <div class="config-summary-pill">
-          <span class="schema-badge">scrapling.eneba_config</span>
           <span class="summary-text">
             Pull Limit: <strong>{{ topDealsLimit }}</strong> • Alert Threshold: <strong>{{ alertThresholdPct }}%</strong>
           </span>

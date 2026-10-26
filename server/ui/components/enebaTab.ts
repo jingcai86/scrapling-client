@@ -21,7 +21,6 @@ export function renderEnebaTab(): string {
       <!-- Eneba Provider Action Bar & Modal Trigger -->
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-block-end:1.25rem;">
         <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;color:var(--text-muted);">
-          <span class="badge badge-discount" style="font-size:0.75rem;">scrapling.eneba_config</span>
           <span>Pull Limit: <strong id="enebaPullLimitBadge">10</strong> • Alert Threshold: <strong id="enebaAlertThreshBadge">20%</strong></span>
         </div>
         <div style="display:flex;gap:0.75rem;">
@@ -41,7 +40,6 @@ export function renderEnebaTab(): string {
             <div>
               <h3 id="enebaModalTitle" style="margin:0;font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:0.5rem;">
                 <span>⚙️ Eneba Scraper &amp; Alert Configuration</span>
-                <span class="badge badge-discount" style="font-size:0.75rem;">scrapling.eneba_config</span>
               </h3>
               <p style="margin:0.35rem 0 0;font-size:0.83rem;color:var(--text-muted);line-height:1.4;">
                 Configure how many top deals to pull per category and the minimum discount % to trigger alerts.

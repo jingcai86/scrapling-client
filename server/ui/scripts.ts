@@ -1278,7 +1278,7 @@ export function renderClientScripts(): string {
         if (dashboardData) {
           dashboardData.enebaConfig = data.config;
         }
-        showToast('Eneba configuration saved! (Limit: ' + pullVal + ', Alert: ≥' + threshVal + '%) in scrapling.eneba_config');
+        showToast('Eneba configuration saved! (Limit: ' + pullVal + ', Alert: ≥' + threshVal + '%)');
         const modal = document.getElementById('enebaConfigModal');
         if (modal && typeof modal.close === 'function') modal.close();
         renderAll();
