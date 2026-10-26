@@ -60,7 +60,7 @@ export function renderScrapingTab(): string {
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Target Scraping Pages</h2>
+            <h2 class="card-title">Target Scraping Pages <span class="badge badge-muted" id="navPagesCount" style="font-size:0.75rem;vertical-align:middle;margin-inline-start:0.5rem;">0</span></h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
               Click any column header to sort. Manage store URLs across providers or trigger a single-page scrape.
             </div>

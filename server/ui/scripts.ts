@@ -229,17 +229,26 @@ export function renderClientScripts(): string {
       renderAll();
     }
 
+    function safeSetText(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+    function safeSetHtml(id, html) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    }
+
     function renderAll() {
       if (!dashboardData) return;
       const { pages, statuses, runner, scheduler, env } = dashboardData;
       const thresholdPct = Number(env.values.ALERT_DISCOUNT_THRESHOLD_PCT || 20);
 
       // Update Nav count & Global Home KPIs
-      document.getElementById('navPagesCount').textContent = pages.length;
+      safeSetText('navPagesCount', pages.length);
       const enabledCount = pages.filter((p) => p.enabled).length;
       const providers = Array.from(new Set(pages.map((p) => p.provider)));
-      document.getElementById('kpiProvidersCount').textContent = providers.length + (providers.length === 1 ? ' Provider' : ' Providers');
-      document.getElementById('kpiPagesSub').textContent = enabledCount + ' / ' + pages.length + ' active scrape pages (' + providers.join(', ') + ')';
+      safeSetText('kpiProvidersCount', providers.length + (providers.length === 1 ? ' Provider' : ' Providers'));
+      safeSetText('kpiPagesSub', enabledCount + ' / ' + pages.length + ' active scrape pages (' + providers.join(', ') + ')');
 
       // Last Scraped KPI
       let latestScrapedMs = 0;
@@ -247,12 +256,12 @@ export function renderClientScripts(): string {
         const t = new Date(st.scrapedAt).getTime();
         if (t > latestScrapedMs) latestScrapedMs = t;
       });
-      document.getElementById('kpiLastScrapedTime').textContent = latestScrapedMs
+      safeSetText('kpiLastScrapedTime', latestScrapedMs
         ? new Date(latestScrapedMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        : 'Never';
-      document.getElementById('kpiLastScrapedSub').textContent = latestScrapedMs
+        : 'Never');
+      safeSetText('kpiLastScrapedSub', latestScrapedMs
         ? 'Provider: eneba (' + new Date(latestScrapedMs).toLocaleDateString() + ')'
-        : 'Provider: eneba (No scrapes yet)';
+        : 'Provider: eneba (No scrapes yet)');
 
       // Scheduler KPI & Read-Only View Card
       if (scheduler.enabled && scheduler.nextRunAt) {
@@ -268,45 +277,45 @@ export function renderClientScripts(): string {
         if (isTomorrow) cronLabel = 'Tomorrow (' + dateStr + '), ' + timeStr;
         else if (isToday) cronLabel = 'Today (' + dateStr + '), ' + timeStr;
 
-        document.getElementById('kpiNextCron').textContent = cronLabel;
-        document.getElementById('kpiCronWindow').textContent =
-          'Base ' + scheduler.baseTime + ' + ' + scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's jitter';
-        document.getElementById('viewCronEnabled').innerHTML = '<span class="badge badge-discount">Enabled</span>';
-        document.getElementById('viewCronWindow').textContent = scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]';
-        document.getElementById('viewCronNext').textContent = cronLabel;
+        safeSetText('kpiNextCron', cronLabel);
+        safeSetText('kpiCronWindow',
+          'Base ' + scheduler.baseTime + ' + ' + scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's jitter');
+        safeSetHtml('viewCronEnabled', '<span class="badge badge-discount">Enabled</span>');
+        safeSetText('viewCronWindow', scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]');
+        safeSetText('viewCronNext', cronLabel);
       } else {
-        document.getElementById('kpiNextCron').textContent = 'Disabled';
-        document.getElementById('kpiCronWindow').textContent = 'Enable in Job Scheduler';
-        document.getElementById('viewCronEnabled').innerHTML = '<span class="badge badge-muted">Disabled</span>';
-        document.getElementById('viewCronWindow').textContent = scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]';
-        document.getElementById('viewCronNext').textContent = 'Paused';
+        safeSetText('kpiNextCron', 'Disabled');
+        safeSetText('kpiCronWindow', 'Enable in Job Scheduler');
+        safeSetHtml('viewCronEnabled', '<span class="badge badge-muted">Disabled</span>');
+        safeSetText('viewCronWindow', scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]');
+        safeSetText('viewCronNext', 'Paused');
       }
-      document.getElementById('viewCronLast').textContent =
-        scheduler.lastRunAt ? new Date(scheduler.lastRunAt).toLocaleString() + ' (' + scheduler.lastRunStatus + ')' : 'No scheduled run yet';
+      safeSetText('viewCronLast',
+        scheduler.lastRunAt ? new Date(scheduler.lastRunAt).toLocaleString() + ' (' + scheduler.lastRunStatus + ')' : 'No scheduled run yet');
 
       // Alert & DB KPI
-      document.getElementById('kpiAlertThreshold').textContent = 'Active';
+      safeSetText('kpiAlertThreshold', 'Active');
       const emailActive = String(env.values.EMAIL_ENABLED).toLowerCase() === 'true';
-      document.getElementById('kpiDbStatus').textContent =
-        'Email: ' + (emailActive ? 'Enabled (≥' + thresholdPct + '%)' : 'Standby') + ' • PostgreSQL Ready';
+      safeSetText('kpiDbStatus',
+        'Email: ' + (emailActive ? 'Enabled (≥' + thresholdPct + '%)' : 'Standby') + ' • PostgreSQL Ready');
 
       // Live Scrape Banner
       const banner = document.getElementById('scrapeBanner');
       const btnScrapeAll = document.getElementById('btnScrapeAll');
       const btnScrapeFast = document.getElementById('btnScrapeFast');
       if (runner.isScraping) {
-        banner.classList.add('active');
-        document.getElementById('scrapeStepText').textContent = runner.currentStep || 'Scraping pages...';
-        document.getElementById('scrapeProgressSub').textContent =
-          'Started at ' + (runner.startedAt ? new Date(runner.startedAt).toLocaleTimeString() : '');
-        document.getElementById('scrapeProgressBadge').textContent =
-          runner.completedPages + ' / ' + runner.totalPages + ' Pages';
-        btnScrapeAll.disabled = true;
-        btnScrapeFast.disabled = true;
+        if (banner) banner.classList.add('active');
+        safeSetText('scrapeStepText', runner.currentStep || 'Scraping pages...');
+        safeSetText('scrapeProgressSub',
+          'Started at ' + (runner.startedAt ? new Date(runner.startedAt).toLocaleTimeString() : ''));
+        safeSetText('scrapeProgressBadge',
+          runner.completedPages + ' / ' + runner.totalPages + ' Pages');
+        if (btnScrapeAll) btnScrapeAll.disabled = true;
+        if (btnScrapeFast) btnScrapeFast.disabled = true;
       } else {
-        banner.classList.remove('active');
-        btnScrapeAll.disabled = false;
-        btnScrapeFast.disabled = false;
+        if (banner) banner.classList.remove('active');
+        if (btnScrapeAll) btnScrapeAll.disabled = false;
+        if (btnScrapeFast) btnScrapeFast.disabled = false;
       }
 
       // Render HOME Page Tables & Charts
@@ -319,9 +328,11 @@ export function renderClientScripts(): string {
 
       // Render Logs
       const logBox = document.getElementById('logBox');
-      logBox.innerHTML = (runner.recentLogs && runner.recentLogs.length > 0)
-        ? runner.recentLogs.map((l) => '<div>' + escapeHtml(l) + '</div>').join('')
-        : 'Ready. Waiting for scrape actions.';
+      if (logBox) {
+        logBox.innerHTML = (runner.recentLogs && runner.recentLogs.length > 0)
+          ? runner.recentLogs.map((l) => '<div>' + escapeHtml(l) + '</div>').join('')
+          : 'Ready. Waiting for scrape actions.';
+      }
 
       // Render Scraping Pages Table
       renderPagesTable(pages);
@@ -781,6 +792,7 @@ export function renderClientScripts(): string {
     // HOME TABLE 1: Monitored Store Providers Overview (No Deals)
     function renderProvidersOverviewTable(pages, statuses) {
       const tbody = document.getElementById('providersTableBody');
+      if (!tbody) return;
       const providerNames = Array.from(new Set([...pages.map((p) => p.provider), 'eneba']));
 
       let latestEnebaScrapedMs = 0;
@@ -830,12 +842,12 @@ export function renderClientScripts(): string {
     // DEDICATED ENEBA PAGE RENDERER (/eneba)
     function renderEnebaPage(pages, statuses, thresholdPct) {
       const enebaPages = pages.filter((p) => p.provider === 'eneba');
-      document.getElementById('enebaKpiCategories').textContent = statuses.length + ' / ' + enebaPages.length + ' Scraped';
+      safeSetText('enebaKpiCategories', statuses.length + ' / ' + enebaPages.length + ' Scraped');
 
       const totalInStock = statuses.reduce((s, st) => s + (st.inStockCount || 0), 0);
       const totalDiscounted = statuses.reduce((s, st) => s + (st.discountedCount || 0), 0);
-      document.getElementById('enebaKpiInStock').textContent = totalInStock + ' Cards';
-      document.getElementById('enebaKpiDiscounted').textContent = totalDiscounted + ' with direct discount';
+      safeSetText('enebaKpiInStock', totalInStock + ' Cards');
+      safeSetText('enebaKpiDiscounted', totalDiscounted + ' with direct discount');
 
       let bestEneba = null;
       let totalOffers = 0;
@@ -847,54 +859,56 @@ export function renderClientScripts(): string {
         }
       });
 
-      document.getElementById('enebaKpiBestPct').textContent = bestEneba ? '-' + bestEneba.discountPct.toFixed(2) + '%' : '0.00%';
-      document.getElementById('enebaKpiBestTitle').textContent = bestEneba
+      safeSetText('enebaKpiBestPct', bestEneba ? '-' + bestEneba.discountPct.toFixed(2) + '%' : '0.00%');
+      safeSetText('enebaKpiBestTitle', bestEneba
         ? bestEneba.title + ' ($' + (bestEneba.sellingPrice?.toFixed(2) ?? 'N/A') + ')'
-        : 'No Eneba deals scraped yet';
+        : 'No Eneba deals scraped yet');
 
       // Eneba Summary Table
       const summaryBody = document.getElementById('enebaSummaryBody');
-      if (!statuses || statuses.length === 0) {
-        summaryBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No Eneba scrape results yet. Click "Scrape Eneba Pages" above.</td></tr>';
-      } else {
-        const sort = tableSortState.enebaSummary;
-        const indexed = statuses.map((st, originalIdx) => {
-          const best = st.bestDeal || st.bestEffectiveDeal;
-          return {
-            st,
-            originalIdx,
-            category: st.category,
-            inStockCount: st.inStockCount,
-            avgDirect: st.averageDiscountPctAllInStock,
-            bestDiscount: best ? best.discountPct : -1,
-            offersCount: st.bestDealOffers ? st.bestDealOffers.length : 0,
-            scrapedAt: new Date(st.scrapedAt).getTime(),
-          };
-        });
+      if (summaryBody) {
+        if (!statuses || statuses.length === 0) {
+          summaryBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No Eneba scrape results yet. Click "Scrape Eneba Pages" above.</td></tr>';
+        } else {
+          const sort = tableSortState.enebaSummary;
+          const indexed = statuses.map((st, originalIdx) => {
+            const best = st.bestDeal || st.bestEffectiveDeal;
+            return {
+              st,
+              originalIdx,
+              category: st.category,
+              inStockCount: st.inStockCount,
+              avgDirect: st.averageDiscountPctAllInStock,
+              bestDiscount: best ? best.discountPct : -1,
+              offersCount: st.bestDealOffers ? st.bestDealOffers.length : 0,
+              scrapedAt: new Date(st.scrapedAt).getTime(),
+            };
+          });
 
-        indexed.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
+          indexed.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
 
-        summaryBody.innerHTML = indexed.map((item) => {
-          const { st, originalIdx } = item;
-          const best = st.bestDeal || st.bestEffectiveDeal;
-          const offersCount = st.bestDealOffers ? st.bestDealOffers.length : 0;
-          const bestHtml = best
-            ? '<a href="' + escapeHtml(best.url) + '" target="_blank" rel="noopener"><strong>-' +
-              best.discountPct.toFixed(2) + '% ($' + (best.sellingPrice?.toFixed(2) ?? 'N/A') + ')</strong> — ' +
-              escapeHtml(best.title) + '</a>'
-            : '<span style="color:var(--text-muted);">None in stock</span>';
+          summaryBody.innerHTML = indexed.map((item) => {
+            const { st, originalIdx } = item;
+            const best = st.bestDeal || st.bestEffectiveDeal;
+            const offersCount = st.bestDealOffers ? st.bestDealOffers.length : 0;
+            const bestHtml = best
+              ? '<a href="' + escapeHtml(best.url) + '" target="_blank" rel="noopener"><strong>-' +
+                best.discountPct.toFixed(2) + '% ($' + (best.sellingPrice?.toFixed(2) ?? 'N/A') + ')</strong> — ' +
+                escapeHtml(best.title) + '</a>'
+              : '<span style="color:var(--text-muted);">None in stock</span>';
 
-          return '<tr>' +
-            '<th>' + escapeHtml(st.category) + '</th>' +
-            '<td>' + st.inStockCount + ' / ' + st.totalListings + '</td>' +
-            '<td><span class="badge badge-discount">-' + st.averageDiscountPctAllInStock.toFixed(2) + '%</span></td>' +
-            '<td>' + bestHtml + '</td>' +
-            '<td>' + (offersCount > 0
-              ? '<button type="button" class="btn btn-sm" onclick="openSellerOffers(' + originalIdx + ')">View ' + offersCount + ' Sellers</button>'
-              : '<span style="color:var(--text-muted);">0 offers</span>') + '</td>' +
-            '<td style="color:var(--text-muted);font-size:0.8rem;">' + new Date(st.scrapedAt).toLocaleString() + '</td>' +
-          '</tr>';
-        }).join('');
+            return '<tr>' +
+              '<th>' + escapeHtml(st.category) + '</th>' +
+              '<td>' + st.inStockCount + ' / ' + st.totalListings + '</td>' +
+              '<td><span class="badge badge-discount">-' + st.averageDiscountPctAllInStock.toFixed(2) + '%</span></td>' +
+              '<td>' + bestHtml + '</td>' +
+              '<td>' + (offersCount > 0
+                ? '<button type="button" class="btn btn-sm" onclick="openSellerOffers(' + originalIdx + ')">View ' + offersCount + ' Sellers</button>'
+                : '<span style="color:var(--text-muted);">0 offers</span>') + '</td>' +
+              '<td style="color:var(--text-muted);font-size:0.8rem;">' + new Date(st.scrapedAt).toLocaleString() + '</td>' +
+            '</tr>';
+          }).join('');
+        }
       }
 
       // Populate Eneba Category Filter & Render Eneba Top Deals Table
@@ -909,26 +923,26 @@ export function renderClientScripts(): string {
       if (thresholdInput && document.activeElement !== thresholdInput) {
         thresholdInput.value = enebaAlertThreshold;
       }
-      const badge = document.getElementById('enebaPullLimitBadge');
-      if (badge) badge.textContent = pullLimit;
-      const threshBadge = document.getElementById('enebaAlertThreshBadge');
-      if (threshBadge) threshBadge.textContent = enebaAlertThreshold + '%';
-      const limitTitle = document.getElementById('enebaTableLimitTitle');
-      if (limitTitle) limitTitle.textContent = pullLimit;
-      const limitSub = document.getElementById('enebaTableLimitSub');
-      if (limitSub) limitSub.textContent = pullLimit;
+      safeSetText('enebaPullLimitBadge', pullLimit);
+      safeSetText('enebaAlertThreshBadge', enebaAlertThreshold + '%');
+      safeSetText('enebaTableLimitTitle', pullLimit);
+      safeSetText('enebaTableLimitSub', pullLimit);
 
       const catSelect = document.getElementById('enebaCategoryFilter');
-      const currentCat = catSelect.value;
-      const categories = statuses.map((s) => s.category);
-      catSelect.innerHTML = '<option value="all">All Eneba Categories (' + statuses.length + ')</option>' +
-        categories.map((c) => '<option value="' + escapeHtml(c) + '"' + (c === currentCat ? ' selected' : '') + '>' + escapeHtml(c) + '</option>').join('');
+      if (catSelect) {
+        const currentCat = catSelect.value;
+        const categories = statuses.map((s) => s.category);
+        catSelect.innerHTML = '<option value="all">All Eneba Categories (' + statuses.length + ')</option>' +
+          categories.map((c) => '<option value="' + escapeHtml(c) + '"' + (c === currentCat ? ' selected' : '') + '>' + escapeHtml(c) + '</option>').join('');
+      }
 
       const dealsBody = document.getElementById('enebaDealsBody');
+      if (!dealsBody) return;
+      const currentCatVal = catSelect ? catSelect.value : 'all';
       const searchQ = (document.getElementById('enebaSearchInput')?.value || '').trim().toLowerCase();
-      const filteredStatuses = catSelect.value === 'all'
+      const filteredStatuses = currentCatVal === 'all'
         ? statuses
-        : statuses.filter((s) => s.category === catSelect.value);
+        : statuses.filter((s) => s.category === currentCatVal);
 
       const flatDeals = [];
       filteredStatuses.forEach((st) => {
@@ -997,6 +1011,7 @@ export function renderClientScripts(): string {
 
     function renderPagesTable(pages) {
       const pagesBody = document.getElementById('pagesTableBody');
+      if (!pagesBody) return;
       const sort = tableSortState.pages;
       const sorted = [...pages].sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
 
@@ -1017,8 +1032,9 @@ export function renderClientScripts(): string {
     }
 
     function renderConfigTable(env) {
-      document.getElementById('envFilePathLabel').textContent = env.envFilePath || '.env';
+      safeSetText('envFilePathLabel', env.envFilePath || '.env');
       const tbody = document.getElementById('configTableBody');
+      if (!tbody) return;
       const schemaByKey = new Map((env.schema || []).map((f) => [f.key, f]));
       const allKeys = Array.from(schemaByKey.keys());
 
