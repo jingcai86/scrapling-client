@@ -11,6 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import * as echarts from 'echarts';
 import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
@@ -34,6 +35,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
     MatSelectModule,
     MatDialogModule,
     MatSnackBarModule,
+    MatTooltipModule,
   ],
   template: `
     <div class="page-container">
@@ -150,13 +152,14 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
             <div>
               <mat-card-title>Eneba Gift Card Categories — Status &amp; Seller Offers</mat-card-title>
               <mat-card-subtitle>
-                Category-specific metrics including discount percentages and competing merchant offers. Click any column header to sort.
+                Category metrics &amp; best discounts. Click any row to view third-party merchant offers; hover for scrape history.
               </mat-card-subtitle>
             </div>
           </mat-card-header>
           <mat-card-content class="card-table-content">
-            <div class="table-wrapper">
+            <div class="table-wrapper no-scroll-wrapper">
               <table mat-table [dataSource]="sortedCategories" matSort (matSortChange)="sortCategories($event)" class="data-table category-table">
+                <!-- Category Column -->
                 <ng-container matColumnDef="category">
                   <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-cat">Category</th>
                   <td mat-cell *matCellDef="let s" class="col-cat">
@@ -164,58 +167,60 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
                   </td>
                 </ng-container>
 
-                <ng-container matColumnDef="inStockCount">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-instock">In Stock</th>
-                  <td mat-cell *matCellDef="let s" class="col-instock">
-                    <span class="badge badge-muted">{{ s.inStockCount }} / {{ s.totalListings }}</span>
-                  </td>
-                </ng-container>
-
+                <!-- Avg Discount Column -->
                 <ng-container matColumnDef="averageDiscountPctAllInStock">
                   <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-avg">Avg Discount</th>
                   <td mat-cell *matCellDef="let s" class="col-avg">
-                    <span class="badge badge-discount">-{{ s.averageDiscountPctAllInStock.toFixed(2) }}%</span>
+                    <span class="badge badge-discount" *ngIf="s.averageDiscountPctAllInStock > 0">
+                      -{{ s.averageDiscountPctAllInStock.toFixed(1) }}%
+                    </span>
+                    <span class="muted" *ngIf="!s.averageDiscountPctAllInStock || s.averageDiscountPctAllInStock <= 0">—</span>
                   </td>
                 </ng-container>
 
-                <ng-container matColumnDef="bestEffectiveDeal">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-deal">#1 Best Deal on Page</th>
+                <!-- Best Discount Seen Column -->
+                <ng-container matColumnDef="bestDiscountSeen">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-deal">Best Discount Seen</th>
                   <td mat-cell *matCellDef="let s" class="col-best-deal">
-                    <a *ngIf="s.bestDeal" [href]="s.bestDeal.url" target="_blank" rel="noopener" class="deal-cell-link" [title]="s.bestDeal.title">
-                      <span class="badge badge-discount">-{{ s.bestDeal.discountPct.toFixed(2) }}%</span>
-                      <strong class="deal-price-text" *ngIf="s.bestDeal.sellingPrice">(\${{ s.bestDeal.sellingPrice.toFixed(2) }})</strong>
-                      <span class="deal-title-text">{{ s.bestDeal.title }}</span>
-                      <span class="deal-arrow">↗</span>
-                    </a>
+                    <div *ngIf="s.bestDeal" class="best-deal-cell">
+                      <div class="deal-primary-line">
+                        <span class="badge badge-discount">-{{ s.bestDeal.discountPct.toFixed(1) }}%</span>
+                        <strong class="deal-price-text">\${{ s.bestDeal.sellingPrice.toFixed(2) }}</strong>
+                        <span class="deal-savings-text" *ngIf="getSavings(s)">(Save \${{ getSavings(s) }})</span>
+                        <a
+                          *ngIf="s.bestDeal.url"
+                          [href]="s.bestDeal.url"
+                          target="_blank"
+                          rel="noopener"
+                          (click)="$event.stopPropagation()"
+                          class="deal-link-icon"
+                          title="Open deal on Eneba"
+                        >↗</a>
+                      </div>
+                      <div class="deal-meta-line">
+                        <span class="deal-seller-text" *ngIf="getSellerName(s)">
+                          <span class="seller-label">Seller:</span> {{ getSellerName(s) }}
+                        </span>
+                        <span class="offers-mini-chip" *ngIf="s.bestDealOffers?.length">
+                          <mat-icon class="offers-xs-icon">storefront</mat-icon>
+                          {{ s.bestDealOffers.length }} offers
+                        </span>
+                      </div>
+                    </div>
                     <span *ngIf="!s.bestDeal" class="muted">—</span>
                   </td>
                 </ng-container>
 
-                <ng-container matColumnDef="offersCount">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-offers">Competing Sellers</th>
-                  <td mat-cell *matCellDef="let s" class="col-offers">
-                    <button
-                      *ngIf="s.bestDealOffers?.length"
-                      mat-stroked-button
-                      class="offers-badge-btn"
-                      (click)="openOffers(s)"
-                    >
-                      <mat-icon class="offers-mat-icon">storefront</mat-icon>
-                      <span>View {{ s.bestDealOffers.length }} Offers</span>
-                    </button>
-                    <span *ngIf="!s.bestDealOffers?.length" class="muted">No competing offers</span>
-                  </td>
-                </ng-container>
-
-                <ng-container matColumnDef="scrapedAt">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-scraped">Last Scraped</th>
-                  <td mat-cell *matCellDef="let s" class="col-scraped scraped-date">
-                    {{ formatDate(s.scrapedAt) }}
-                  </td>
-                </ng-container>
-
                 <tr mat-header-row *matHeaderRowDef="categoryColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: categoryColumns;"></tr>
+                <tr
+                  mat-row
+                  *matRowDef="let row; columns: categoryColumns;"
+                  class="category-table-row clickable-row"
+                  (click)="openOffers(row)"
+                  [matTooltip]="getCategoryTooltip(row)"
+                  matTooltipClass="multiline-tooltip"
+                  [matTooltipPosition]="'above'"
+                ></tr>
               </table>
             </div>
           </mat-card-content>
@@ -405,26 +410,109 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       background: transparent;
     }
     .category-table {
-      min-width: 860px !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      table-layout: auto !important;
+    }
+    .no-scroll-wrapper {
+      overflow-x: hidden !important;
+      width: 100% !important;
+    }
+    .clickable-row {
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+
+      &:hover {
+        background-color: var(--mat-sys-surface-container-high) !important;
+      }
     }
     .deals-table {
       min-width: 920px !important;
     }
     .col-cat {
-      min-width: 120px !important;
-      white-space: nowrap !important;
-    }
-    .col-instock {
-      min-width: 95px !important;
+      width: 24% !important;
+      min-width: 85px !important;
       white-space: nowrap !important;
     }
     .col-avg {
-      min-width: 110px !important;
+      width: 18% !important;
+      min-width: 75px !important;
       white-space: nowrap !important;
     }
     .col-best-deal {
-      min-width: 290px !important;
-      white-space: nowrap !important;
+      width: 58% !important;
+      min-width: 0 !important;
+    }
+    .best-deal-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      padding: 0.25rem 0;
+    }
+    .deal-primary-line {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .deal-price-text {
+      color: var(--mat-sys-on-surface);
+      font-size: 0.88rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .deal-savings-text {
+      color: #10b981;
+      font-size: 0.76rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .deal-link-icon {
+      color: var(--mat-sys-primary);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-left: 0.15rem;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+    .deal-meta-line {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .deal-seller-text {
+      font-size: 0.74rem;
+      color: var(--mat-sys-on-surface-variant);
+      white-space: nowrap;
+
+      .seller-label {
+        opacity: 0.8;
+      }
+    }
+    .offers-mini-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.12rem 0.42rem;
+      border-radius: 4px;
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--mat-sys-primary);
+      border: 1px solid rgba(99, 102, 241, 0.22);
+      white-space: nowrap;
+
+      .offers-xs-icon {
+        font-size: 13px !important;
+        width: 13px !important;
+        height: 13px !important;
+        line-height: 13px !important;
+      }
     }
     .cat-title {
       font-weight: 700;
@@ -610,11 +698,8 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
 
   categoryColumns: string[] = [
     'category',
-    'inStockCount',
     'averageDiscountPctAllInStock',
-    'bestEffectiveDeal',
-    'offersCount',
-    'scrapedAt',
+    'bestDiscountSeen',
   ];
 
   dealColumns: string[] = [
@@ -740,6 +825,56 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
     return new Date(dateStr).toLocaleString();
   }
 
+  getSellerName(s: PageDealStatus): string {
+    if (s.bestDeal?.lowestSellerName) return s.bestDeal.lowestSellerName;
+    if (s.bestDealOffers && s.bestDealOffers.length > 0 && s.bestDealOffers[0].sellerName) {
+      return s.bestDealOffers[0].sellerName;
+    }
+    return '';
+  }
+
+  getSavings(s: PageDealStatus): string | null {
+    if (!s.bestDeal) return null;
+    if (s.bestDeal.savingsAmount && s.bestDeal.savingsAmount > 0) {
+      return s.bestDeal.savingsAmount.toFixed(2);
+    }
+    const orig = s.bestDeal.originalPrice || s.bestDeal.faceValue;
+    if (orig && orig > s.bestDeal.sellingPrice) {
+      return (orig - s.bestDeal.sellingPrice).toFixed(2);
+    }
+    return null;
+  }
+
+  getCategoryTooltip(s: PageDealStatus): string {
+    const lines: string[] = [];
+    lines.push(`🕒 Last Scraped: ${this.formatDate(s.scrapedAt)}`);
+    if (s.bestDeal) {
+      lines.push(`🏷️ Deal: ${s.bestDeal.title}`);
+      const priceStr = `$${s.bestDeal.sellingPrice.toFixed(2)}`;
+      const orig = s.bestDeal.originalPrice || s.bestDeal.faceValue;
+      if (orig && orig > s.bestDeal.sellingPrice) {
+        const diff = (orig - s.bestDeal.sellingPrice).toFixed(2);
+        lines.push(`💰 Price: ${priceStr} (Was $${orig.toFixed(2)} • Save $${diff})`);
+      } else {
+        lines.push(`💰 Price: ${priceStr}`);
+      }
+      lines.push(`📉 Best Discount Seen: -${s.bestDeal.discountPct.toFixed(1)}%`);
+      const seller = this.getSellerName(s);
+      if (seller) {
+        const rating = s.bestDeal.lowestSellerRating ? ` (${s.bestDeal.lowestSellerRating}★)` : '';
+        lines.push(`🏪 Seller: ${seller}${rating}`);
+      }
+    }
+    const count = s.bestDealOffers?.length || 0;
+    if (count > 0) {
+      lines.push(`👥 ${count} competing third-party seller offer${count > 1 ? 's' : ''}`);
+      lines.push(`👉 Click row to view all competing seller offers`);
+    } else {
+      lines.push(`👥 No competing seller offers available`);
+    }
+    return lines.join('\n');
+  }
+
   openEnebaConfigModal() {
     const dialogRef = this.dialog.open(EnebaConfigDialogComponent, {
       data: {
@@ -777,9 +912,13 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   }
 
   openOffers(status: PageDealStatus) {
+    if (!status.bestDealOffers?.length && !status.bestDeal) {
+      this.snackBar.open(`No competing seller offers for ${status.category} yet.`, 'OK', { duration: 2500 });
+      return;
+    }
     this.dialog.open(SellerOffersDialogComponent, {
       data: {
-        title: status.bestEffectiveDeal?.title || status.category,
+        title: status.bestDeal?.title || status.bestEffectiveDeal?.title || `${status.category} Gift Cards`,
         offers: status.bestDealOffers || [],
       },
       width: '720px',
@@ -816,8 +955,13 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
       const isAsc = sort.direction === 'asc';
       switch (sort.active) {
         case 'category': return compare(a.category, b.category, isAsc);
-        case 'inStockCount': return compare(a.inStockCount, b.inStockCount, isAsc);
         case 'averageDiscountPctAllInStock': return compare(a.averageDiscountPctAllInStock, b.averageDiscountPctAllInStock, isAsc);
+        case 'bestDiscountSeen':
+        case 'bestEffectiveDeal': {
+          const aPct = a.bestDeal?.discountPct ?? -1;
+          const bPct = b.bestDeal?.discountPct ?? -1;
+          return compare(aPct, bPct, isAsc);
+        }
         case 'offersCount': return compare(a.bestDealOffers?.length || 0, b.bestDealOffers?.length || 0, isAsc);
         case 'scrapedAt': return compare(a.scrapedAt, b.scrapedAt, isAsc);
         default: return 0;
