@@ -59,6 +59,43 @@ import type { SchedulerState } from '../core/models/dashboard.model';
     .full-width {
       width: 100%;
     }
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+      position: static !important;
+      height: auto !important;
+      min-height: 0 !important;
+      margin-top: 6px !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper > * {
+      position: static !important;
+      height: auto !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint-wrapper {
+      position: static !important;
+      display: block !important;
+      width: 100% !important;
+      height: auto !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint-spacer {
+      display: none !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint {
+      display: block !important;
+      font-size: 0.84rem !important;
+      line-height: 1.5 !important;
+      letter-spacing: normal !important;
+      white-space: normal !important;
+      word-break: normal !important;
+      color: var(--mat-sys-on-surface-variant) !important;
+    }
+    ::ng-deep .mat-mdc-form-field-bottom-align::before {
+      display: none !important;
+      content: none !important;
+      height: 0 !important;
+    }
   `],
 })
 export class CronFormDialogComponent {

@@ -24,17 +24,17 @@ import type { ScrapePageConfig } from '../core/models/dashboard.model';
     <h2 mat-dialog-title>{{ data.page?.id ? 'Edit Scraping Page' : 'Add Scraping Page' }}</h2>
     <form (ngSubmit)="save()" #pageForm="ngForm">
       <div mat-dialog-content class="form-content">
-        <mat-form-field appearance="outline" class="full-width">
+        <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
           <mat-label>Provider</mat-label>
           <input matInput [(ngModel)]="provider" name="provider" required placeholder="eneba" />
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="full-width">
+        <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
           <mat-label>Category Name</mat-label>
           <input matInput [(ngModel)]="categoryName" name="categoryName" required placeholder="Xbox Gift Cards" />
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="full-width">
+        <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
           <mat-label>Category Store URL</mat-label>
           <input matInput [(ngModel)]="url" name="url" type="url" required placeholder="https://www.eneba.com/us/store/xbox-gift-cards" />
         </mat-form-field>
@@ -66,6 +66,43 @@ import type { ScrapePageConfig } from '../core/models/dashboard.model';
     }
     .full-width {
       width: 100%;
+    }
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+      position: static !important;
+      height: auto !important;
+      min-height: 0 !important;
+      margin-top: 6px !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper > * {
+      position: static !important;
+      height: auto !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint-wrapper {
+      position: static !important;
+      display: block !important;
+      width: 100% !important;
+      height: auto !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint-spacer {
+      display: none !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint {
+      display: block !important;
+      font-size: 0.84rem !important;
+      line-height: 1.5 !important;
+      letter-spacing: normal !important;
+      white-space: normal !important;
+      word-break: normal !important;
+      color: var(--mat-sys-on-surface-variant) !important;
+    }
+    ::ng-deep .mat-mdc-form-field-bottom-align::before {
+      display: none !important;
+      content: none !important;
+      height: 0 !important;
     }
     .checkbox-group {
       display: flex;

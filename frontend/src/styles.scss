@@ -553,6 +553,12 @@ tr.mat-mdc-row {
   overflow: visible !important;
 }
 
+.mat-mdc-form-field-subscript-wrapper > * {
+  position: static !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
 .mat-mdc-form-field-hint-wrapper,
 .mat-mdc-form-field-error-wrapper {
   position: static !important;
@@ -560,6 +566,7 @@ tr.mat-mdc-row {
   width: 100% !important;
   height: auto !important;
   padding: 0 !important;
+  overflow: visible !important;
 }
 
 .mat-mdc-form-field-hint-spacer {

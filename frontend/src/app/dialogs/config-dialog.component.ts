@@ -99,7 +99,7 @@ interface ConfigRow {
               <p class="section-hint">These variables sit in <code>.env</code> and require app restart if changed.</p>
               <div class="fields-grid">
                 <div *ngFor="let item of bootItems; trackBy: trackByKey" class="field-item">
-                  <mat-form-field appearance="outline" class="full-width" matTooltip="Change in .env and restart server if changed">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic" matTooltip="Change in .env and restart server if changed">
                     <mat-label>{{ item.key }}</mat-label>
                     <input matInput [value]="editFormValues[item.key] || ''" disabled />
                   </mat-form-field>
@@ -112,7 +112,7 @@ interface ConfigRow {
               <h3>2. Scrapling Anti-Bot & Engine Configuration</h3>
               <div class="fields-grid">
                 <div *ngFor="let item of scraplingItems; trackBy: trackByKey" class="field-item">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>{{ item.key }}</mat-label>
                     <input matInput [(ngModel)]="editFormValues[item.key]" />
                     <mat-hint>{{ item.description }}</mat-hint>
@@ -127,7 +127,7 @@ interface ConfigRow {
               <div class="fields-grid">
                 <!-- CRON_ENABLED as true/false dropdown -->
                 <div class="field-item">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>CRON_ENABLED</mat-label>
                     <mat-select [(ngModel)]="editFormValues['CRON_ENABLED']">
                       <mat-option value="true">true</mat-option>
@@ -139,7 +139,7 @@ interface ConfigRow {
 
                 <!-- CRON_BASE_TIME (disabled when CRON_ENABLED === false) -->
                 <div class="field-item" [class.field-disabled]="isCronDisabled()">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>CRON_BASE_TIME</mat-label>
                     <input
                       matInput
@@ -153,7 +153,7 @@ interface ConfigRow {
 
                 <!-- CRON_JITTER_MINUTES (disabled when CRON_ENABLED === false) -->
                 <div class="field-item" [class.field-disabled]="isCronDisabled()">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>CRON_JITTER_MINUTES</mat-label>
                     <input
                       matInput
@@ -176,7 +176,7 @@ interface ConfigRow {
               <div class="fields-grid">
                 <!-- EMAIL_ENABLED as true/false dropdown -->
                 <div class="field-item">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>EMAIL_ENABLED</mat-label>
                     <mat-select [(ngModel)]="editFormValues['EMAIL_ENABLED']">
                       <mat-option value="true">true</mat-option>
@@ -188,7 +188,7 @@ interface ConfigRow {
 
                 <!-- RESEND_API_KEY (disabled when EMAIL_ENABLED === false) -->
                 <div class="field-item" [class.field-disabled]="isEmailDisabled()">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>RESEND_API_KEY</mat-label>
                     <input
                       matInput
@@ -202,7 +202,7 @@ interface ConfigRow {
 
                 <!-- ALERT_EMAIL_FROM (disabled when EMAIL_ENABLED === false) -->
                 <div class="field-item" [class.field-disabled]="isEmailDisabled()">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>ALERT_EMAIL_FROM</mat-label>
                     <input
                       matInput
@@ -215,7 +215,7 @@ interface ConfigRow {
 
                 <!-- ALERT_EMAIL_TO (disabled when EMAIL_ENABLED === false) -->
                 <div class="field-item" [class.field-disabled]="isEmailDisabled()">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>ALERT_EMAIL_TO (Default Recipient)</mat-label>
                     <input
                       matInput
@@ -235,7 +235,7 @@ interface ConfigRow {
               <p class="section-hint">Provider-specific deal limits and alert discount threshold.</p>
               <div class="fields-grid">
                 <div class="field-item">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>ENEBA_TOP_DEALS_LIMIT</mat-label>
                     <input
                       matInput
@@ -248,7 +248,7 @@ interface ConfigRow {
                   </mat-form-field>
                 </div>
                 <div class="field-item">
-                  <mat-form-field appearance="outline" class="full-width">
+                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
                     <mat-label>ENEBA_ALERT_THRESHOLD_PCT</mat-label>
                     <input
                       matInput
@@ -429,11 +429,13 @@ interface ConfigRow {
     .fields-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 1rem;
+      gap: 1.5rem 1.25rem;
     }
     .field-item {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
       transition: opacity 0.2s ease;
 
       &.field-disabled {
@@ -443,6 +445,44 @@ interface ConfigRow {
     }
     .full-width {
       width: 100%;
+    }
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+      position: static !important;
+      height: auto !important;
+      min-height: 0 !important;
+      margin-top: 6px !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper > * {
+      position: static !important;
+      height: auto !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint-wrapper,
+    ::ng-deep .mat-mdc-form-field-error-wrapper {
+      position: static !important;
+      display: block !important;
+      width: 100% !important;
+      height: auto !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint-spacer {
+      display: none !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint {
+      display: block !important;
+      font-size: 0.84rem !important;
+      line-height: 1.5 !important;
+      letter-spacing: normal !important;
+      white-space: normal !important;
+      word-break: normal !important;
+      color: var(--mat-sys-on-surface-variant) !important;
+    }
+    ::ng-deep .mat-mdc-form-field-bottom-align::before {
+      display: none !important;
+      content: none !important;
+      height: 0 !important;
     }
   `],
 })
