@@ -141,12 +141,12 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
               </ng-container>
 
               <ng-container matColumnDef="withOffers">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Seller Details</th>
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Additional Scraping</th>
                 <td mat-cell *matCellDef="let page">
                   <mat-slide-toggle
                     [checked]="page.withOffers"
                     (change)="toggleOffers(page, $event.checked)"
-                    [matTooltip]="page.withOffers ? 'Scraping seller details enabled' : 'Catalog only (faster)'"
+                    [matTooltip]="page.withOffers ? 'Additional scraping (seller offers & merchant details) enabled' : 'Catalog only (faster)'"
                   >
                     <span style="font-size:0.8rem;font-weight:600;" [style.color]="page.withOffers ? '#10b981' : 'var(--mat-sys-outline)'">
                       {{ page.withOffers ? 'Include Sellers' : 'Catalog Only' }}
@@ -156,12 +156,17 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
               </ng-container>
 
               <ng-container matColumnDef="enabled">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Enabled</th>
                 <td mat-cell *matCellDef="let page">
                   <mat-slide-toggle
                     [checked]="page.enabled"
                     (change)="toggleEnabled(page, $event.checked)"
-                  ></mat-slide-toggle>
+                    [matTooltip]="page.enabled ? 'Page active for scheduled & batch scrapes' : 'Page disabled (skipped during scrapes)'"
+                  >
+                    <span style="font-size:0.8rem;font-weight:600;" [style.color]="page.enabled ? '#10b981' : 'var(--mat-sys-outline)'">
+                      {{ page.enabled ? 'Active' : 'Disabled' }}
+                    </span>
+                  </mat-slide-toggle>
                 </td>
               </ng-container>
 
