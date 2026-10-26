@@ -813,7 +813,7 @@ export function renderClientScripts(): string {
           ? new Date(r.lastScraped).toLocaleString()
           : '<span style="color:var(--text-muted);">Never</span>';
 
-        return '<tr onclick="switchTab(\'' + r.provider + '\')" style="cursor:pointer;" title="Click to view ' + escapeHtml(r.provider) + ' provider details">' +
+        return '<tr data-provider="' + escapeHtml(r.provider) + '" onclick="switchTab(this.dataset.provider)" style="cursor:pointer;" title="Click to view ' + escapeHtml(r.provider) + ' provider details">' +
           '<th><span class="badge badge-provider">' + escapeHtml(r.provider) + '</span></th>' +
           '<td><strong>' + r.activePages + ' / ' + r.totalPages + ' pages</strong>' +
             (r.pageNames ? ' <span style="font-size:0.78rem;color:var(--text-muted);">(' + escapeHtml(r.pageNames) + ')</span>' : '') +
@@ -821,7 +821,7 @@ export function renderClientScripts(): string {
           '<td><span class="badge ' + (r.activePages > 0 ? 'badge-discount' : 'badge-muted') + '">' + r.status + '</span></td>' +
           '<td style="color:var(--text);font-size:0.85rem;">' + lastScrapedStr + '</td>' +
           '<td>' + (r.provider === 'eneba'
-            ? '<button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation();switchTab(\\'eneba\\')">Eneba Provider detail →</button>'
+            ? '<button type="button" class="btn btn-sm btn-primary" data-provider="eneba" onclick="event.stopPropagation();switchTab(this.dataset.provider)">Eneba Provider detail →</button>'
             : '<span class="badge badge-muted">Custom</span>') + '</td>' +
         '</tr>';
       }).join('');
