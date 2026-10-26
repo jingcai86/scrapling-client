@@ -228,40 +228,6 @@ interface ConfigRow {
                 </div>
               </div>
             </div>
-
-            <!-- Group 5: Provider-Level Settings (Eneba) -->
-            <div class="section-box">
-              <h3>5. Provider-Level Settings (Eneba)</h3>
-              <p class="section-hint">Provider-specific deal limits and alert discount threshold.</p>
-              <div class="fields-grid">
-                <div class="field-item">
-                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-                    <mat-label>ENEBA_TOP_DEALS_LIMIT</mat-label>
-                    <input
-                      matInput
-                      type="number"
-                      [(ngModel)]="editFormValues['ENEBA_TOP_DEALS_LIMIT']"
-                      min="1"
-                      max="50"
-                    />
-                    <mat-hint>Number of top-ranked deals to persist per category (1–50)</mat-hint>
-                  </mat-form-field>
-                </div>
-                <div class="field-item">
-                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-                    <mat-label>ENEBA_ALERT_THRESHOLD_PCT</mat-label>
-                    <input
-                      matInput
-                      type="number"
-                      [(ngModel)]="editFormValues['ENEBA_ALERT_THRESHOLD_PCT']"
-                      min="0"
-                      max="100"
-                    />
-                    <mat-hint>Minimum discount % on Eneba to trigger alert email (0–100)</mat-hint>
-                  </mat-form-field>
-                </div>
-              </div>
-            </div>
           </div>
         </mat-card-content>
       </mat-card>
@@ -556,28 +522,6 @@ export class ConfigDialogComponent implements OnInit, OnDestroy {
       };
     });
 
-    const eneba = data.enebaConfig || {};
-    if (eneba['top_deals_limit']) {
-      rows.push({
-        key: 'ENEBA_TOP_DEALS_LIMIT',
-        group: 'eneba',
-        value: eneba['top_deals_limit'],
-        description: 'Number of top-ranked deals to persist per category in PostgreSQL.',
-        isSecret: false,
-        disabled: false,
-      });
-    }
-    if (eneba['alert_discount_threshold_pct']) {
-      rows.push({
-        key: 'ENEBA_ALERT_THRESHOLD_PCT',
-        group: 'eneba',
-        value: eneba['alert_discount_threshold_pct'],
-        description: 'Minimum direct discount % on Eneba to trigger alert email.',
-        isSecret: false,
-        disabled: false,
-      });
-    }
-
     this.sortedConfig = rows;
     this.bootItems = rows.filter((item) => item.disabled);
     this.scraplingItems = rows.filter((item) => item.group === 'scrapling');
@@ -587,11 +531,7 @@ export class ConfigDialogComponent implements OnInit, OnDestroy {
     }
 
     if (!this.initialized && Object.keys(values).length > 0) {
-      this.editFormValues = {
-        ...values,
-        ENEBA_TOP_DEALS_LIMIT: eneba['top_deals_limit'] || '10',
-        ENEBA_ALERT_THRESHOLD_PCT: eneba['alert_discount_threshold_pct'] || '20',
-      };
+      this.editFormValues = { ...values };
       this.initialized = true;
     }
   }
@@ -619,22 +559,11 @@ export class ConfigDialogComponent implements OnInit, OnDestroy {
   saveAllConfig() {
     const updates: Record<string, string> = {};
     for (const [key, val] of Object.entries(this.editFormValues)) {
-      if (key === 'ENEBA_TOP_DEALS_LIMIT' || key === 'ENEBA_ALERT_THRESHOLD_PCT' || key === 'ALERT_DISCOUNT_THRESHOLD_PCT') continue;
+      if (key === 'ALERT_DISCOUNT_THRESHOLD_PCT') continue;
       const item = this.sortedConfig.find((r) => r.key === key);
       if (item && !item.disabled) {
         updates[key] = val;
       }
-    }
-
-    if (this.editFormValues['ENEBA_TOP_DEALS_LIMIT'] || this.editFormValues['ENEBA_ALERT_THRESHOLD_PCT']) {
-      const enebaUpdates: Record<string, string> = {};
-      if (this.editFormValues['ENEBA_TOP_DEALS_LIMIT']) {
-        enebaUpdates['top_deals_limit'] = String(this.editFormValues['ENEBA_TOP_DEALS_LIMIT']);
-      }
-      if (this.editFormValues['ENEBA_ALERT_THRESHOLD_PCT']) {
-        enebaUpdates['alert_discount_threshold_pct'] = String(this.editFormValues['ENEBA_ALERT_THRESHOLD_PCT']);
-      }
-      this.apiService.updateEnebaConfig(enebaUpdates).subscribe();
     }
 
     this.apiService.updateEnv(updates).subscribe({
