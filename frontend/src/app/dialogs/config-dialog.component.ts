@@ -169,9 +169,10 @@ interface ConfigRow {
               </div>
             </div>
 
-            <!-- Group 4: Alert & Notification -->
+            <!-- Group 4: Email Notifications -->
             <div class="section-box">
-              <h3>4. Alert Thresholds & Notification Configuration</h3>
+              <h3>4. Resend Email Notifications</h3>
+              <p class="section-hint">Email notification API key and sender.</p>
               <div class="fields-grid">
                 <!-- EMAIL_ENABLED as true/false dropdown -->
                 <div class="field-item">
@@ -181,7 +182,7 @@ interface ConfigRow {
                       <mat-option value="true">true</mat-option>
                       <mat-option value="false">false</mat-option>
                     </mat-select>
-                    <mat-hint>Send email alerts via Resend when deals meet the threshold.</mat-hint>
+                    <mat-hint>Enable or disable automated email notifications via Resend.</mat-hint>
                   </mat-form-field>
                 </div>
 
@@ -215,39 +216,23 @@ interface ConfigRow {
                 <!-- ALERT_EMAIL_TO (disabled when EMAIL_ENABLED === false) -->
                 <div class="field-item" [class.field-disabled]="isEmailDisabled()">
                   <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>ALERT_EMAIL_TO</mat-label>
+                    <mat-label>ALERT_EMAIL_TO (Default Recipient)</mat-label>
                     <input
                       matInput
                       type="email"
                       [(ngModel)]="editFormValues['ALERT_EMAIL_TO']"
                       [disabled]="isEmailDisabled()"
                     />
-                    <mat-hint>Recipient email address(es) to notify.</mat-hint>
-                  </mat-form-field>
-                </div>
-
-                <!-- ALERT_DISCOUNT_THRESHOLD_PCT (disabled when EMAIL_ENABLED === false) -->
-                <div class="field-item" [class.field-disabled]="isEmailDisabled()">
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>ALERT_DISCOUNT_THRESHOLD_PCT</mat-label>
-                    <input
-                      matInput
-                      type="number"
-                      [(ngModel)]="editFormValues['ALERT_DISCOUNT_THRESHOLD_PCT']"
-                      [disabled]="isEmailDisabled()"
-                      min="0"
-                      max="100"
-                    />
-                    <mat-hint>Minimum discount % (e.g. 20 for 20% off) to trigger alerts.</mat-hint>
+                    <mat-hint>Default recipient email address(es) for notifications.</mat-hint>
                   </mat-form-field>
                 </div>
               </div>
             </div>
 
-            <!-- Group 5: Eneba Scraper & Alert Configuration -->
+            <!-- Group 5: Provider-Level Settings (Eneba) -->
             <div class="section-box">
-              <h3>5. Eneba Scraper &amp; Alert Configuration</h3>
-              <p class="section-hint">Settings controlling category deal limits and alerts.</p>
+              <h3>5. Provider-Level Settings (Eneba)</h3>
+              <p class="section-hint">Provider-specific deal limits and alert discount threshold.</p>
               <div class="fields-grid">
                 <div class="field-item">
                   <mat-form-field appearance="outline" class="full-width">
@@ -489,7 +474,9 @@ export class ConfigDialogComponent implements DoCheck {
     const schema = data.env?.schema || {};
     const values = data.env?.values || {};
 
-    const rows: ConfigRow[] = Object.keys(values).map((key) => {
+    const rows: ConfigRow[] = Object.keys(values)
+      .filter((key) => key !== 'ALERT_DISCOUNT_THRESHOLD_PCT')
+      .map((key) => {
       const s = Array.isArray(schema)
         ? schema.find((f: any) => f.key === key)
         : (schema as any)[key];
@@ -572,7 +559,7 @@ export class ConfigDialogComponent implements DoCheck {
   saveAllConfig() {
     const updates: Record<string, string> = {};
     for (const [key, val] of Object.entries(this.editFormValues)) {
-      if (key === 'ENEBA_TOP_DEALS_LIMIT' || key === 'ENEBA_ALERT_THRESHOLD_PCT') continue;
+      if (key === 'ENEBA_TOP_DEALS_LIMIT' || key === 'ENEBA_ALERT_THRESHOLD_PCT' || key === 'ALERT_DISCOUNT_THRESHOLD_PCT') continue;
       const item = this.sortedConfig.find((r) => r.key === key);
       if (item && !item.disabled) {
         updates[key] = val;

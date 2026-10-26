@@ -239,7 +239,7 @@ export function renderClientScripts(): string {
     function renderAll() {
       if (!dashboardData) return;
       const { pages, statuses, runner, scheduler, env } = dashboardData;
-      const thresholdPct = Number(env.values.ALERT_DISCOUNT_THRESHOLD_PCT || 20);
+      const enebaThreshold = parseFloat(dashboardData?.enebaConfig?.alert_discount_threshold_pct || '20') || 20;
 
       // Update Nav count & Global Home KPIs
       safeSetText('navPagesCount', pages.length);
@@ -295,7 +295,7 @@ export function renderClientScripts(): string {
       safeSetText('kpiAlertThreshold', 'Active');
       const emailActive = String(env.values.EMAIL_ENABLED).toLowerCase() === 'true';
       safeSetText('kpiDbStatus',
-        'Email: ' + (emailActive ? 'Enabled (≥' + thresholdPct + '%)' : 'Standby') + ' • PostgreSQL Ready');
+        'Email: ' + (emailActive ? 'Enabled' : 'Standby') + ' • PostgreSQL Ready');
 
       // Live Scrape Banner
       const banner = document.getElementById('scrapeBanner');
@@ -322,7 +322,7 @@ export function renderClientScripts(): string {
       renderScrapeResultsChart(dashboardData?.history || [], statuses);
 
       // Render ENEBA Dedicated Page KPIs & Tables
-      renderEnebaPage(pages, statuses, thresholdPct);
+      renderEnebaPage(pages, statuses, enebaThreshold);
 
       // Render Logs
       const logBox = document.getElementById('logBox');
@@ -1089,7 +1089,7 @@ export function renderClientScripts(): string {
 
       const emailSelect = document.getElementById('env_EMAIL_ENABLED');
       const isEmailDisabled = emailSelect ? emailSelect.value === 'false' : false;
-      ['RESEND_API_KEY', 'ALERT_EMAIL_FROM', 'ALERT_EMAIL_TO', 'ALERT_DISCOUNT_THRESHOLD_PCT'].forEach((k) => {
+      ['RESEND_API_KEY', 'ALERT_EMAIL_FROM', 'ALERT_EMAIL_TO'].forEach((k) => {
         const el = document.getElementById('env_' + k);
         const container = document.getElementById('field_container_' + k);
         if (el) el.disabled = isEmailDisabled;
@@ -1139,8 +1139,13 @@ export function renderClientScripts(): string {
         },
         {
           id: 'email',
-          title: '✉️ Section 4: Resend Email Deal Alerts',
-          subtitle: 'Controls email notification recipient, sender, API key, and discount % threshold.',
+          title: '✉️ Section 4: Resend Email Notifications',
+          subtitle: 'Email notification API key and sender.',
+        },
+        {
+          id: 'provider',
+          title: '⚙️ Section 5: Provider-Level Settings (Eneba)',
+          subtitle: 'Provider-specific deal limits and alert discount threshold.',
         },
       ];
 
@@ -1152,6 +1157,33 @@ export function renderClientScripts(): string {
       });
 
       container.innerHTML = sections.map((sec) => {
+        if (sec.id === 'provider') {
+          const topDealsVal = dashboardData?.enebaConfig?.top_deals_limit || '10';
+          const alertThreshVal = dashboardData?.enebaConfig?.alert_discount_threshold_pct || '20';
+          return '<div class="env-section-box" style="margin-bottom:1.25rem;padding:1rem 1.25rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-panel);">' +
+            '<div style="margin-bottom:0.75rem;">' +
+              '<h4 style="margin:0;font-size:0.96rem;font-weight:700;color:var(--text);">' + escapeHtml(sec.title) + '</h4>' +
+              '<p style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--text-muted);">' + escapeHtml(sec.subtitle) + '</p>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:0.85rem;">' +
+              '<div class="form-group" style="margin-bottom:0;">' +
+                '<label for="eneba_top_deals_limit" style="display:flex;align-items:center;justify-content:space-between;font-size:0.82rem;font-weight:600;margin-bottom:0.25rem;color:var(--text);">' +
+                  '<span>Pull Limit (Top Deals per Category)</span>' +
+                '</label>' +
+                '<input type="number" id="eneba_top_deals_limit" min="1" max="50" step="1" value="' + escapeHtml(topDealsVal) + '" class="form-control" style="width:100%;box-sizing:border-box;font-size:0.85rem;padding:0.35rem 0.6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);">' +
+                '<p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--text-muted);">Number of top-ranked deals to persist per category in PostgreSQL (1–50).</p>' +
+              '</div>' +
+              '<div class="form-group" style="margin-bottom:0;">' +
+                '<label for="eneba_alert_discount_threshold_pct" style="display:flex;align-items:center;justify-content:space-between;font-size:0.82rem;font-weight:600;margin-bottom:0.25rem;color:var(--text);">' +
+                  '<span>Alert Discount Threshold (%)</span>' +
+                '</label>' +
+                '<input type="number" id="eneba_alert_discount_threshold_pct" min="0" max="100" step="1" value="' + escapeHtml(alertThreshVal) + '" class="form-control" style="width:100%;box-sizing:border-box;font-size:0.85rem;padding:0.35rem 0.6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);">' +
+                '<p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--text-muted);">Minimum discount % on Eneba to trigger alert email (0–100).</p>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }
+
         const keys = grouped.get(sec.id) || [];
         if (keys.length === 0) return '';
 
@@ -1429,6 +1461,8 @@ export function renderClientScripts(): string {
         document.querySelectorAll('[data-env-key]').forEach((input) => {
           updates[input.dataset.envKey] = input.value;
         });
+        const enebaTopInput = document.getElementById('eneba_top_deals_limit');
+        const enebaThreshInput = document.getElementById('eneba_alert_discount_threshold_pct');
         const origText = btnSaveAllEnv.textContent;
         btnSaveAllEnv.disabled = true;
         btnSaveAllEnv.textContent = '⏳ Saving...';
@@ -1438,6 +1472,18 @@ export function renderClientScripts(): string {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ updates }),
           });
+
+          if (enebaTopInput || enebaThreshInput) {
+            const enebaUpdates = {};
+            if (enebaTopInput) enebaUpdates.top_deals_limit = String(enebaTopInput.value);
+            if (enebaThreshInput) enebaUpdates.alert_discount_threshold_pct = String(enebaThreshInput.value);
+            await fetch('/api/eneba/config', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ updates: enebaUpdates }),
+            });
+          }
+
           if (res.ok) {
             showToast('Configuration saved successfully!');
             await fetchDashboard();

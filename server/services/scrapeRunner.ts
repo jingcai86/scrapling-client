@@ -273,23 +273,27 @@ export class ScrapeRunner {
       }
 
       // Evaluate and send Resend deal alert email if threshold met
-      this.currentStep = `Checking deals against discount alert threshold...`;
+      this.currentStep = `Checking deals against provider discount alert thresholds...`;
       const alertItems = statusesToAlertItems(scrapedResults);
       const enebaThreshold = await getEnebaAlertThreshold().catch(() => 20);
+      const providerThresholds: Record<string, number> = {
+        eneba: enebaThreshold,
+      };
       const emailResult = await sendDealAlertEmail(alertItems, {
+        providerThresholds,
         thresholdPct: enebaThreshold,
       });
       this.lastEmailDispatch = emailResult;
 
       if (emailResult.sent) {
         this.addLog(
-          `Resend Email Alert sent (${emailResult.matchingDealsCount} deal(s) >= ${emailResult.thresholdPct}% off, id: ${emailResult.messageId}).`,
+          `Resend Email Alert sent (${emailResult.matchingDealsCount} deal(s) met provider discount threshold, id: ${emailResult.messageId}).`,
         );
       } else if (emailResult.error) {
         this.addLog(`Resend Email Alert failed: ${emailResult.error}`);
       } else {
         this.addLog(
-          `Email Alert not sent: ${emailResult.reason} (${emailResult.matchingDealsCount} matching deal(s) >= ${emailResult.thresholdPct}%).`,
+          `Email Alert not sent: ${emailResult.reason} (${emailResult.matchingDealsCount} matching deal(s)).`,
         );
       }
 

@@ -68,9 +68,9 @@ export function getEmailConfigStatus(): EmailConfigStatus {
   let warningMessage: string | null = null;
 
   if (missing.length > 0) {
-    warningMessage = `Resend email client is not configured yet (missing ${missing.join(", ")} in .env). Deal alert emails (>= ${thresholdPct}% off) will be skipped until configured via .env or the Web UI.`;
+    warningMessage = `Resend email client is not configured yet (missing ${missing.join(", ")} in .env). Email alerts will be skipped until configured via .env or the Web UI.`;
   } else if (!enabled) {
-    warningMessage = `Email alerts are currently disabled (EMAIL_ENABLED=false). Deal alert emails (>= ${thresholdPct}% off) will be skipped until enabled.`;
+    warningMessage = `Email alerts are currently disabled (EMAIL_ENABLED=false). Email alerts will be skipped until enabled.`;
   }
 
   return {
@@ -93,19 +93,25 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * Filters deals whose discount meets or exceeds `thresholdPct` (default: 20%).
+ * Filters deals whose discount meets or exceeds individual provider thresholds or a specific threshold.
  */
 export function filterAlertableDeals(
   deals: DealAlertItem[],
-  thresholdPct?: number,
+  thresholdOption?: number | Record<string, number>,
 ): DealAlertItem[] {
   loadEnv();
-  const threshold =
-    thresholdPct ??
-    (Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT ?? "20") || 20);
-
   return deals
-    .filter((d) => (d.discountPct ?? 0) >= threshold)
+    .filter((d) => {
+      let threshold = 20;
+      if (typeof thresholdOption === "number") {
+        threshold = thresholdOption;
+      } else if (thresholdOption && typeof thresholdOption === "object") {
+        threshold = thresholdOption[d.provider?.toLowerCase()] ?? 20;
+      } else if (process.env.ALERT_DISCOUNT_THRESHOLD_PCT) {
+        threshold = Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT) || 20;
+      }
+      return (d.discountPct ?? 0) >= threshold;
+    })
     .sort((a, b) => (b.discountPct ?? 0) - (a.discountPct ?? 0));
 }
 
@@ -238,7 +244,7 @@ export function renderDealAlertEmailTemplate(
     </div>
 
     <div style="padding:16px 28px;background:#f1f5f9;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;display:flex;justify-content:space-between;">
-      <span>Threshold configured via <code>ALERT_DISCOUNT_THRESHOLD_PCT=${thresholdPct}</code></span>
+      <span>Thresholds evaluated at individual provider level</span>
     </div>
   </div>
 </body>
@@ -247,7 +253,7 @@ export function renderDealAlertEmailTemplate(
   const textLines = [
     subject,
     `Scraped at: ${formattedGeneratedAt}`,
-    `Discount threshold: >= ${thresholdPct}%`,
+    `Discount threshold: evaluated per provider (>= ${thresholdPct}%)`,
     "-".repeat(72),
     ...deals.map(
       (d, idx) =>
@@ -267,23 +273,25 @@ export function renderDealAlertEmailTemplate(
 }
 
 /**
- * Evaluates scraped deals against `ALERT_DISCOUNT_THRESHOLD_PCT` and sends an alert email via Resend
+ * Evaluates scraped deals against provider discount thresholds and sends an alert email via Resend
  * if enabled and configured. Fault-tolerant: never throws on missing credentials or network errors.
  */
 export async function sendDealAlertEmail(
   allDeals: DealAlertItem[],
   options: {
     force?: boolean;
-    thresholdPct?: number;
+    thresholdPct?: number | Record<string, number>;
+    providerThresholds?: Record<string, number>;
     customTo?: string;
   } = {},
 ): Promise<EmailDispatchResult> {
   loadEnv();
+  const thresholdOption = options.providerThresholds ?? options.thresholdPct;
+  const matchingDeals = filterAlertableDeals(allDeals, thresholdOption);
   const thresholdPct =
-    options.thresholdPct ??
-    (Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT ?? "20") || 20);
-
-  const matchingDeals = filterAlertableDeals(allDeals, thresholdPct);
+    typeof options.thresholdPct === "number"
+      ? options.thresholdPct
+      : 20;
   const emailEnabled =
     options.force ||
     String(process.env.EMAIL_ENABLED ?? "false").toLowerCase() === "true";

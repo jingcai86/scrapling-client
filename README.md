@@ -8,7 +8,7 @@ A generic, modular TypeScript / Node.js web scraping client, deal monitor dashbo
 - **Core Scrapling MCP Client (`core/ScraplingClient`)**: Connects to a remote or local Scrapling MCP server with multi-tier anti-bot escalation (rotating browser TLS impersonation → stealthy headless Chromium → Cloudflare Turnstile solver).
 - **Web Dashboard & Server (`server/`)**: Interactive UI and JSON API to view deal status & top ranked deals across providers, add/delete/toggle scraping pages, trigger live scrapes, edit `.env` variables in-place, configure randomized daily cron schedules, and preview/send email alerts.
 - **Randomized Daily Cron Scheduler (`core/RandomizedDailyScheduler`)**: Schedules daily scrapes starting at `CRON_BASE_TIME` (e.g. `19:00` / 7:00 PM) plus a random offset in `[0, CRON_JITTER_MINUTES]` (e.g. `0..60` minutes, running randomly between 7:00 PM and 8:00 PM).
-- **Resend Email Alerts (`core/email.ts`)**: Sends formatted HTML + plain-text deal alert emails whenever any scraped deal meets or exceeds `ALERT_DISCOUNT_THRESHOLD_PCT` (e.g. `20%` off).
+- **Resend Email Alerts (`core/email.ts`)**: Sends formatted HTML + plain-text deal alert emails whenever any scraped deal meets or exceeds individual provider discount thresholds (e.g. `20%` off on Eneba).
 
 ## Architecture
 

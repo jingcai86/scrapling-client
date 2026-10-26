@@ -102,10 +102,10 @@ export async function initScraplingConfigOnStartup(
       );
     }
 
-    // 4. Also seed any custom keys found in .env (excluding PORT and DATABASE_URL)
+    // 4. Also seed any custom keys found in .env (excluding PORT, DATABASE_URL, and legacy ALERT_DISCOUNT_THRESHOLD_PCT)
     const schemaKeySet = new Set(ENV_SCHEMA.map((f) => f.key));
     for (const [k, v] of Object.entries(fileEnvValues)) {
-      if (ENV_ONLY_KEYS.has(k) || schemaKeySet.has(k)) continue;
+      if (ENV_ONLY_KEYS.has(k) || schemaKeySet.has(k) || k === "ALERT_DISCOUNT_THRESHOLD_PCT") continue;
       await pool.query(
         `
         INSERT INTO scrapling.config (key, value, group_name, description, updated_at)

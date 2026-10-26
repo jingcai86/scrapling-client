@@ -27,11 +27,10 @@ VALUES
   ('CRON_ENABLED', 'true', 'scheduler', 'Whether the daily randomized cron job is active (true/false).', NOW()),
   ('CRON_BASE_TIME', '19:00', 'scheduler', 'Base start time of the daily scrape window in 24-hour format (e.g., 19:00 for 7:00 PM).', NOW()),
   ('CRON_JITTER_MINUTES', '60', 'scheduler', 'Random delay added to CRON_BASE_TIME each day (e.g., 60 means a random offset between 0 and 60 minutes).', NOW()),
-  ('EMAIL_ENABLED', 'false', 'email', 'Send email alerts via Resend when a scraped deal meets or exceeds the discount threshold.', NOW()),
+  ('EMAIL_ENABLED', 'false', 'email', 'Enable or disable sending automated email notifications via Resend.', NOW()),
   ('RESEND_API_KEY', '', 'email', 'Your Resend API key (starts with re_...).', NOW()),
-  ('ALERT_EMAIL_FROM', 'Deal Alerts <onboarding@resend.dev>', 'email', 'Verified sender address in Resend (use onboarding@resend.dev for testing).', NOW()),
-  ('ALERT_EMAIL_TO', '', 'email', 'Comma-separated recipient email address(es) to notify on high-discount deals.', NOW()),
-  ('ALERT_DISCOUNT_THRESHOLD_PCT', '20', 'email', 'Minimum discount percentage that triggers an alert email (e.g., 20 for 20% off).', NOW())
+  ('ALERT_EMAIL_FROM', 'Notifications <onboarding@resend.dev>', 'email', 'Verified sender address in Resend (use onboarding@resend.dev for testing).', NOW()),
+  ('ALERT_EMAIL_TO', '', 'email', 'Default recipient email address(es) for notifications.', NOW())
 ON CONFLICT (key) DO NOTHING;
 
 -- ----------------------------------------------------------------------------

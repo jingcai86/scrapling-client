@@ -95,10 +95,10 @@ export const ENV_SCHEMA: EnvFieldMeta[] = [
   },
   {
     key: "EMAIL_ENABLED",
-    label: "Enable Email Deal Alerts",
+    label: "Enable Email Notifications",
     group: "email",
     description:
-      "Send email alerts via Resend when a scraped deal meets or exceeds the discount threshold.",
+      "Enable or disable sending automated email notifications via Resend.",
     defaultValue: "false",
     inputType: "boolean",
   },
@@ -113,30 +113,21 @@ export const ENV_SCHEMA: EnvFieldMeta[] = [
   },
   {
     key: "ALERT_EMAIL_FROM",
-    label: "Alert Sender Email (From)",
+    label: "Notification Sender Email (From)",
     group: "email",
     description:
-      "Verified sender address in Resend (use onboarding@resend.dev for testing).",
-    defaultValue: "Deal Alerts <onboarding@resend.dev>",
+      "Verified sender address in Resend (e.g. onboarding@resend.dev).",
+    defaultValue: "Notifications <onboarding@resend.dev>",
     inputType: "text",
   },
   {
     key: "ALERT_EMAIL_TO",
-    label: "Alert Recipient Email(s) (To)",
+    label: "Default Recipient Email(s) (To)",
     group: "email",
     description:
-      "Comma-separated recipient email address(es) to notify on high-discount deals.",
+      "Default recipient email address(es) for notifications.",
     defaultValue: "",
     inputType: "email",
-  },
-  {
-    key: "ALERT_DISCOUNT_THRESHOLD_PCT",
-    label: "Alert Discount Threshold (%)",
-    group: "email",
-    description:
-      "Minimum discount percentage that triggers an alert email (e.g., 20 for 20% off).",
-    defaultValue: "20",
-    inputType: "number",
   },
 ];
 

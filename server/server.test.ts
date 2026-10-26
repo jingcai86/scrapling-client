@@ -337,7 +337,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
           updates: {
             PORT: "9999",
             DATABASE_URL: "postgresql://hacked",
-            ALERT_DISCOUNT_THRESHOLD_PCT: "25",
+            ALERT_EMAIL_TO: "alerts@example.com",
             CRON_BASE_TIME: "20:00",
             CRON_JITTER_MINUTES: "45",
           },
@@ -348,7 +348,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
         values: Record<string, string>;
         scheduler: { baseTime: string; jitterMinutes: number };
       };
-      assert.equal(envUpdated.values.ALERT_DISCOUNT_THRESHOLD_PCT, "25");
+      assert.equal(envUpdated.values.ALERT_EMAIL_TO, "alerts@example.com");
       assert.equal(envUpdated.scheduler.baseTime, "20:00");
       assert.equal(envUpdated.scheduler.jitterMinutes, 45);
       // PORT and DATABASE_URL must remain unchanged from .env
@@ -358,7 +358,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
         "postgresql://mock:mock@127.0.0.1:1/postgres",
       );
       // Confirm updates went to scrapling.config
-      assert.equal(configRows.get("ALERT_DISCOUNT_THRESHOLD_PCT")?.value, "25");
+      assert.equal(configRows.get("ALERT_EMAIL_TO")?.value, "alerts@example.com");
       assert.equal(configRows.get("CRON_BASE_TIME")?.value, "20:00");
       assert.equal(configRows.get("CRON_JITTER_MINUTES")?.value, "45");
 
