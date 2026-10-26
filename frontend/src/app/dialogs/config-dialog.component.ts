@@ -571,7 +571,8 @@ export class ConfigDialogComponent implements OnInit, OnDestroy {
     this.apiService.previewEmail().subscribe((res) => {
       this.dialog.open(EmailPreviewDialogComponent, {
         data: res,
-        width: '720px',
+        width: '880px',
+        maxWidth: '95vw',
       });
     });
   }
