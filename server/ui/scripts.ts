@@ -1106,27 +1106,9 @@ export function renderClientScripts(): string {
         if (btnIcon) btnIcon.textContent = '🖥️';
         if (btnLabel) btnLabel.textContent = 'Theme: System';
       }
-      // Update any config tab theme buttons
-      document.querySelectorAll('.config-theme-choice-btn').forEach((btn) => {
-        const choice = btn.getAttribute('data-theme-mode');
-        if (choice === mode) {
-          btn.classList.add('btn-primary');
-          btn.style.borderColor = 'var(--primary)';
-        } else {
-          btn.classList.remove('btn-primary');
-          btn.style.borderColor = '';
-        }
-      });
     }
 
     applyTheme(currentThemeMode);
-
-    document.querySelectorAll('.config-theme-choice-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const mode = btn.getAttribute('data-theme-mode');
-        if (mode) applyTheme(mode);
-      });
-    });
 
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     if (themeToggleBtn) {

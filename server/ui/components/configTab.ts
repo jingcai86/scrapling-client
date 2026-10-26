@@ -21,23 +21,6 @@ export function renderConfigTab(): string {
       </div>
 
       <div class="config-modal-scroll" style="max-height:72vh;overflow-y:auto;padding-right:0.25rem;">
-        <!-- Appearance & Theme Selector Card -->
-        <div class="card" style="margin-block-end: 1.25rem;">
-          <div class="card-header">
-            <div>
-              <h4 style="margin:0;font-size:0.95rem;">🎨 Interface Appearance &amp; Color Theme</h4>
-              <div style="font-size:0.8rem;color:var(--text-muted);">
-                Choose your preferred UI theme. <strong>System Default</strong> synchronizes with your device's light or dark mode.
-              </div>
-            </div>
-            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-              <button type="button" class="btn btn-sm config-theme-choice-btn" data-theme-mode="system">🖥️ System Default</button>
-              <button type="button" class="btn btn-sm config-theme-choice-btn" data-theme-mode="light">☀️ Light Theme</button>
-              <button type="button" class="btn btn-sm config-theme-choice-btn" data-theme-mode="dark">🌙 Dark Theme</button>
-            </div>
-          </div>
-        </div>
-
         <div class="card">
           <div class="card-header">
             <div>
