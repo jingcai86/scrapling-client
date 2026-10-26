@@ -99,3 +99,16 @@ The response includes a top-level `bestDeal` object (the highest effective disco
 - `npm test`: Run all unit and integration tests
 - `npm run typecheck`: Run TypeScript type checking
 - `npm run build`: Compile TypeScript to `dist/`
+- `npm run commitlint`: Lint commit messages against Conventional Commits
+
+## Commit Message Convention
+
+This repository strictly enforces **[Conventional Commits](https://www.conventionalcommits.org/)** via Commitlint and Husky git hooks. Every commit message must include a scope:
+
+```
+<type>(<scope>): <subject>
+```
+
+**Allowed types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.  
+**Scope is mandatory:** e.g., `feat(eneba): ...`, `fix(auth): ...`, `feat(ui): ...`. Commits without a scope (such as `feat: ...`) will be rejected by the Git `commit-msg` hook and CI.
+
