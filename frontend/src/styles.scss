@@ -547,17 +547,39 @@ tr.mat-mdc-row {
 .mat-mdc-form-field-subscript-wrapper {
   position: static !important;
   height: auto !important;
-  margin-top: 4px !important;
+  min-height: 0 !important;
+  margin-top: 6px !important;
+  padding: 0 !important;
+  overflow: visible !important;
 }
 
-.mat-mdc-form-field-hint-wrapper {
+.mat-mdc-form-field-hint-wrapper,
+.mat-mdc-form-field-error-wrapper {
+  position: static !important;
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
   padding: 0 !important;
+}
+
+.mat-mdc-form-field-hint-spacer {
+  display: none !important;
 }
 
 .mat-mdc-form-field-hint {
   display: block !important;
-  line-height: 1.35 !important;
-  font-size: 0.78rem !important;
+  line-height: 1.5 !important;
+  font-size: 0.84rem !important;
+  letter-spacing: normal !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  color: var(--mat-sys-on-surface-variant) !important;
+}
+
+.mat-mdc-form-field-bottom-align::before {
+  display: none !important;
+  content: none !important;
+  height: 0 !important;
 }
 
 // =============================================================================

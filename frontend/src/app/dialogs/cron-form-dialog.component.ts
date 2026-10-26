@@ -28,13 +28,13 @@ import type { SchedulerState } from '../core/models/dashboard.model';
           Enable Daily Randomized Cron Job (<code>CRON_ENABLED</code>)
         </mat-checkbox>
 
-        <mat-form-field appearance="outline" class="full-width">
+        <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
           <mat-label>Daily Window Start Time (<code>CRON_BASE_TIME</code>)</mat-label>
           <input matInput type="time" [(ngModel)]="baseTime" name="baseTime" required />
           <mat-hint>24-hour time when random window opens (e.g. 19:00 = 7:00 PM)</mat-hint>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="full-width">
+        <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
           <mat-label>Random Jitter Window in Minutes (<code>CRON_JITTER_MINUTES</code>)</mat-label>
           <input matInput type="number" [(ngModel)]="jitterMinutes" name="jitterMinutes" min="0" max="720" required />
           <mat-hint>Random delay (0–720 mins) added to start time daily (default: 60)</mat-hint>

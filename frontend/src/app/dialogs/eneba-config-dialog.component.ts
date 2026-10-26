@@ -42,7 +42,7 @@ export interface EnebaConfigDialogData {
     <form (ngSubmit)="save()" class="config-form">
       <div mat-dialog-content class="form-content">
         <div class="field-container">
-          <mat-form-field appearance="outline" class="full-width">
+          <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
             <mat-label>Pull Limit (Top Deals per Category)</mat-label>
             <input
               matInput
@@ -58,7 +58,7 @@ export interface EnebaConfigDialogData {
         </div>
 
         <div class="field-container">
-          <mat-form-field appearance="outline" class="full-width">
+          <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
             <mat-label>Alert Threshold (%)</mat-label>
             <input
               matInput
@@ -69,7 +69,7 @@ export interface EnebaConfigDialogData {
               max="100"
               required
             />
-            <mat-hint>Minimum direct discount percentage required to trigger alert emails</mat-hint>
+            <mat-hint>Minimum discount percentage required to trigger alert emails (0–100%)</mat-hint>
           </mat-form-field>
         </div>
       </div>
@@ -123,7 +123,7 @@ export interface EnebaConfigDialogData {
       display: flex;
       flex-direction: column;
       gap: 1.5rem;
-      padding: 1.25rem 1.5rem 0.5rem !important;
+      padding: 1.25rem 1.75rem 0.75rem !important;
       overflow: visible !important;
     }
     .field-container {
@@ -136,20 +136,40 @@ export interface EnebaConfigDialogData {
     ::ng-deep .mat-mdc-form-field-subscript-wrapper {
       position: static !important;
       height: auto !important;
-      margin-top: 5px !important;
+      min-height: 0 !important;
+      margin-top: 6px !important;
+      padding: 0 !important;
+      overflow: visible !important;
     }
     ::ng-deep .mat-mdc-form-field-hint-wrapper {
+      position: static !important;
+      display: block !important;
+      width: 100% !important;
+      height: auto !important;
       padding: 0 !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint-spacer {
+      display: none !important;
     }
     ::ng-deep .mat-mdc-form-field-hint {
       display: block !important;
-      font-size: 0.78rem !important;
-      line-height: 1.35 !important;
+      font-size: 0.84rem !important;
+      line-height: 1.5 !important;
+      letter-spacing: normal !important;
+      white-space: normal !important;
+      word-break: normal !important;
       color: var(--mat-sys-on-surface-variant) !important;
     }
+    ::ng-deep .mat-mdc-form-field-bottom-align::before {
+      display: none !important;
+      content: none !important;
+      height: 0 !important;
+    }
     .actions-bar {
-      padding: 0.75rem 1.5rem 1.25rem;
-      gap: 0.5rem;
+      margin-top: 1rem;
+      padding: 1rem 1.75rem 1.25rem;
+      gap: 0.75rem;
+      border-top: 1px solid var(--mat-sys-outline-variant);
     }
   `],
 })
