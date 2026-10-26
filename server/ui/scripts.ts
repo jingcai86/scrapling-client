@@ -1005,7 +1005,7 @@ export function renderClientScripts(): string {
           '<th>' + escapeHtml(p.categoryName) + '</th>' +
           '<td><span class="badge badge-provider">' + escapeHtml(p.provider) + '</span></td>' +
           '<td><a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener">' + escapeHtml(p.url) + '</a></td>' +
-          '<td>' + (p.withOffers ? '<span class="badge badge-discount">With Offers</span>' : '<span class="badge badge-muted">Listing Only</span>') + '</td>' +
+          '<td>' + (p.withOffers ? '<span class="badge badge-discount">Include Sellers</span>' : '<span class="badge badge-muted">Catalog Only</span>') + '</td>' +
           '<td>' + (p.enabled ? '<span class="badge badge-discount">Enabled</span>' : '<span class="badge badge-muted">Disabled</span>') + '</td>' +
           '<td style="display:flex;gap:0.4rem;flex-wrap:wrap;">' +
             '<button type="button" class="btn btn-sm btn-primary" onclick="scrapeSinglePage(\\'' + escapeHtml(p.id) + '\\')">▶ Scrape</button>' +

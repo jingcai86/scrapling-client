@@ -226,7 +226,7 @@ export class ScrapeRunner {
             ? options.withOffersOverride
             : pageCfg.withOffers;
 
-        this.currentStep = `Scraping (${i + 1}/${targetPages.length}) ${pageCfg.categoryName}${useWithOffers ? " + competing seller offers" : ""}...`;
+        this.currentStep = `Scraping (${i + 1}/${targetPages.length}) ${pageCfg.categoryName}${useWithOffers ? " + seller details" : ""}...`;
         this.addLog(this.currentStep);
 
         const scraper = new EnebaGiftCardScraper({

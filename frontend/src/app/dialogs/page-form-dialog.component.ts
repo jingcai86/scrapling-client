@@ -41,7 +41,7 @@ import type { ScrapePageConfig } from '../core/models/dashboard.model';
 
         <div class="checkbox-group">
           <mat-checkbox [(ngModel)]="withOffers" name="withOffers">
-            Scrape competing third-party seller offers (headless browser)
+            Scrape seller details for top deals (competing merchant pricing &amp; ratings)
           </mat-checkbox>
           <mat-checkbox [(ngModel)]="enabled" name="enabled">
             Page Enabled for Scheduled & Batch Scrapes

@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
 import { PageFormDialogComponent } from '../../dialogs/page-form-dialog.component';
 import { CronFormDialogComponent } from '../../dialogs/cron-form-dialog.component';
@@ -26,6 +27,7 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
     MatDialogModule,
     MatSnackBarModule,
     MatSlideToggleModule,
+    MatTooltipModule,
   ],
   template: `
     <div class="page-container">
@@ -40,10 +42,10 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
           </div>
           <div class="action-buttons">
             <button mat-flat-button color="primary" (click)="scrapeAll(true)" [disabled]="isScraping()">
-              ▶ Scrape All Enabled (With Offers)
+              ▶ Full Scrape (+ Seller Details)
             </button>
             <button mat-stroked-button (click)="scrapeAll(false)" [disabled]="isScraping()">
-              ⚡ Fast Scrape All (Listing Only)
+              ⚡ Fast Scrape (Catalog Only)
             </button>
           </div>
         </mat-card-header>
@@ -138,12 +140,17 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
             </ng-container>
 
             <ng-container matColumnDef="withOffers">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Seller Offers</th>
+              <th mat-header-cell *matHeaderCellDef mat-sort-header>Seller Details</th>
               <td mat-cell *matCellDef="let page">
                 <mat-slide-toggle
                   [checked]="page.withOffers"
                   (change)="toggleOffers(page, $event.checked)"
-                ></mat-slide-toggle>
+                  [matTooltip]="page.withOffers ? 'Scraping seller details enabled' : 'Catalog only (faster)'"
+                >
+                  <span style="font-size:0.8rem;font-weight:600;" [style.color]="page.withOffers ? '#10b981' : 'var(--mat-sys-outline)'">
+                    {{ page.withOffers ? 'Include Sellers' : 'Catalog Only' }}
+                  </span>
+                </mat-slide-toggle>
               </td>
             </ng-container>
 

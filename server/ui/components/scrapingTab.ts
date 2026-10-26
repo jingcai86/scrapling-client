@@ -11,10 +11,10 @@ export function renderScrapingTab(): string {
           </div>
           <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
             <button type="button" class="btn btn-primary" id="btnScrapeAll">
-              <span>▶ Scrape All Enabled (With Offers)</span>
+              <span>▶ Full Scrape (+ Seller Details)</span>
             </button>
             <button type="button" class="btn" id="btnScrapeFast">
-              <span>⚡ Fast Scrape All (Listing Only)</span>
+              <span>⚡ Fast Scrape (Catalog Only)</span>
             </button>
           </div>
         </div>
@@ -69,14 +69,14 @@ export function renderScrapingTab(): string {
         </div>
 
         <div tabindex="0" role="region" aria-labelledby="pages-table-caption" class="table-wrapper">
-          <table id="pagesTable" style="--label-2:'Provider';--label-3:'Store URL';--label-4:'Seller Offers';--label-5:'Status';--label-6:'Actions';">
+          <table id="pagesTable" style="--label-2:'Provider';--label-3:'Store URL';--label-4:'Seller Details';--label-5:'Status';--label-6:'Actions';">
             <caption id="pages-table-caption">Configured scraping pages</caption>
             <thead>
               <tr>
                 <th class="sortable" data-table="pages" data-sort-key="categoryName" aria-sort="ascending">Category Name <span class="sort-icon">↑</span></th>
                 <th class="sortable" data-table="pages" data-sort-key="provider" aria-sort="none">Provider <span class="sort-icon">↕</span></th>
                 <th class="sortable" data-table="pages" data-sort-key="url" aria-sort="none">Store Page URL <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="pages" data-sort-key="withOffers" aria-sort="none">Seller Offers <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-table="pages" data-sort-key="withOffers" aria-sort="none">Seller Details <span class="sort-icon">↕</span></th>
                 <th class="sortable" data-table="pages" data-sort-key="enabled" aria-sort="none">Status <span class="sort-icon">↕</span></th>
                 <th>Actions</th>
               </tr>

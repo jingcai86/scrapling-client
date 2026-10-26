@@ -68,7 +68,7 @@ export function renderModals(): string {
         <div style="display:flex;flex-direction:column;gap:0.6rem;margin:0.75rem 0 1.25rem;">
           <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;cursor:pointer;">
             <input type="checkbox" id="newPageWithOffers" checked />
-            Scrape competing third-party seller offers (headless browser)
+            Scrape seller details for top deals (competing merchant pricing &amp; ratings)
           </label>
           <label style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;cursor:pointer;">
             <input type="checkbox" id="newPageEnabled" checked />
