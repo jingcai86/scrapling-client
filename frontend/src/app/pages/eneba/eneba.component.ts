@@ -266,7 +266,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
             <mat-form-field appearance="outline" class="select-field">
               <mat-label>Category</mat-label>
               <mat-select [(ngModel)]="selectedCategory" (selectionChange)="applyDealsFilter()">
-                <mat-option value="all">All Eneba Categories</mat-option>
+                <mat-option value="all">All</mat-option>
                 <mat-option *ngFor="let cat of availableCategories" [value]="cat">{{ cat }}</mat-option>
               </mat-select>
             </mat-form-field>
