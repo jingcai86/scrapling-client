@@ -19,6 +19,33 @@ export function renderStyles(): string {
       --radius: 12px;
     }
 
+    :root[data-theme='light'],
+    body.light-theme {
+      --bg: #f8fafc;
+      --bg-panel: #ffffff;
+      --bg-panel-alt: #f1f5f9;
+      --bg-hover: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #cbd5e1;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme='dark']) {
+        --bg: #f8fafc;
+        --bg-panel: #ffffff;
+        --bg-panel-alt: #f1f5f9;
+        --bg-hover: #e2e8f0;
+        --text: #0f172a;
+        --text-muted: #64748b;
+        --border: #cbd5e1;
+        --primary: #4f46e5;
+        --primary-hover: #4338ca;
+      }
+    }
+
     * {
       box-sizing: border-box;
     }
@@ -119,6 +146,32 @@ export function renderStyles(): string {
     .tab-btn.active {
       color: #fff;
       background: var(--primary);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .theme-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--bg-panel-alt);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.85rem;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--primary);
     }
 
     .btn {

@@ -50,14 +50,17 @@ import { ApiService } from '../../core/services/api.service';
 
         <div class="header-actions">
           <button
-            mat-icon-button
+            mat-stroked-button
+            class="theme-toggle-btn"
             [matMenuTriggerFor]="themeMenu"
             matTooltip="Change color theme (Light / Dark / System)"
             aria-label="Color scheme selection"
           >
-            <span class="material-symbols-outlined" *ngIf="themeService.themeMode() === 'light'">light_mode</span>
-            <span class="material-symbols-outlined" *ngIf="themeService.themeMode() === 'dark'">dark_mode</span>
-            <span class="material-symbols-outlined" *ngIf="themeService.themeMode() === 'system'">desktop_windows</span>
+            <span class="material-symbols-outlined theme-icon" *ngIf="themeService.themeMode() === 'light'">light_mode</span>
+            <span class="material-symbols-outlined theme-icon" *ngIf="themeService.themeMode() === 'dark'">dark_mode</span>
+            <span class="material-symbols-outlined theme-icon" *ngIf="themeService.themeMode() === 'system'">desktop_windows</span>
+            <span class="theme-label">Theme: {{ themeService.themeMode() === 'system' ? 'System' : (themeService.themeMode() | titlecase) }}</span>
+            <span class="material-symbols-outlined dropdown-arrow">arrow_drop_down</span>
           </button>
 
           <mat-menu #themeMenu="matMenu">
@@ -175,6 +178,34 @@ import { ApiService } from '../../core/services/api.service';
       display: flex;
       align-items: center;
       gap: 0.5rem;
+    }
+
+    .theme-toggle-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.35rem !important;
+      border-radius: 20px !important;
+      padding: 0 0.85rem !important;
+      height: 36px !important;
+      font-weight: 500 !important;
+      font-size: 0.82rem !important;
+      border-color: var(--mat-sys-outline-variant) !important;
+      color: var(--mat-sys-on-surface) !important;
+    }
+
+    .theme-icon {
+      font-size: 1.15rem !important;
+      vertical-align: middle;
+    }
+
+    .theme-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .dropdown-arrow {
+      font-size: 1.15rem !important;
+      opacity: 0.7;
     }
 
     .menu-icon {

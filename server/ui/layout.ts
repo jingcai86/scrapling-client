@@ -15,6 +15,13 @@ export function renderHeader(): string {
         <button type="button" class="tab-btn" data-tab="scraping" data-route="/scraping">⚡ Scraping &amp; Targets (<span id="navPagesCount">0</span>)</button>
         <button type="button" class="tab-btn" data-tab="config" data-route="/config">⚙️ Configuration</button>
       </nav>
+
+      <div class="header-actions">
+        <button type="button" class="theme-toggle-btn" id="themeToggleBtn" title="Switch theme (Light / Dark / System)" aria-label="Theme toggle">
+          <span id="themeBtnIcon">🖥️</span>
+          <span id="themeBtnLabel">Theme: System</span>
+        </button>
+      </div>
     </div>
   </header>`;
 }
