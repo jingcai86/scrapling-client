@@ -149,12 +149,10 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
         <!-- Category Summary Table -->
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
-            <div>
-              <mat-card-title>Eneba Gift Card Categories — Status &amp; Seller Offers</mat-card-title>
-              <mat-card-subtitle>
-                Category metrics &amp; best discounts. Click any row to view third-party merchant offers; hover for scrape history.
-              </mat-card-subtitle>
-            </div>
+            <mat-card-title>Eneba Gift Card Categories — Status &amp; Seller Offers</mat-card-title>
+            <mat-card-subtitle>
+              Category metrics &amp; best discounts. Click any row to view third-party merchant offers; hover for scrape history.
+            </mat-card-subtitle>
           </mat-card-header>
           <mat-card-content class="card-table-content">
             <div class="table-wrapper no-scroll-wrapper">
@@ -229,15 +227,13 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
         <!-- Best Discount in History Chart -->
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
-            <div>
-              <mat-card-title class="chart-header-title">
-                <mat-icon class="chart-icon">trending_up</mat-icon>
-                <span>Best Discount in History</span>
-              </mat-card-title>
-              <mat-card-subtitle>
-                Historical #1 highest discount across scrape runs. Hover point for seller, cost, and face value.
-              </mat-card-subtitle>
-            </div>
+            <mat-card-title class="chart-header-title">
+              <mat-icon class="chart-icon">trending_up</mat-icon>
+              <span>Best Discount in History</span>
+            </mat-card-title>
+            <mat-card-subtitle>
+              Historical #1 highest discount across scrape runs. Hover point for seller, cost, and face value.
+            </mat-card-subtitle>
             <div class="peak-badge-box">
               <span class="peak-label">All-Time Peak:</span>
               <strong class="peak-val">{{ peakDiscountPct() }}</strong>
@@ -252,12 +248,10 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       <!-- Top Deals Table -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="table-header">
-          <div>
-            <mat-card-title>Eneba Top {{ topDealsLimit }} Ranked Gift Card Deals (Latest Scrape)</mat-card-title>
-            <mat-card-subtitle>
-              Active live deals from the most recent scrape run. Expired deals from older scrapes are excluded.
-            </mat-card-subtitle>
-          </div>
+          <mat-card-title>Eneba Top {{ topDealsLimit }} Ranked Gift Card Deals (Latest Scrape)</mat-card-title>
+          <mat-card-subtitle>
+            Active live deals from the most recent scrape run. Expired deals from older scrapes are excluded.
+          </mat-card-subtitle>
           <div class="filter-controls">
             <mat-form-field appearance="outline" class="search-field">
               <mat-label>Filter cards...</mat-label>

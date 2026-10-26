@@ -34,12 +34,10 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
       <!-- 1. Scraping Actions & Console -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="card-header-flex">
-          <div>
-            <mat-card-title>Scheduled Actions &amp; Live Execution Console</mat-card-title>
-            <mat-card-subtitle>
-              Trigger an immediate scrape across all enabled pages or monitor automated scheduled executions.
-            </mat-card-subtitle>
-          </div>
+          <mat-card-title>Scheduled Actions &amp; Live Execution Console</mat-card-title>
+          <mat-card-subtitle>
+            Trigger an immediate scrape across all enabled pages or monitor automated scheduled executions.
+          </mat-card-subtitle>
           <div class="action-buttons">
             <button mat-flat-button color="primary" (click)="scrapeAll(true)" [disabled]="isScraping()">
               ▶ Full Scrape (+ Seller Details)
@@ -60,12 +58,10 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
       <!-- 2. Randomized Daily Cron Schedule Card -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="card-header-flex">
-          <div>
-            <mat-card-title>Daily Randomized Cron Schedule</mat-card-title>
-            <mat-card-subtitle>
-              Runs daily at <code>CRON_BASE_TIME</code> plus a random delay (0 to <code>CRON_JITTER_MINUTES</code>).
-            </mat-card-subtitle>
-          </div>
+          <mat-card-title>Daily Randomized Cron Schedule</mat-card-title>
+          <mat-card-subtitle>
+            Runs daily at <code>CRON_BASE_TIME</code> plus a random delay (0 to <code>CRON_JITTER_MINUTES</code>).
+          </mat-card-subtitle>
           <div class="action-buttons">
             <button mat-stroked-button (click)="rerollCron()">
               🎲 Re-Roll Random Time
@@ -104,12 +100,10 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
       <!-- 3. Target Scraping Pages Table -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="card-header-flex">
-          <div>
-            <mat-card-title>Target Scraping Pages</mat-card-title>
-            <mat-card-subtitle>
-              Click any column header to sort. Manage store URLs across providers or trigger a single-page scrape.
-            </mat-card-subtitle>
-          </div>
+          <mat-card-title>Target Scraping Pages</mat-card-title>
+          <mat-card-subtitle>
+            Click any column header to sort. Manage store URLs across providers or trigger a single-page scrape.
+          </mat-card-subtitle>
           <button mat-flat-button color="primary" (click)="openAddPageDialog()">
             + Add Scraping Page
           </button>

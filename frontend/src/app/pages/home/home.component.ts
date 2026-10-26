@@ -128,15 +128,13 @@ interface ProviderRow {
         <!-- Chart 1: Scraping Success Rate Over Time (Apache ECharts) -->
         <mat-card class="main-card chart-card" appearance="outlined">
           <mat-card-header class="chart-header">
-            <div>
-              <mat-card-title class="chart-title">
-                <mat-icon class="chart-icon">monitoring</mat-icon>
-                <span>Scraping Success Rate</span>
-              </mat-card-title>
-              <mat-card-subtitle>
-                Real-time trend line of page extraction success rate (0% – 100%).
-              </mat-card-subtitle>
-            </div>
+            <mat-card-title class="chart-title">
+              <mat-icon class="chart-icon">monitoring</mat-icon>
+              <span>Scraping Success Rate</span>
+            </mat-card-title>
+            <mat-card-subtitle>
+              Real-time trend line of page extraction success rate (0% – 100%).
+            </mat-card-subtitle>
             <div class="chart-kpis" *ngIf="historyItems.length > 0">
               <div class="stat-pill">
                 <span class="stat-label">Avg:</span>
@@ -166,15 +164,13 @@ interface ProviderRow {
         <!-- Chart 2: Number of Results Extracted Over Time (Apache ECharts) -->
         <mat-card class="main-card chart-card" appearance="outlined">
           <mat-card-header class="chart-header">
-            <div>
-              <mat-card-title class="chart-title">
-                <mat-icon class="chart-icon results-icon">bar_chart</mat-icon>
-                <span>Scraped Results Over Time</span>
-              </mat-card-title>
-              <mat-card-subtitle>
-                Number of gift card deal results extracted per scrape run.
-              </mat-card-subtitle>
-            </div>
+            <mat-card-title class="chart-title">
+              <mat-icon class="chart-icon results-icon">bar_chart</mat-icon>
+              <span>Scraped Results Over Time</span>
+            </mat-card-title>
+            <mat-card-subtitle>
+              Number of gift card deal results extracted per scrape run.
+            </mat-card-subtitle>
             <div class="chart-kpis" *ngIf="historyItems.length > 0">
               <div class="stat-pill">
                 <span class="stat-label">Latest:</span>
@@ -205,12 +201,10 @@ interface ProviderRow {
       <!-- Provider Overview Table -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="table-header">
-          <div>
-            <mat-card-title>Store Provider History &amp; Details</mat-card-title>
-            <mat-card-subtitle>
-              Overview of configured store providers and scraping history. Click a provider row to view detailed deals and category metrics.
-            </mat-card-subtitle>
-          </div>
+          <mat-card-title>Store Provider History &amp; Details</mat-card-title>
+          <mat-card-subtitle>
+            Overview of configured store providers and scraping history. Click a provider row to view detailed deals and category metrics.
+          </mat-card-subtitle>
           <div class="table-actions">
             <a mat-stroked-button routerLink="/scheduler" class="action-btn">
               <mat-icon>schedule</mat-icon>

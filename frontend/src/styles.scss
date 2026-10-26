@@ -229,6 +229,22 @@ mat-card.mat-mdc-card {
 
 .mat-mdc-card-header {
   padding: 1rem 1.25rem 0.75rem !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  text-align: left !important;
+}
+
+.mat-mdc-card-header-text {
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  text-align: left !important;
+
+  &:empty {
+    display: none !important;
+  }
 }
 
 .mat-mdc-card-title {
@@ -236,12 +252,14 @@ mat-card.mat-mdc-card {
   font-weight: 700 !important;
   font-size: 1.05rem !important;
   letter-spacing: -0.01em !important;
+  text-align: left !important;
 }
 
 .mat-mdc-card-subtitle {
   color: var(--mat-sys-on-surface-variant) !important;
   font-size: 0.82rem !important;
   margin-top: 0.25rem !important;
+  text-align: left !important;
 }
 
 // =============================================================================
