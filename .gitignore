@@ -3,6 +3,8 @@ node_modules/
 .env.*
 !.env.example
 dist/
+frontend/dist/
+frontend/.angular/
 coverage/
 data/
 *.log

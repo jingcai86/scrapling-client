@@ -12,9 +12,11 @@
   "scripts": {
     "start": "tsx server/index.ts",
     "dev": "tsx watch server/index.ts",
+    "build:ui": "npm run --prefix frontend build",
+    "dev:ui": "npm run --prefix frontend start",
     "test": "tsx --test */*.test.ts",
     "typecheck": "tsc --noEmit",
-    "build": "tsc"
+    "build": "npm run build:ui && tsc"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

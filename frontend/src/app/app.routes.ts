@@ -1,0 +1,13 @@
+import { Routes } from '@angular/router';
+import { HomeComponent } from './pages/home/home.component';
+import { EnebaComponent } from './pages/eneba/eneba.component';
+import { ScrapingComponent } from './pages/scraping/scraping.component';
+import { ConfigComponent } from './pages/config/config.component';
+
+export const routes: Routes = [
+  { path: '', component: HomeComponent, pathMatch: 'full' },
+  { path: 'eneba', component: EnebaComponent },
+  { path: 'scraping', component: ScrapingComponent },
+  { path: 'config', component: ConfigComponent },
+  { path: '**', redirectTo: '' },
+];

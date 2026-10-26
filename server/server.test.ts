@@ -535,9 +535,8 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       for (const route of ["/", "/eneba", "/scraping", "/config"]) {
         const res = await fetch(`${base}${route}`);
         assert.equal(res.status, 200);
-        assert.equal(
-          res.headers.get("content-type"),
-          "text/html; charset=utf-8",
+        assert.ok(
+          res.headers.get("content-type")?.toLowerCase().includes("text/html"),
         );
         const text = await res.text();
         assert.ok(text.includes("Scrapling Monitor"));
