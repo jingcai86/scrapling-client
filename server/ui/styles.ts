@@ -646,6 +646,10 @@ export function renderStyles(): string {
       max-width: min(1050px, 96vw);
     }
 
+    dialog.eneba-config-dialog {
+      max-width: min(540px, 94vw);
+    }
+
     dialog::backdrop {
       background-color: rgba(0, 0, 0, 0.65);
       backdrop-filter: blur(3px);

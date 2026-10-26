@@ -35,62 +35,69 @@ export function renderEnebaTab(): string {
       </div>
 
       <!-- Eneba Configuration Modal Dialog -->
-      <dialog id="enebaConfigModal" closedby="any" aria-labelledby="enebaModalTitle" class="modal-dialog">
-        <div class="modal-header">
-          <div>
-            <h3 id="enebaModalTitle" style="margin:0;font-size:1.1rem;display:flex;align-items:center;gap:0.5rem;">
-              <span>⚙️ Eneba Scraper &amp; Alert Configuration</span>
-              <span class="badge badge-discount" style="font-size:0.75rem;">scrapling.eneba_config</span>
-            </h3>
-            <p style="margin:0.25rem 0 0;font-size:0.82rem;color:var(--text-muted);">
-              Configure how many top deals to pull per category and the minimum discount % to trigger alerts.
-            </p>
+      <dialog id="enebaConfigModal" closedby="any" aria-labelledby="enebaModalTitle" class="modal-dialog eneba-config-dialog">
+        <div class="dialog-inner" style="padding:1.5rem 1.75rem;">
+          <div class="dialog-header" style="margin-block-end:1.25rem;">
+            <div>
+              <h3 id="enebaModalTitle" style="margin:0;font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:0.5rem;">
+                <span>⚙️ Eneba Scraper &amp; Alert Configuration</span>
+                <span class="badge badge-discount" style="font-size:0.75rem;">scrapling.eneba_config</span>
+              </h3>
+              <p style="margin:0.35rem 0 0;font-size:0.83rem;color:var(--text-muted);line-height:1.4;">
+                Configure how many top deals to pull per category and the minimum discount % to trigger alerts.
+              </p>
+            </div>
+            <form method="dialog" style="margin:0;">
+              <button type="submit" class="btn btn-sm" aria-label="Close dialog">✕ Close</button>
+            </form>
           </div>
-          <form method="dialog">
-            <button type="submit" class="btn btn-sm">✕ Close</button>
-          </form>
-        </div>
-        <div class="modal-body" style="padding:1.25rem 0;display:flex;flex-direction:column;gap:1rem;">
-          <div>
-            <label for="enebaTopDealsLimitInput" style="display:block;margin-bottom:0.35rem;font-weight:600;font-size:0.88rem;">
-              Pull Limit (Top Deals per Category):
-            </label>
-            <input
-              type="number"
-              id="enebaTopDealsLimitInput"
-              min="1"
-              max="50"
-              step="1"
-              value="10"
-              style="width:100%;box-sizing:border-box;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);"
-              aria-label="Number of top deals to pull per category"
-            />
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">Range: 1–50 (default: 10)</div>
+
+          <div style="display:flex;flex-direction:column;gap:1.25rem;padding:0.25rem 0 1.25rem;">
+            <div class="field" style="margin-block-end:0;">
+              <label for="enebaTopDealsLimitInput" style="font-weight:600;font-size:0.88rem;margin-bottom:0.25rem;">
+                Pull Limit (Top Deals per Category)
+              </label>
+              <span class="hint" style="margin-bottom:0.4rem;">Range: 1–50 (default: 10). Persists top-ranked deals per category to PostgreSQL.</span>
+              <input
+                type="number"
+                id="enebaTopDealsLimitInput"
+                min="1"
+                max="50"
+                step="1"
+                value="10"
+                required
+                style="width:100%;box-sizing:border-box;"
+                aria-label="Number of top deals to pull per category"
+              />
+            </div>
+
+            <div class="field" style="margin-block-end:0;">
+              <label for="enebaAlertThresholdInput" style="font-weight:600;font-size:0.88rem;margin-bottom:0.25rem;">
+                Alert Threshold (%)
+              </label>
+              <span class="hint" style="margin-bottom:0.4rem;">Minimum discount % to trigger alert emails (default: 20%).</span>
+              <input
+                type="number"
+                id="enebaAlertThresholdInput"
+                min="0"
+                max="100"
+                step="1"
+                value="20"
+                required
+                style="width:100%;box-sizing:border-box;"
+                aria-label="Minimum discount percent to trigger alert email"
+              />
+            </div>
           </div>
-          <div>
-            <label for="enebaAlertThresholdInput" style="display:block;margin-bottom:0.35rem;font-weight:600;font-size:0.88rem;">
-              Alert Threshold (%):
-            </label>
-            <input
-              type="number"
-              id="enebaAlertThresholdInput"
-              min="0"
-              max="100"
-              step="1"
-              value="20"
-              style="width:100%;box-sizing:border-box;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);"
-              aria-label="Minimum discount percent to trigger alert email"
-            />
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">Minimum discount % to trigger alert emails (default: 20%)</div>
+
+          <div style="display:flex;justify-content:flex-end;gap:0.65rem;padding-top:1rem;border-top:1px solid var(--border);">
+            <form method="dialog" style="display:inline;margin:0;">
+              <button type="submit" class="btn btn-sm">Cancel</button>
+            </form>
+            <button type="button" class="btn btn-sm btn-primary" id="btnSaveEnebaConfig">
+              Save Configuration
+            </button>
           </div>
-        </div>
-        <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:0.5rem;padding-top:0.75rem;border-top:1px solid var(--border);">
-          <form method="dialog" style="display:inline;">
-            <button type="submit" class="btn btn-sm">Cancel</button>
-          </form>
-          <button type="button" class="btn btn-sm btn-primary" id="btnSaveEnebaConfig">
-            Save Configuration
-          </button>
         </div>
       </dialog>
 

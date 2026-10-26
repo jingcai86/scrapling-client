@@ -23,50 +23,87 @@ export function renderHomeTab(): string {
         </div>
       </div>
 
-      <!-- Home Chart: Scraping Success Rate Over Time (Line Chart) -->
-      <div class="card" style="margin-block-end:1.25rem;">
-        <div class="card-header" style="flex-wrap:wrap;gap:1rem;">
-          <div>
-            <h2 class="card-title" style="display:flex;align-items:center;gap:0.5rem;">
-              <span>📈 Scraping Success Rate Over Time</span>
-            </h2>
-            <div style="font-size:0.8rem;color:var(--text-muted);">
-              Real-time trend line of page extraction success rate (0% – 100%) across scheduled and manual runs.
+      <!-- Home Charts Row: Success Rate & Results Extracted Over Time (Side by Side) -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(460px, 1fr));gap:1.25rem;margin-block-end:1.25rem;">
+        <!-- Chart 1: Scraping Success Rate Over Time -->
+        <div class="card" style="margin-block-end:0;">
+          <div class="card-header" style="flex-wrap:wrap;gap:1rem;">
+            <div>
+              <h2 class="card-title" style="display:flex;align-items:center;gap:0.5rem;">
+                <span>📈 Scraping Success Rate</span>
+              </h2>
+              <div style="font-size:0.8rem;color:var(--text-muted);">
+                Trend line of page extraction success rate (0% – 100%).
+              </div>
+            </div>
+            <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+              <div style="font-size:0.82rem;background:var(--bg-panel-alt);padding:0.3rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
+                <span style="color:var(--text-muted);">Avg:</span>
+                <strong id="chartAvgSuccessRate" style="color:#34d399;margin-inline-start:0.35rem;">100%</strong>
+              </div>
+              <div style="font-size:0.82rem;background:var(--bg-panel-alt);padding:0.3rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
+                <span style="color:var(--text-muted);">Runs:</span>
+                <strong id="chartTotalRuns" style="margin-inline-start:0.35rem;">0</strong>
+              </div>
             </div>
           </div>
-          <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
-            <div style="font-size:0.82rem;background:var(--bg-panel-alt);padding:0.3rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
-              <span style="color:var(--text-muted);">Avg Success:</span>
-              <strong id="chartAvgSuccessRate" style="color:#34d399;margin-inline-start:0.35rem;">100%</strong>
-            </div>
-            <div style="font-size:0.82rem;background:var(--bg-panel-alt);padding:0.3rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
-              <span style="color:var(--text-muted);">Total Runs:</span>
-              <strong id="chartTotalRuns" style="margin-inline-start:0.35rem;">0</strong>
+
+          <div style="padding:0.5rem 1rem 1rem;">
+            <div id="scrapeSuccessChartContainer" style="width:100%;height:320px;min-height:300px;position:relative;">
+              <!-- Rendered dynamically by Apache ECharts -->
             </div>
           </div>
         </div>
 
-        <div style="padding:0.5rem 1rem 1rem;">
-          <div id="chartTooltipBar" style="display:none;font-size:0.82rem;padding:0.4rem 0.75rem;border-radius:6px;background:var(--bg-panel-alt);margin-block-end:0.75rem;border:1px solid var(--border);"></div>
-          <div id="scrapeSuccessChartContainer" style="width:100%;height:260px;position:relative;">
-            <!-- SVG rendered dynamically by renderScrapeSuccessChart -->
+        <!-- Chart 2: Number of Scraped Results Extracted Over Time -->
+        <div class="card" style="margin-block-end:0;">
+          <div class="card-header" style="flex-wrap:wrap;gap:1rem;">
+            <div>
+              <h2 class="card-title" style="display:flex;align-items:center;gap:0.5rem;">
+                <span>📊 Scraped Results Over Time</span>
+              </h2>
+              <div style="font-size:0.8rem;color:var(--text-muted);">
+                Number of gift card deal results extracted per scrape run.
+              </div>
+            </div>
+            <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+              <div style="font-size:0.82rem;background:var(--bg-panel-alt);padding:0.3rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
+                <span style="color:var(--text-muted);">Latest:</span>
+                <strong id="chartLatestResults" style="color:#6366f1;margin-inline-start:0.35rem;">0</strong>
+              </div>
+              <div style="font-size:0.82rem;background:var(--bg-panel-alt);padding:0.3rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
+                <span style="color:var(--text-muted);">Total Extracted:</span>
+                <strong id="chartTotalResults" style="margin-inline-start:0.35rem;">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:0.5rem 1rem 1rem;">
+            <div id="scrapeResultsChartContainer" style="width:100%;height:320px;min-height:300px;position:relative;">
+              <!-- Rendered dynamically by Apache ECharts -->
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Home Table: Providers Overview (Provider-Agnostic, No Deals) -->
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="flex-wrap:wrap;gap:1rem;">
           <div>
-            <h2 class="card-title">Monitored Store Providers</h2>
+            <h2 class="card-title">Store Provider History &amp; Details</h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
-              Overview of configured store providers and when they were last scraped. All scraped deals are located within their dedicated store tab.
+              Overview of configured store providers and scrape history. Click on a provider row to view detailed deals and category metrics.
             </div>
+          </div>
+          <div>
+            <button type="button" class="btn btn-sm" onclick="switchTab('scheduler')">
+              ⏰ Job Scheduler &amp; Targets
+            </button>
           </div>
         </div>
 
         <div tabindex="0" role="region" aria-labelledby="providers-table-caption" class="table-wrapper">
-          <table id="providersTable" style="--label-2:'Tracked Pages';--label-3:'Status';--label-4:'Last Scraped';--label-5:'Store Deals';">
+          <table id="providersTable" style="--label-2:'Tracked Pages';--label-3:'Status';--label-4:'Last Scraped';--label-5:'Provider Details';">
             <caption id="providers-table-caption">Summary of monitored store providers and last scrape timestamps</caption>
             <thead>
               <tr>
@@ -74,7 +111,7 @@ export function renderHomeTab(): string {
                 <th class="sortable" data-table="providers" data-sort-key="activePages" aria-sort="none">Tracked Pages <span class="sort-icon">↕</span></th>
                 <th class="sortable" data-table="providers" data-sort-key="status" aria-sort="none">Status <span class="sort-icon">↕</span></th>
                 <th class="sortable" data-table="providers" data-sort-key="lastScraped" aria-sort="none">Last Scraped <span class="sort-icon">↕</span></th>
-                <th>Store Deals</th>
+                <th>Provider Details</th>
               </tr>
             </thead>
             <tbody id="providersTableBody">

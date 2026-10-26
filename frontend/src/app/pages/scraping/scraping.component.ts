@@ -33,9 +33,9 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="card-header-flex">
           <div>
-            <mat-card-title>Scraping Actions & Live Execution Console</mat-card-title>
+            <mat-card-title>Scheduled Actions &amp; Live Execution Console</mat-card-title>
             <mat-card-subtitle>
-              Trigger an immediate scrape across all enabled pages or run a fast listing-only check.
+              Trigger an immediate scrape across all enabled pages or monitor automated scheduled executions.
             </mat-card-subtitle>
           </div>
           <div class="action-buttons">

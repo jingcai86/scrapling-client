@@ -174,15 +174,23 @@ export function renderClientScripts(): string {
       }
 
       previousActiveTab = tabName;
+      const isScheduler = tabName === 'scheduler' || tabName === 'scraping';
       document.querySelectorAll('.tab-btn').forEach((b) => {
-        b.classList.toggle('active', b.dataset.tab === tabName);
+        const matches = isScheduler ? (b.dataset.tab === 'scheduler' || b.dataset.tab === 'scraping') : (b.dataset.tab === tabName);
+        b.classList.toggle('active', matches);
       });
       document.querySelectorAll('.tab-panel').forEach((p) => {
-        p.classList.toggle('active', p.id === 'tab-' + tabName);
+        const matches = isScheduler ? (p.id === 'tab-scheduler' || p.id === 'tab-scraping') : (p.id === 'tab-' + tabName);
+        p.classList.toggle('active', matches);
       });
+      if (tabName === 'home') {
+        setTimeout(() => {
+          if (window._scrapeEchart) window._scrapeEchart.resize();
+          if (window._scrapeResultsEchart) window._scrapeResultsEchart.resize();
+        }, 50);
+      }
       if (pushUrl) {
-        const btn = document.querySelector('.tab-btn[data-tab="' + tabName + '"]');
-        const route = btn?.dataset?.route || '/';
+        const route = isScheduler ? '/scheduler' : (tabName === 'home' ? '/' : '/' + tabName);
         if (window.location.pathname !== route) {
           window.history.pushState({ tab: tabName }, '', route);
         }
@@ -208,7 +216,7 @@ export function renderClientScripts(): string {
     function syncTabFromPath() {
       const p = window.location.pathname;
       if (p === '/eneba') switchTab('eneba', false);
-      else if (p === '/scraping') switchTab('scraping', false);
+      else if (p === '/scheduler' || p === '/scraping') switchTab('scheduler', false);
       else if (p === '/config') switchTab('config', false);
       else switchTab('home', false);
     }
@@ -268,7 +276,7 @@ export function renderClientScripts(): string {
         document.getElementById('viewCronNext').textContent = cronLabel;
       } else {
         document.getElementById('kpiNextCron').textContent = 'Disabled';
-        document.getElementById('kpiCronWindow').textContent = 'Enable in Scraping & Targets tab';
+        document.getElementById('kpiCronWindow').textContent = 'Enable in Job Scheduler';
         document.getElementById('viewCronEnabled').innerHTML = '<span class="badge badge-muted">Disabled</span>';
         document.getElementById('viewCronWindow').textContent = scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]';
         document.getElementById('viewCronNext').textContent = 'Paused';
@@ -301,9 +309,10 @@ export function renderClientScripts(): string {
         btnScrapeFast.disabled = false;
       }
 
-      // Render HOME Page Tables (Provider Overview, No Deals)
+      // Render HOME Page Tables & Charts
       renderProvidersOverviewTable(pages, statuses);
       renderScrapeSuccessChart(dashboardData?.history || [], statuses);
+      renderScrapeResultsChart(dashboardData?.history || [], statuses);
 
       // Render ENEBA Dedicated Page KPIs & Tables
       renderEnebaPage(pages, statuses, thresholdPct);
@@ -369,7 +378,14 @@ export function renderClientScripts(): string {
       if (typeof window.echarts !== 'undefined') {
         if (tooltipBar) tooltipBar.style.display = 'none';
         if (!window._scrapeEchart) {
+          container.innerHTML = '';
           window._scrapeEchart = window.echarts.init(container);
+          if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(() => {
+              if (window._scrapeEchart) window._scrapeEchart.resize();
+            });
+            ro.observe(container);
+          }
           window.addEventListener('resize', () => {
             if (window._scrapeEchart) window._scrapeEchart.resize();
           });
@@ -389,10 +405,10 @@ export function renderClientScripts(): string {
           backgroundColor: 'transparent',
           animationDuration: 800,
           grid: {
-            left: 20,
-            right: 25,
-            top: 25,
-            bottom: 25,
+            left: 10,
+            right: 15,
+            top: 15,
+            bottom: 12,
             containLabel: true,
           },
           tooltip: {
@@ -493,6 +509,7 @@ export function renderClientScripts(): string {
         };
 
         window._scrapeEchart.setOption(option, true);
+        window._scrapeEchart.resize();
         return;
       }
 
@@ -581,6 +598,186 @@ export function renderClientScripts(): string {
       if (bar) bar.style.display = 'none';
     };
 
+    // HOME LINE CHART 2: Scraped Results Over Time (Number of results per run)
+    function renderScrapeResultsChart(historyList, statuses) {
+      window._lastResultsHistory = historyList;
+      window._lastResultsStatuses = statuses;
+
+      const container = document.getElementById('scrapeResultsChartContainer');
+      const latestLabel = document.getElementById('chartLatestResults');
+      const totalResultsLabel = document.getElementById('chartTotalResults');
+      if (!container) return;
+
+      let items = historyList || [];
+      if (items.length === 0 && statuses && statuses.length > 0) {
+        const successful = statuses.filter((s) => s.totalListings > 0).length;
+        items = [{
+          timestamp: statuses[0].scrapedAt,
+          totalPages: statuses.length,
+          successfulPages: successful,
+          successRate: Number(((successful / statuses.length) * 100).toFixed(1)),
+          totalListings: statuses.reduce((acc, s) => acc + (s.totalListings || 0), 0),
+          inStockCount: statuses.reduce((acc, s) => acc + (s.inStockCount || 0), 0),
+        }];
+      }
+
+      const totalExtracted = items.reduce((acc, i) => acc + (i.totalListings || 0), 0);
+      const latestCount = items.length > 0 ? (items[items.length - 1].totalListings || 0) : 0;
+      if (latestLabel) latestLabel.textContent = String(latestCount);
+      if (totalResultsLabel) totalResultsLabel.textContent = String(totalExtracted);
+
+      if (items.length === 0) {
+        if (latestLabel) latestLabel.textContent = '—';
+        if (totalResultsLabel) totalResultsLabel.textContent = '—';
+        if (window._scrapeResultsEchart) {
+          try { window._scrapeResultsEchart.dispose(); } catch (e) {}
+          window._scrapeResultsEchart = null;
+        }
+        container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);gap:0.5rem;">' +
+          '<div style="font-size:2rem;">📊</div>' +
+          '<div>No extraction metrics recorded yet. Run a scrape to populate results over time.</div>' +
+        '</div>';
+        return;
+      }
+
+      if (typeof window.echarts !== 'undefined') {
+        if (!window._scrapeResultsEchart) {
+          container.innerHTML = '';
+          window._scrapeResultsEchart = window.echarts.init(container);
+          if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(() => {
+              if (window._scrapeResultsEchart) window._scrapeResultsEchart.resize();
+            });
+            ro.observe(container);
+          }
+          window.addEventListener('resize', () => {
+            if (window._scrapeResultsEchart) window._scrapeResultsEchart.resize();
+          });
+        }
+
+        const isDark = document.body.classList.contains('dark') ||
+          document.documentElement.getAttribute('data-theme') === 'dark' ||
+          (!document.body.classList.contains('light-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+        const categories = items.map((item) => {
+          const d = new Date(item.timestamp);
+          return isNaN(d.getTime()) ? 'Recent' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        });
+        const values = items.map((item) => item.totalListings || 0);
+
+        const option = {
+          backgroundColor: 'transparent',
+          animationDuration: 800,
+          grid: {
+            left: 10,
+            right: 15,
+            top: 15,
+            bottom: 12,
+            containLabel: true,
+          },
+          tooltip: {
+            trigger: 'axis',
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            borderColor: isDark ? '#334155' : '#e2e8f0',
+            borderWidth: 1,
+            padding: [10, 14],
+            textStyle: {
+              color: isDark ? '#f8fafc' : '#0f172a',
+              fontSize: 13,
+            },
+            formatter: (params) => {
+              if (!Array.isArray(params) || !params.length) return '';
+              const p = params[0];
+              const idx = p.dataIndex;
+              const it = items[idx];
+              if (!it) return '';
+              const fullTime = isNaN(new Date(it.timestamp).getTime())
+                ? 'Recent'
+                : new Date(it.timestamp).toLocaleString();
+              const inStock = it.inStockCount != null ? it.inStockCount + ' in stock' : '';
+              return (
+                '<div style="font-weight:600;margin-bottom:6px;">🕒 ' + escapeHtml(fullTime) + '</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                  '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6366f1;"></span>' +
+                  '<span>Results Extracted: <strong style="color:#6366f1;">' + (it.totalListings || 0) + ' deals</strong></span>' +
+                '</div>' +
+                '<div style="font-size:12px;color:' + (isDark ? '#94a3b8' : '#64748b') + ';margin-top:4px;">' +
+                  'Pages: ' + it.successfulPages + '/' + it.totalPages +
+                  (inStock ? ' • ' + inStock : '') +
+                '</div>'
+              );
+            },
+          },
+          xAxis: {
+            type: 'category',
+            data: categories,
+            boundaryGap: false,
+            axisLine: {
+              lineStyle: { color: isDark ? '#334155' : '#e2e8f0' },
+            },
+            axisTick: { show: false },
+            axisLabel: {
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontSize: 11,
+            },
+          },
+          yAxis: {
+            type: 'value',
+            min: 0,
+            minInterval: 1,
+            axisLabel: {
+              formatter: '{value}',
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontSize: 11,
+            },
+            splitLine: {
+              lineStyle: {
+                color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.8)',
+                type: 'dashed',
+              },
+            },
+          },
+          series: [
+            {
+              name: 'Results Extracted',
+              type: 'line',
+              smooth: true,
+              showSymbol: items.length < 30,
+              symbol: 'circle',
+              symbolSize: 6,
+              itemStyle: {
+                color: '#6366f1',
+                borderWidth: 2,
+                borderColor: isDark ? '#0f172a' : '#ffffff',
+              },
+              lineStyle: {
+                width: 3,
+                color: '#6366f1',
+              },
+              areaStyle: {
+                color: {
+                  type: 'linear',
+                  x: 0,
+                  y: 0,
+                  x2: 0,
+                  y2: 1,
+                  colorStops: [
+                    { offset: 0, color: 'rgba(99, 102, 241, 0.38)' },
+                    { offset: 1, color: 'rgba(99, 102, 241, 0.01)' },
+                  ],
+                },
+              },
+              data: values,
+            },
+          ],
+        };
+
+        window._scrapeResultsEchart.setOption(option, true);
+        window._scrapeResultsEchart.resize();
+        return;
+      }
+    }
+
     // HOME TABLE 1: Monitored Store Providers Overview (No Deals)
     function renderProvidersOverviewTable(pages, statuses) {
       const tbody = document.getElementById('providersTableBody');
@@ -616,7 +813,7 @@ export function renderClientScripts(): string {
           ? new Date(r.lastScraped).toLocaleString()
           : '<span style="color:var(--text-muted);">Never</span>';
 
-        return '<tr>' +
+        return '<tr onclick="switchTab(\'' + r.provider + '\')" style="cursor:pointer;" title="Click to view ' + escapeHtml(r.provider) + ' provider details">' +
           '<th><span class="badge badge-provider">' + escapeHtml(r.provider) + '</span></th>' +
           '<td><strong>' + r.activePages + ' / ' + r.totalPages + ' pages</strong>' +
             (r.pageNames ? ' <span style="font-size:0.78rem;color:var(--text-muted);">(' + escapeHtml(r.pageNames) + ')</span>' : '') +
@@ -624,7 +821,7 @@ export function renderClientScripts(): string {
           '<td><span class="badge ' + (r.activePages > 0 ? 'badge-discount' : 'badge-muted') + '">' + r.status + '</span></td>' +
           '<td style="color:var(--text);font-size:0.85rem;">' + lastScrapedStr + '</td>' +
           '<td>' + (r.provider === 'eneba'
-            ? '<button type="button" class="btn btn-sm btn-primary" onclick="switchTab(\\'eneba\\')">View Eneba Deals →</button>'
+            ? '<button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation();switchTab(\\'eneba\\')">Eneba Provider detail →</button>'
             : '<span class="badge badge-muted">Custom</span>') + '</td>' +
         '</tr>';
       }).join('');
@@ -1271,6 +1468,9 @@ export function renderClientScripts(): string {
       }
       if (window._lastHistory) {
         renderScrapeSuccessChart(window._lastHistory, window._lastStatuses);
+      }
+      if (window._lastResultsHistory) {
+        renderScrapeResultsChart(window._lastResultsHistory, window._lastResultsStatuses);
       }
     }
 

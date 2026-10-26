@@ -86,52 +86,98 @@ interface ProviderRow {
         </mat-card>
       </div>
 
-      <!-- Scraping Success Rate Over Time (Apache ECharts) -->
-      <mat-card class="main-card chart-card" appearance="outlined">
-        <mat-card-header class="chart-header">
-          <div>
-            <mat-card-title class="chart-title">
-              <span class="material-symbols-outlined chart-icon">monitoring</span>
-              <span>Scraping Success Rate Over Time</span>
-            </mat-card-title>
-            <mat-card-subtitle>
-              Real-time Apache ECharts trend line of page extraction success rate (0% – 100%) across scheduled and manual runs.
-            </mat-card-subtitle>
-          </div>
-          <div class="chart-kpis" *ngIf="historyItems.length > 0">
-            <div class="stat-pill">
-              <span class="stat-label">Avg Success:</span>
-              <span class="stat-val" [class.success]="avgSuccessRateNum >= 80">{{ avgSuccessRate }}</span>
+      <!-- Charts Section: Success Rate & Results Extracted Over Time (Side by Side) -->
+      <div class="charts-grid">
+        <!-- Chart 1: Scraping Success Rate Over Time (Apache ECharts) -->
+        <mat-card class="main-card chart-card" appearance="outlined">
+          <mat-card-header class="chart-header">
+            <div>
+              <mat-card-title class="chart-title">
+                <span class="material-symbols-outlined chart-icon">monitoring</span>
+                <span>Scraping Success Rate</span>
+              </mat-card-title>
+              <mat-card-subtitle>
+                Real-time trend line of page extraction success rate (0% – 100%).
+              </mat-card-subtitle>
             </div>
-            <div class="stat-pill">
-              <span class="stat-label">Total Runs:</span>
-              <span class="stat-val">{{ historyItems.length }}</span>
+            <div class="chart-kpis" *ngIf="historyItems.length > 0">
+              <div class="stat-pill">
+                <span class="stat-label">Avg:</span>
+                <span class="stat-val" [class.success]="avgSuccessRateNum >= 80">{{ avgSuccessRate }}</span>
+              </div>
+              <div class="stat-pill">
+                <span class="stat-label">Runs:</span>
+                <span class="stat-val">{{ historyItems.length }}</span>
+              </div>
             </div>
-          </div>
-        </mat-card-header>
+          </mat-card-header>
 
-        <mat-card-content class="chart-content">
-          <div
-            #chartContainer
-            class="echarts-container"
-            [style.display]="historyItems.length > 0 ? 'block' : 'none'"
-          ></div>
+          <mat-card-content class="chart-content">
+            <div
+              #chartContainer
+              class="echarts-container"
+              [style.display]="historyItems.length > 0 ? 'block' : 'none'"
+            ></div>
 
-          <div *ngIf="historyItems.length === 0" class="empty-chart">
-            <span class="material-symbols-outlined empty-icon">show_chart</span>
-            <p>No scraping history recorded yet. Run a scrape to populate success rate metrics.</p>
-          </div>
-        </mat-card-content>
-      </mat-card>
+            <div *ngIf="historyItems.length === 0" class="empty-chart">
+              <span class="material-symbols-outlined empty-icon">show_chart</span>
+              <p>No scraping history recorded yet.</p>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Chart 2: Number of Results Extracted Over Time (Apache ECharts) -->
+        <mat-card class="main-card chart-card" appearance="outlined">
+          <mat-card-header class="chart-header">
+            <div>
+              <mat-card-title class="chart-title">
+                <span class="material-symbols-outlined chart-icon results-icon">bar_chart</span>
+                <span>Scraped Results Over Time</span>
+              </mat-card-title>
+              <mat-card-subtitle>
+                Number of gift card deal results extracted per scrape run.
+              </mat-card-subtitle>
+            </div>
+            <div class="chart-kpis" *ngIf="historyItems.length > 0">
+              <div class="stat-pill">
+                <span class="stat-label">Latest:</span>
+                <span class="stat-val highlight">{{ latestResultsCount }} items</span>
+              </div>
+              <div class="stat-pill">
+                <span class="stat-label">Total Extracted:</span>
+                <span class="stat-val">{{ totalExtractedResults }}</span>
+              </div>
+            </div>
+          </mat-card-header>
+
+          <mat-card-content class="chart-content">
+            <div
+              #resultsChartContainer
+              class="echarts-container"
+              [style.display]="historyItems.length > 0 ? 'block' : 'none'"
+            ></div>
+
+            <div *ngIf="historyItems.length === 0" class="empty-chart">
+              <span class="material-symbols-outlined empty-icon">bar_chart</span>
+              <p>No extraction results recorded yet.</p>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
 
       <!-- Provider Overview Table -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="table-header">
           <div>
-            <mat-card-title>Monitored Store Providers</mat-card-title>
+            <mat-card-title>Store Provider History &amp; Details</mat-card-title>
             <mat-card-subtitle>
-              Overview of configured store providers and when they were last scraped. All scraped deals are located within their dedicated store tab.
+              Overview of configured store providers and scraping history. Click a provider row to view detailed deals and category metrics.
             </mat-card-subtitle>
+          </div>
+          <div class="table-actions">
+            <a mat-stroked-button routerLink="/scheduler" class="action-btn">
+              <span class="material-symbols-outlined">schedule</span> Job Scheduler &amp; Targets
+            </a>
           </div>
         </mat-card-header>
         <mat-card-content class="card-table-content">
@@ -165,16 +211,16 @@ interface ProviderRow {
             </ng-container>
 
             <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>Store Deals</th>
+              <th mat-header-cell *matHeaderCellDef>Provider Details</th>
               <td mat-cell *matCellDef="let p">
-                <a mat-stroked-button color="primary" [routerLink]="['/' + p.provider]" class="btn-xs">
-                  View {{ p.provider | titlecase }} Deals →
+                <a mat-stroked-button color="primary" [routerLink]="['/' + p.provider]" class="btn-xs" (click)="$event.stopPropagation()">
+                  {{ p.provider === 'eneba' ? 'Eneba Provider detail' : (p.provider | titlecase) + ' Provider detail' }} →
                 </a>
               </td>
             </ng-container>
 
             <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row" [routerLink]="['/' + row.provider]"></tr>
           </table>
         </mat-card-content>
       </mat-card>
@@ -244,6 +290,19 @@ interface ProviderRow {
       color: #10b981;
       font-size: 1.5rem;
     }
+    .results-icon {
+      color: #6366f1 !important;
+    }
+    .highlight {
+      color: #6366f1 !important;
+      font-weight: 700;
+    }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 1.25rem;
+      margin-block-end: 1.5rem;
+    }
     .chart-kpis {
       display: flex;
       align-items: center;
@@ -276,7 +335,7 @@ interface ProviderRow {
     }
     .echarts-container {
       width: 100%;
-      height: 300px;
+      height: 320px;
     }
     .empty-chart {
       display: flex;
@@ -291,7 +350,25 @@ interface ProviderRow {
       font-size: 2.5rem;
     }
     .table-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
       padding: 1.25rem 1.5rem 0.5rem;
+    }
+    .table-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .clickable-row {
+      cursor: pointer;
+      transition: background 0.15s ease;
+
+      &:hover {
+        background: var(--mat-sys-surface-container-high) !important;
+      }
     }
     .card-table-content {
       padding: 0 !important;
@@ -334,8 +411,11 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
   sortedProviders: ProviderRow[] = [];
 
   @ViewChild('chartContainer') chartContainerRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('resultsChartContainer') resultsChartContainerRef?: ElementRef<HTMLDivElement>;
   private chartInstance?: echarts.ECharts;
+  private resultsChartInstance?: echarts.ECharts;
   private resizeObserver?: ResizeObserver;
+  private resultsResizeObserver?: ResizeObserver;
   private lastRenderedTheme?: string;
   private lastItemsCount = -1;
 
@@ -365,6 +445,16 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     return [];
   }
 
+  get latestResultsCount(): number {
+    const items = this.historyItems;
+    if (!items.length) return 0;
+    return items[items.length - 1].totalListings ?? 0;
+  }
+
+  get totalExtractedResults(): number {
+    return this.historyItems.reduce((acc, i) => acc + (i.totalListings ?? 0), 0);
+  }
+
   get avgSuccessRateNum(): number {
     const items = this.historyItems;
     if (!items.length) return 100;
@@ -378,7 +468,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
 
   ngAfterViewInit() {
     if (isPlatformBrowser(this.platformId)) {
-      setTimeout(() => this.initOrUpdateChart(), 0);
+      setTimeout(() => this.initOrUpdateCharts(), 0);
     }
   }
 
@@ -388,23 +478,32 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
       const currentTheme = this.themeService.themeMode();
       const currentCount = this.historyItems.length;
       if (currentTheme !== this.lastRenderedTheme || currentCount !== this.lastItemsCount) {
-        this.initOrUpdateChart();
+        this.initOrUpdateCharts();
       }
     }
   }
 
   ngOnDestroy() {
     this.resizeObserver?.disconnect();
+    this.resultsResizeObserver?.disconnect();
     this.chartInstance?.dispose();
+    this.resultsChartInstance?.dispose();
     this.chartInstance = undefined;
+    this.resultsChartInstance = undefined;
   }
 
   @HostListener('window:resize')
   onResize() {
     this.chartInstance?.resize();
+    this.resultsChartInstance?.resize();
   }
 
-  private initOrUpdateChart() {
+  private initOrUpdateCharts() {
+    this.initOrUpdateSuccessChart();
+    this.initOrUpdateResultsChart();
+  }
+
+  private initOrUpdateSuccessChart() {
     if (!this.chartContainerRef?.nativeElement) return;
     const items = this.historyItems;
     if (items.length === 0) {
@@ -443,10 +542,10 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
       backgroundColor: 'transparent',
       animationDuration: 800,
       grid: {
-        left: 20,
-        right: 25,
-        top: 25,
-        bottom: 25,
+        left: 10,
+        right: 15,
+        top: 15,
+        bottom: 12,
         containLabel: true,
       },
       tooltip: {
@@ -555,6 +654,157 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     };
 
     this.chartInstance.setOption(option);
+    this.chartInstance.resize();
+  }
+
+  private initOrUpdateResultsChart() {
+    if (!this.resultsChartContainerRef?.nativeElement) return;
+    const items = this.historyItems;
+    if (items.length === 0) {
+      this.resultsChartInstance?.dispose();
+      this.resultsChartInstance = undefined;
+      return;
+    }
+
+    if (!this.resultsChartInstance) {
+      this.resultsChartInstance = echarts.init(this.resultsChartContainerRef.nativeElement);
+      if (typeof ResizeObserver !== 'undefined') {
+        this.resultsResizeObserver = new ResizeObserver(() => {
+          this.resultsChartInstance?.resize();
+        });
+        this.resultsResizeObserver.observe(this.resultsChartContainerRef.nativeElement);
+      }
+    }
+
+    const currentTheme = this.themeService.themeMode();
+    const isDark = currentTheme === 'dark' ||
+      (currentTheme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    const categories = items.map((item) => {
+      const d = new Date(item.timestamp);
+      return isNaN(d.getTime())
+        ? 'Recent'
+        : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    });
+
+    const values = items.map((item) => item.totalListings ?? 0);
+
+    const option: echarts.EChartsOption = {
+      backgroundColor: 'transparent',
+      animationDuration: 800,
+      grid: {
+        left: 10,
+        right: 15,
+        top: 15,
+        bottom: 12,
+        containLabel: true,
+      },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+        borderColor: isDark ? '#334155' : '#e2e8f0',
+        borderWidth: 1,
+        padding: [10, 14],
+        textStyle: {
+          color: isDark ? '#f8fafc' : '#0f172a',
+          fontSize: 13,
+        },
+        extraCssText: 'box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1); border-radius: 8px;',
+        formatter: (params: any) => {
+          const p = Array.isArray(params) ? params[0] : params;
+          const idx = p.dataIndex;
+          const item = items[idx];
+          const fullTime = item?.timestamp ? new Date(item.timestamp).toLocaleString() : p.name;
+          const inStock = item?.inStockCount != null ? `${item.inStockCount} in stock` : '';
+          const pagesInfo = item ? `${item.successfulPages} of ${item.totalPages} pages` : '';
+          const count = p.value;
+          return `
+            <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:${isDark ? '#cbd5e1' : '#475569'};">
+              🕒 ${fullTime}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6366f1;box-shadow:0 0 6px #6366f1;"></span>
+              <span>Results Extracted: <strong style="color:#6366f1;font-size:14px;">${count} deals</strong></span>
+            </div>
+            ${inStock || pagesInfo ? `<div style="font-size:11px;color:${isDark ? '#94a3b8' : '#64748b'};margin-top:4px;">${[inStock, pagesInfo].filter(Boolean).join(' • ')}</div>` : ''}
+          `;
+        },
+      },
+      xAxis: {
+        type: 'category',
+        data: categories,
+        boundaryGap: false,
+        axisLine: {
+          lineStyle: {
+            color: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.15)',
+          },
+        },
+        axisTick: { show: false },
+        axisLabel: {
+          color: isDark ? '#94a3b8' : '#64748b',
+          fontSize: 11,
+          margin: 12,
+        },
+      },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        minInterval: 1,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: {
+          color: isDark ? '#94a3b8' : '#64748b',
+          fontSize: 11,
+        },
+        splitLine: {
+          lineStyle: {
+            color: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+            type: 'dashed',
+          },
+        },
+      },
+      series: [
+        {
+          name: 'Results Extracted',
+          type: 'line',
+          smooth: true,
+          data: values,
+          symbol: 'circle',
+          symbolSize: 8,
+          itemStyle: {
+            color: '#6366f1',
+            borderColor: isDark ? '#0f172a' : '#ffffff',
+            borderWidth: 2,
+          },
+          emphasis: {
+            scale: 1.6,
+            itemStyle: {
+              color: '#6366f1',
+              borderColor: '#ffffff',
+              borderWidth: 2,
+              shadowBlur: 10,
+              shadowColor: 'rgba(99, 102, 241, 0.6)',
+            },
+          },
+          lineStyle: {
+            color: '#6366f1',
+            width: 3.5,
+            shadowColor: 'rgba(99, 102, 241, 0.35)',
+            shadowBlur: 8,
+            shadowOffsetY: 4,
+          },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(99, 102, 241, 0.38)' },
+              { offset: 1, color: 'rgba(99, 102, 241, 0.01)' },
+            ]),
+          },
+        },
+      ],
+    };
+
+    this.resultsChartInstance.setOption(option);
+    this.resultsChartInstance.resize();
   }
 
   providersCount(): number {

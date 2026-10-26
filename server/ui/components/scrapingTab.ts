@@ -1,12 +1,12 @@
 export function renderScrapingTab(): string {
   return `    <section id="tab-scraping" class="tab-panel">
-      <!-- 1. Scraping Actions & Live Console -->
+      <!-- 1. Scheduled Actions & Live Console -->
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Scraping Actions &amp; Live Execution Console</h2>
+            <h2 class="card-title">Scheduled Actions &amp; Live Execution Console</h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
-              Trigger an immediate scrape across all enabled pages or run a fast listing-only check.
+              Trigger an immediate scrape across all enabled pages or run automated scheduled executions.
             </div>
           </div>
           <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">

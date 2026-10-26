@@ -36,13 +36,6 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
         </a>
 
         <nav class="nav-links">
-          <a mat-button routerLink="/eneba" routerLinkActive="active">
-            <span class="material-symbols-outlined nav-icon">sports_esports</span> Eneba Deals
-          </a>
-          <a mat-button routerLink="/scraping" routerLinkActive="active">
-            <span class="material-symbols-outlined nav-icon">bolt</span> Scraping & Targets
-            <span class="badge" *ngIf="pagesCount()">{{ pagesCount() }}</span>
-          </a>
           <button mat-button type="button" class="nav-btn config-btn" (click)="openConfigModal()">
             <span class="material-symbols-outlined nav-icon">settings</span> Configuration
           </button>

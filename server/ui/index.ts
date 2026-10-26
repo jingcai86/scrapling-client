@@ -35,7 +35,7 @@ export function renderDashboardHtml(): string {
     ${renderEnebaTab()}
 
     <!-- =================================================================== -->
-    <!-- PAGE 3: SCRAPING & TARGETS (ALL SCRAPING ACTIONS, SCHEDULE & PAGES) -->
+    <!-- PAGE 3: CRON SCHEDULER & TARGETS (ACTIONS, SCHEDULE & PAGES)       -->
     <!-- =================================================================== -->
     ${renderScrapingTab()}
   </main>

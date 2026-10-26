@@ -10,8 +10,6 @@ export function renderHeader(): string {
       </div>
 
       <nav class="nav-tabs" aria-label="Main Navigation">
-        <button type="button" class="tab-btn" data-tab="eneba" data-route="/eneba">🎮 Eneba Deals</button>
-        <button type="button" class="tab-btn" data-tab="scraping" data-route="/scraping">⚡ Scraping &amp; Targets (<span id="navPagesCount">0</span>)</button>
         <button type="button" class="tab-btn" data-tab="config" data-route="/config">⚙️ Configuration</button>
       </nav>
 
