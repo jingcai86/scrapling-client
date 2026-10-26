@@ -701,6 +701,12 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
       },
       tooltip: {
         trigger: 'axis',
+        axisPointer: {
+          type: 'shadow',
+          shadowStyle: {
+            color: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.08)',
+          },
+        },
         backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
         borderColor: isDark ? '#334155' : '#e2e8f0',
         borderWidth: 1,
@@ -723,7 +729,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
               🕒 ${fullTime}
             </div>
             <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
-              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6366f1;box-shadow:0 0 6px #6366f1;"></span>
+              <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6366f1;box-shadow:0 0 6px #6366f1;"></span>
               <span>Results Extracted: <strong style="color:#6366f1;font-size:14px;">${count} deals</strong></span>
             </div>
             ${inStock || pagesInfo ? `<div style="font-size:11px;color:${isDark ? '#94a3b8' : '#64748b'};margin-top:4px;">${[inStock, pagesInfo].filter(Boolean).join(' • ')}</div>` : ''}
@@ -733,7 +739,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
       xAxis: {
         type: 'category',
         data: categories,
-        boundaryGap: false,
+        boundaryGap: true,
         axisLine: {
           lineStyle: {
             color: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.15)',
@@ -766,38 +772,26 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
       series: [
         {
           name: 'Results Extracted',
-          type: 'line',
-          smooth: true,
+          type: 'bar',
           data: values,
-          symbol: 'circle',
-          symbolSize: 8,
+          barMaxWidth: 38,
           itemStyle: {
-            color: '#6366f1',
-            borderColor: isDark ? '#0f172a' : '#ffffff',
-            borderWidth: 2,
+            borderRadius: [6, 6, 0, 0],
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#818cf8' },
+              { offset: 1, color: '#4f46e5' },
+            ]),
           },
           emphasis: {
-            scale: 1.6,
             itemStyle: {
-              color: '#6366f1',
-              borderColor: '#ffffff',
-              borderWidth: 2,
+              borderRadius: [6, 6, 0, 0],
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: '#a5b4fc' },
+                { offset: 1, color: '#6366f1' },
+              ]),
               shadowBlur: 10,
-              shadowColor: 'rgba(99, 102, 241, 0.6)',
+              shadowColor: 'rgba(99, 102, 241, 0.5)',
             },
-          },
-          lineStyle: {
-            color: '#6366f1',
-            width: 3.5,
-            shadowColor: 'rgba(99, 102, 241, 0.35)',
-            shadowBlur: 8,
-            shadowOffsetY: 4,
-          },
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(99, 102, 241, 0.38)' },
-              { offset: 1, color: 'rgba(99, 102, 241, 0.01)' },
-            ]),
           },
         },
       ],

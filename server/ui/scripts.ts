@@ -688,6 +688,12 @@ export function renderClientScripts(): string {
           },
           tooltip: {
             trigger: 'axis',
+            axisPointer: {
+              type: 'shadow',
+              shadowStyle: {
+                color: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.08)',
+              },
+            },
             backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
             borderColor: isDark ? '#334155' : '#e2e8f0',
             borderWidth: 1,
@@ -709,7 +715,7 @@ export function renderClientScripts(): string {
               return (
                 '<div style="font-weight:600;margin-bottom:6px;">🕒 ' + escapeHtml(fullTime) + '</div>' +
                 '<div style="display:flex;align-items:center;gap:8px;">' +
-                  '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6366f1;"></span>' +
+                  '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6366f1;"></span>' +
                   '<span>Results Extracted: <strong style="color:#6366f1;">' + (it.totalListings || 0) + ' deals</strong></span>' +
                 '</div>' +
                 '<div style="font-size:12px;color:' + (isDark ? '#94a3b8' : '#64748b') + ';margin-top:4px;">' +
@@ -722,7 +728,7 @@ export function renderClientScripts(): string {
           xAxis: {
             type: 'category',
             data: categories,
-            boundaryGap: false,
+            boundaryGap: true,
             axisLine: {
               lineStyle: { color: isDark ? '#334155' : '#e2e8f0' },
             },
@@ -751,21 +757,10 @@ export function renderClientScripts(): string {
           series: [
             {
               name: 'Results Extracted',
-              type: 'line',
-              smooth: true,
-              showSymbol: items.length < 30,
-              symbol: 'circle',
-              symbolSize: 6,
+              type: 'bar',
+              barMaxWidth: 38,
               itemStyle: {
-                color: '#6366f1',
-                borderWidth: 2,
-                borderColor: isDark ? '#0f172a' : '#ffffff',
-              },
-              lineStyle: {
-                width: 3,
-                color: '#6366f1',
-              },
-              areaStyle: {
+                borderRadius: [6, 6, 0, 0],
                 color: {
                   type: 'linear',
                   x: 0,
@@ -773,9 +768,27 @@ export function renderClientScripts(): string {
                   x2: 0,
                   y2: 1,
                   colorStops: [
-                    { offset: 0, color: 'rgba(99, 102, 241, 0.38)' },
-                    { offset: 1, color: 'rgba(99, 102, 241, 0.01)' },
+                    { offset: 0, color: '#818cf8' },
+                    { offset: 1, color: '#4f46e5' },
                   ],
+                },
+              },
+              emphasis: {
+                itemStyle: {
+                  borderRadius: [6, 6, 0, 0],
+                  color: {
+                    type: 'linear',
+                    x: 0,
+                    y: 0,
+                    x2: 0,
+                    y2: 1,
+                    colorStops: [
+                      { offset: 0, color: '#a5b4fc' },
+                      { offset: 1, color: '#6366f1' },
+                    ],
+                  },
+                  shadowBlur: 10,
+                  shadowColor: 'rgba(99, 102, 241, 0.5)',
                 },
               },
               data: values,
@@ -787,6 +800,41 @@ export function renderClientScripts(): string {
         window._scrapeResultsEchart.resize();
         return;
       }
+
+      // Fallback SVG Bar Chart
+      const padLeft = 45;
+      const padRight = 20;
+      const padTop = 20;
+      const padBottom = 35;
+      const chartW = 840 - padLeft - padRight;
+      const chartH = 260 - padTop - padBottom;
+      const bottomY = 260 - padBottom;
+      const maxVal = Math.max(1, ...values);
+      const slotW = chartW / items.length;
+      const barW = Math.min(36, slotW * 0.6);
+
+      const barsHtml = items.map((item, idx) => {
+        const count = item.totalListings || 0;
+        const h = (count / maxVal) * chartH;
+        const x = padLeft + idx * slotW + (slotW - barW) / 2;
+        const y = bottomY - h;
+        const d = new Date(item.timestamp);
+        const timeLabel = isNaN(d.getTime()) ? 'Recent' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return '<g>' +
+          '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="4" fill="url(#barGradientFallback)" />' +
+          '<text x="' + (x + barW / 2).toFixed(1) + '" y="245" font-size="11" fill="var(--text-muted)" text-anchor="middle" font-family="inherit">' + escapeHtml(timeLabel) + '</text>' +
+        '</g>';
+      }).join('');
+
+      container.innerHTML = '<svg viewBox="0 0 840 260" preserveAspectRatio="none" style="width:100%;height:100%;">' +
+        '<defs>' +
+          '<linearGradient id="barGradientFallback" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0%" stop-color="#818cf8" />' +
+            '<stop offset="100%" stop-color="#4f46e5" />' +
+          '</linearGradient>' +
+        '</defs>' +
+        barsHtml +
+      '</svg>';
     }
 
     // HOME TABLE 1: Monitored Store Providers Overview (No Deals)
