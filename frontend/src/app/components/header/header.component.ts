@@ -131,6 +131,7 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
       font-size: 1.15rem;
       font-weight: 700;
       line-height: 1.2;
+      color: var(--mat-sys-on-surface) !important;
     }
 
     .brand-text p {

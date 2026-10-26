@@ -3,8 +3,14 @@ export function renderStyles(): string {
     :root {
       --bg: #0f172a;
       --bg-panel: #1e293b;
-      --bg-panel-alt: #0f172a;
+      --bg-panel-alt: #0b1120;
       --bg-hover: #334155;
+      --header-bg: rgba(30, 41, 59, 0.92);
+      --th-bg: #1e293b;
+      --th-hover-bg: #273549;
+      --th-color: #cbd5e1;
+      --th-sorted-color: #a5b4fc;
+      --th-sorted-bg: rgba(99, 102, 241, 0.18);
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --border: #334155;
@@ -17,6 +23,7 @@ export function renderStyles(): string {
       --danger: #ef4444;
       --danger-bg: rgba(239, 68, 68, 0.15);
       --radius: 12px;
+      color-scheme: dark;
     }
 
     :root[data-theme='light'],
@@ -25,11 +32,18 @@ export function renderStyles(): string {
       --bg-panel: #ffffff;
       --bg-panel-alt: #f1f5f9;
       --bg-hover: #e2e8f0;
+      --header-bg: rgba(255, 255, 255, 0.96);
+      --th-bg: #f1f5f9;
+      --th-hover-bg: #e2e8f0;
+      --th-color: #1e293b;
+      --th-sorted-color: #4338ca;
+      --th-sorted-bg: rgba(99, 102, 241, 0.12);
       --text: #0f172a;
-      --text-muted: #64748b;
+      --text-muted: #475569;
       --border: #cbd5e1;
       --primary: #4f46e5;
       --primary-hover: #4338ca;
+      color-scheme: light;
     }
 
     @media (prefers-color-scheme: light) {
@@ -38,11 +52,18 @@ export function renderStyles(): string {
         --bg-panel: #ffffff;
         --bg-panel-alt: #f1f5f9;
         --bg-hover: #e2e8f0;
+        --header-bg: rgba(255, 255, 255, 0.96);
+        --th-bg: #f1f5f9;
+        --th-hover-bg: #e2e8f0;
+        --th-color: #1e293b;
+        --th-sorted-color: #4338ca;
+        --th-sorted-bg: rgba(99, 102, 241, 0.12);
         --text: #0f172a;
-        --text-muted: #64748b;
+        --text-muted: #475569;
         --border: #cbd5e1;
         --primary: #4f46e5;
         --primary-hover: #4338ca;
+        color-scheme: light;
       }
     }
 
@@ -67,7 +88,7 @@ export function renderStyles(): string {
     }
 
     .app-header {
-      background: rgba(30, 41, 59, 0.92);
+      background: var(--header-bg);
       backdrop-filter: blur(8px);
       border-block-end: 1px solid var(--border);
       position: sticky;
@@ -108,6 +129,7 @@ export function renderStyles(): string {
       margin: 0;
       font-size: 1.15rem;
       font-weight: 700;
+      color: var(--text);
     }
 
     .brand p {
@@ -140,7 +162,7 @@ export function renderStyles(): string {
 
     .tab-btn:hover {
       color: var(--text);
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-hover);
     }
 
     .tab-btn.active {
@@ -317,6 +339,7 @@ export function renderStyles(): string {
       margin: 0;
       font-size: 1.05rem;
       font-weight: 700;
+      color: var(--text);
     }
 
     .badge {
@@ -385,7 +408,7 @@ export function renderStyles(): string {
       position: sticky;
       inset-block-start: 0;
       z-index: 1;
-      background: #1e293b;
+      background: var(--th-bg);
     }
 
     th, td {
@@ -398,9 +421,10 @@ export function renderStyles(): string {
       font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--text-muted);
+      color: var(--th-color);
       font-weight: 700;
-      background: #1e293b;
+      background: var(--th-bg);
+      border-block-end: 2px solid var(--border);
       user-select: none;
       white-space: nowrap;
     }
@@ -412,13 +436,13 @@ export function renderStyles(): string {
 
     thead th.sortable:hover {
       color: var(--text);
-      background: #273549;
+      background: var(--th-hover-bg);
     }
 
     thead th.sortable[aria-sort="ascending"],
     thead th.sortable[aria-sort="descending"] {
-      color: #a5b4fc;
-      background: rgba(99, 102, 241, 0.15);
+      color: var(--th-sorted-color);
+      background: var(--th-sorted-bg);
     }
 
     .sort-icon {
@@ -431,14 +455,14 @@ export function renderStyles(): string {
     tbody th {
       position: sticky;
       inset-inline-start: 0;
-      background: var(--bg-panel-alt);
+      background: var(--bg-panel);
       font-weight: 600;
       color: var(--text);
     }
 
     tbody tr:hover td,
     tbody tr:hover th {
-      background: rgba(51, 65, 85, 0.45);
+      background: var(--bg-hover);
     }
 
     @container (width < 600px) {
@@ -461,7 +485,7 @@ export function renderStyles(): string {
         position: sticky;
         inset-block-start: 0;
         z-index: 2;
-        background: #1e293b;
+        background: var(--th-bg);
       }
 
       td:nth-child(2)::before {

@@ -49,3 +49,40 @@ body {
   color: var(--mat-sys-on-background);
   min-height: 100vh;
 }
+
+// Brand & Heading Typography Contrast
+h1, h2, h3, h4, .brand-text h1 {
+  color: var(--mat-sys-on-surface);
+}
+
+mat-card-title {
+  color: var(--mat-sys-on-surface) !important;
+  font-weight: 700 !important;
+}
+
+mat-card-subtitle {
+  color: var(--mat-sys-on-surface-variant) !important;
+}
+
+// Clean, high-contrast Table Header styles
+th.mat-mdc-header-cell {
+  background-color: var(--mat-sys-surface-container-high) !important;
+  color: var(--mat-sys-on-surface) !important;
+  font-weight: 700 !important;
+  font-size: 0.8rem !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  border-bottom: 2px solid var(--mat-sys-outline-variant) !important;
+}
+
+tr.mat-mdc-header-row {
+  background-color: var(--mat-sys-surface-container-high) !important;
+}
+
+tr.mat-mdc-row:hover {
+  background-color: var(--mat-sys-surface-container) !important;
+}
+
+.mat-mdc-table {
+  background: transparent !important;
+}
