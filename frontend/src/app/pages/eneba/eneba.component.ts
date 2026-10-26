@@ -39,55 +39,106 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
     <div class="page-container">
       <!-- Eneba KPIs -->
       <div class="kpi-grid">
-        <mat-card class="kpi-card" appearance="outlined">
-          <mat-card-header>
-            <mat-card-subtitle>Eneba Store Categories</mat-card-subtitle>
-            <mat-card-title class="kpi-value">{{ categoriesCount() }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="kpi-sub">PlayStation, Nintendo, Android, Amazon, Apple</div>
-          </mat-card-content>
+        <!-- Card 1: Categories (Indigo / Violet) -->
+        <mat-card class="kpi-card kpi-indigo" appearance="outlined">
+          <div class="kpi-top-bar"></div>
+          <div class="kpi-card-inner">
+            <div class="kpi-header-row">
+              <span class="kpi-eyebrow">Eneba Store Categories</span>
+              <div class="kpi-icon-pill">
+                <mat-icon>category</mat-icon>
+              </div>
+            </div>
+            <div class="kpi-value-row">
+              <span class="kpi-metric-num">{{ categoriesCount() }}</span>
+              <span class="kpi-unit-badge">monitored</span>
+            </div>
+            <div class="kpi-chips-row">
+              <span class="kpi-mini-chip">PlayStation</span>
+              <span class="kpi-mini-chip">Nintendo</span>
+              <span class="kpi-mini-chip">Android</span>
+              <span class="kpi-mini-chip">Amazon</span>
+              <span class="kpi-mini-chip">Apple</span>
+            </div>
+          </div>
         </mat-card>
 
-        <mat-card class="kpi-card" appearance="outlined">
-          <mat-card-header>
-            <mat-card-subtitle>Eneba Cards In Stock</mat-card-subtitle>
-            <mat-card-title class="kpi-value">{{ totalInStock() }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="kpi-sub">{{ totalDiscounted() }} with direct discount</div>
-          </mat-card-content>
+        <!-- Card 2: Cards In Stock (Sky Blue / Cyan) -->
+        <mat-card class="kpi-card kpi-cyan" appearance="outlined">
+          <div class="kpi-top-bar"></div>
+          <div class="kpi-card-inner">
+            <div class="kpi-header-row">
+              <span class="kpi-eyebrow">Eneba Cards In Stock</span>
+              <div class="kpi-icon-pill">
+                <mat-icon>inventory_2</mat-icon>
+              </div>
+            </div>
+            <div class="kpi-value-row">
+              <span class="kpi-metric-num">{{ totalInStock() }}</span>
+              <span class="kpi-unit-badge">active cards</span>
+            </div>
+            <div class="kpi-sub-row">
+              <span class="kpi-highlight-pill">
+                <mat-icon class="pill-icon">local_fire_department</mat-icon>
+                <strong>{{ totalDiscounted() }}</strong> with direct discount
+              </span>
+            </div>
+          </div>
         </mat-card>
 
-        <mat-card class="kpi-card" appearance="outlined">
-          <mat-card-header>
-            <mat-card-subtitle>Best Eneba Deal</mat-card-subtitle>
-            <mat-card-title class="kpi-value best-pct">{{ bestDealPct() }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="kpi-sub truncate" [title]="bestDealTitle()">{{ bestDealTitle() }}</div>
-          </mat-card-content>
+        <!-- Card 3: Best Eneba Deal (Emerald / Mint) -->
+        <mat-card class="kpi-card kpi-emerald" appearance="outlined">
+          <div class="kpi-top-bar"></div>
+          <div class="kpi-card-inner">
+            <div class="kpi-header-row">
+              <span class="kpi-eyebrow">Best Eneba Deal</span>
+              <div class="kpi-icon-pill">
+                <mat-icon>trending_down</mat-icon>
+              </div>
+            </div>
+            <div class="kpi-value-row">
+              <span class="kpi-metric-num kpi-deal-pct">{{ bestDealPct() }}</span>
+              <span class="kpi-unit-badge kpi-unit-emerald">max discount</span>
+            </div>
+            <div class="kpi-deal-title-box truncate" [title]="bestDealTitle()">
+              <mat-icon class="deal-icon">verified</mat-icon>
+              <span class="deal-name">{{ bestDealTitle() }}</span>
+            </div>
+          </div>
         </mat-card>
 
-        <mat-card class="kpi-card controls-card" appearance="outlined">
-          <mat-card-header>
-            <mat-card-subtitle>Provider Controls</mat-card-subtitle>
-            <mat-card-title class="kpi-value kpi-controls-value">
-              Pull: {{ topDealsLimit }} • Alert: {{ alertThresholdPct }}%
-            </mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="kpi-controls-actions">
-              <button mat-stroked-button type="button" class="action-btn" (click)="openEnebaConfigModal()">
-                <mat-icon class="btn-icon">settings</mat-icon>
-                <span>Configuration</span>
+        <!-- Card 4: Provider Controls (Violet / Purple) -->
+        <mat-card class="kpi-card kpi-purple controls-card" appearance="outlined">
+          <div class="kpi-top-bar"></div>
+          <div class="kpi-card-inner">
+            <div class="kpi-header-row">
+              <span class="kpi-eyebrow">Provider Controls</span>
+              <div class="kpi-icon-pill">
+                <mat-icon>tune</mat-icon>
+              </div>
+            </div>
+            <div class="kpi-telemetry-box">
+              <div class="telemetry-item">
+                <span class="telemetry-label">Pull Limit</span>
+                <span class="telemetry-val">{{ topDealsLimit }} <small>per cat</small></span>
+              </div>
+              <div class="telemetry-sep"></div>
+              <div class="telemetry-item">
+                <span class="telemetry-label">Alert Gate</span>
+                <span class="telemetry-val">&ge; {{ alertThresholdPct }}%</span>
+              </div>
+            </div>
+            <div class="kpi-actions-row">
+              <button mat-stroked-button type="button" class="kpi-btn-config" (click)="openEnebaConfigModal()">
+                <mat-icon class="btn-mat-icon">settings</mat-icon>
+                <span>Config</span>
               </button>
-              <button mat-flat-button color="primary" type="button" class="action-btn" (click)="triggerScrape()">
-                <mat-icon class="btn-icon">play_arrow</mat-icon>
+              <button mat-flat-button color="primary" type="button" class="kpi-btn-scrape" (click)="triggerScrape()">
+                <mat-icon class="btn-mat-icon">play_arrow</mat-icon>
                 <span>Scrape Now</span>
               </button>
             </div>
-          </mat-card-content>
+          </div>
         </mat-card>
       </div>
 
@@ -297,54 +348,6 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       display: flex;
       flex-direction: column;
       gap: 1.5rem;
-    }
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1rem;
-    }
-    .kpi-card {
-      background: var(--mat-sys-surface-container);
-      border-radius: 12px;
-    }
-    .kpi-value {
-      font-size: 2rem;
-      font-weight: 800;
-      color: var(--mat-sys-primary);
-      margin: 0.25rem 0;
-      &.best-pct {
-        color: #10b981;
-      }
-    }
-    .kpi-sub {
-      font-size: 0.8rem;
-      color: var(--mat-sys-on-surface-variant);
-      &.truncate {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-    }
-    .controls-card {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    .kpi-controls-value {
-      font-size: 1.05rem !important;
-      font-weight: 700;
-      color: var(--mat-sys-on-surface);
-      margin: 0.25rem 0;
-    }
-    .kpi-controls-actions {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      margin-top: 0.5rem;
-      .action-btn {
-        flex: 1;
-        white-space: nowrap;
-      }
     }
     .schema-badge {
       font-size: 0.75rem;

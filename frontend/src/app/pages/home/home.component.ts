@@ -45,44 +45,81 @@ interface ProviderRow {
     <div class="page-container">
       <!-- High Level KPI Cards -->
       <div class="kpi-grid">
-        <mat-card class="kpi-card" appearance="outlined">
-          <mat-card-header>
-            <mat-card-subtitle>Monitored Providers</mat-card-subtitle>
-            <mat-card-title class="kpi-value">{{ providersCount() }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="kpi-sub">{{ pagesCount() }} active scrape pages</div>
-          </mat-card-content>
+        <mat-card class="kpi-card kpi-indigo" appearance="outlined">
+          <div class="kpi-top-bar"></div>
+          <div class="kpi-card-inner">
+            <div class="kpi-header-row">
+              <span class="kpi-eyebrow">Monitored Providers</span>
+              <div class="kpi-icon-pill">
+                <mat-icon>storefront</mat-icon>
+              </div>
+            </div>
+            <div class="kpi-value-row">
+              <span class="kpi-metric-num">{{ providersCount() }}</span>
+              <span class="kpi-unit-badge">active engines</span>
+            </div>
+            <div class="kpi-sub-row">
+              <span class="kpi-highlight-pill">
+                <mat-icon class="pill-icon">layers</mat-icon>
+                <strong>{{ pagesCount() }}</strong> active scrape pages
+              </span>
+            </div>
+          </div>
         </mat-card>
 
-        <mat-card class="kpi-card" appearance="outlined">
-          <mat-card-header>
-            <mat-card-subtitle>Last Global Scrape</mat-card-subtitle>
-            <mat-card-title class="kpi-value time-val">{{ lastScrapedTime() }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="kpi-sub">Across all configured categories</div>
-          </mat-card-content>
+        <mat-card class="kpi-card kpi-cyan" appearance="outlined">
+          <div class="kpi-top-bar"></div>
+          <div class="kpi-card-inner">
+            <div class="kpi-header-row">
+              <span class="kpi-eyebrow">Last Global Scrape</span>
+              <div class="kpi-icon-pill">
+                <mat-icon>update</mat-icon>
+              </div>
+            </div>
+            <div class="kpi-value-row">
+              <span class="kpi-metric-num kpi-time-text">{{ lastScrapedTime() }}</span>
+            </div>
+            <div class="kpi-sub-row">
+              <span class="kpi-sub-muted">Across all configured categories</span>
+            </div>
+          </div>
         </mat-card>
 
-        <mat-card class="kpi-card" appearance="outlined">
-          <mat-card-header>
-            <mat-card-subtitle>Next Scheduled Scrape</mat-card-subtitle>
-            <mat-card-title class="kpi-value highlight">{{ nextCronTime() }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="kpi-sub">{{ cronWindow() }}</div>
-          </mat-card-content>
+        <mat-card class="kpi-card kpi-purple" appearance="outlined">
+          <div class="kpi-top-bar"></div>
+          <div class="kpi-card-inner">
+            <div class="kpi-header-row">
+              <span class="kpi-eyebrow">Next Scheduled Scrape</span>
+              <div class="kpi-icon-pill">
+                <mat-icon>alarm</mat-icon>
+              </div>
+            </div>
+            <div class="kpi-value-row">
+              <span class="kpi-metric-num kpi-cron-text">{{ nextCronTime() }}</span>
+            </div>
+            <div class="kpi-sub-row">
+              <span class="kpi-sub-muted">{{ cronWindow() }}</span>
+            </div>
+          </div>
         </mat-card>
 
-        <mat-card class="kpi-card" appearance="outlined">
-          <mat-card-header>
-            <mat-card-subtitle>Avg Scraping Success</mat-card-subtitle>
-            <mat-card-title class="kpi-value" [class.success]="avgSuccessRateNum >= 80">{{ avgSuccessRate }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="kpi-sub">Extraction reliability across runs</div>
-          </mat-card-content>
+        <mat-card class="kpi-card kpi-emerald" appearance="outlined">
+          <div class="kpi-top-bar"></div>
+          <div class="kpi-card-inner">
+            <div class="kpi-header-row">
+              <span class="kpi-eyebrow">Avg Scraping Success</span>
+              <div class="kpi-icon-pill">
+                <mat-icon>insights</mat-icon>
+              </div>
+            </div>
+            <div class="kpi-value-row">
+              <span class="kpi-metric-num" [class.kpi-deal-pct]="avgSuccessRateNum >= 80">{{ avgSuccessRate }}</span>
+              <span class="kpi-unit-badge kpi-unit-emerald">reliability</span>
+            </div>
+            <div class="kpi-sub-row">
+              <span class="kpi-sub-muted">Extraction health across runs</span>
+            </div>
+          </div>
         </mat-card>
       </div>
 
@@ -234,36 +271,6 @@ interface ProviderRow {
       display: flex;
       flex-direction: column;
       gap: 1.5rem;
-    }
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1rem;
-    }
-    .kpi-card {
-      background: var(--mat-sys-surface-container);
-      border-radius: 12px;
-    }
-    .kpi-value {
-      font-size: 2rem;
-      font-weight: 800;
-      color: var(--mat-sys-primary);
-      margin: 0.25rem 0;
-
-      &.highlight {
-        color: #818cf8;
-      }
-      &.success {
-        color: #10b981;
-      }
-      &.time-val {
-        font-size: 1.25rem;
-        line-height: 2rem;
-      }
-    }
-    .kpi-sub {
-      font-size: 0.8rem;
-      color: var(--mat-sys-on-surface-variant);
     }
     .main-card {
       background: var(--mat-sys-surface-container);
