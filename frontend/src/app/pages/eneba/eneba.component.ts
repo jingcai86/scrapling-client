@@ -370,13 +370,6 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
                 </td>
               </ng-container>
 
-              <ng-container matColumnDef="region">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Region</th>
-                <td mat-cell *matCellDef="let deal">
-                  <span class="badge-region">{{ deal.region }}</span>
-                </td>
-              </ng-container>
-
               <ng-container matColumnDef="sellingPrice">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Selling Price</th>
                 <td mat-cell *matCellDef="let deal" class="price-cell">
@@ -902,7 +895,6 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
     'rank',
     'title',
     'category',
-    'region',
     'sellingPrice',
     'discountPct',
     'scrapedAt',
@@ -1249,7 +1241,6 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
         case 'rank': return compare(this.filteredDeals.indexOf(a), this.filteredDeals.indexOf(b), isAsc);
         case 'title': return compare(a.title, b.title, isAsc);
         case 'category': return compare(a.category, b.category, isAsc);
-        case 'region': return compare(a.region, b.region, isAsc);
         case 'sellingPrice': return compare(a.sellingPrice, b.sellingPrice, isAsc);
         case 'discountPct': return compare(a.discountPct, b.discountPct, isAsc);
         case 'scrapedAt': return compare(a.scrapedAt || '', b.scrapedAt || '', isAsc);
