@@ -105,31 +105,31 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
           </mat-card-header>
           <mat-card-content class="card-table-content">
             <div class="table-wrapper">
-              <table mat-table [dataSource]="sortedCategories" matSort (matSortChange)="sortCategories($event)" class="data-table">
+              <table mat-table [dataSource]="sortedCategories" matSort (matSortChange)="sortCategories($event)" class="data-table category-table">
                 <ng-container matColumnDef="category">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Category</th>
-                  <td mat-cell *matCellDef="let s">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-cat">Category</th>
+                  <td mat-cell *matCellDef="let s" class="col-cat">
                     <span class="cat-title">{{ s.category }}</span>
                   </td>
                 </ng-container>
 
                 <ng-container matColumnDef="inStockCount">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header>In Stock</th>
-                  <td mat-cell *matCellDef="let s">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-instock">In Stock</th>
+                  <td mat-cell *matCellDef="let s" class="col-instock">
                     <span class="badge badge-muted">{{ s.inStockCount }} / {{ s.totalListings }}</span>
                   </td>
                 </ng-container>
 
                 <ng-container matColumnDef="averageDiscountPctAllInStock">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Avg Discount</th>
-                  <td mat-cell *matCellDef="let s">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-avg">Avg Discount</th>
+                  <td mat-cell *matCellDef="let s" class="col-avg">
                     <span class="badge badge-discount">-{{ s.averageDiscountPctAllInStock.toFixed(2) }}%</span>
                   </td>
                 </ng-container>
 
                 <ng-container matColumnDef="bestEffectiveDeal">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header>#1 Best Deal on Page</th>
-                  <td mat-cell *matCellDef="let s">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-deal">#1 Best Deal on Page</th>
+                  <td mat-cell *matCellDef="let s" class="col-best-deal">
                     <a *ngIf="s.bestDeal" [href]="s.bestDeal.url" target="_blank" rel="noopener" class="deal-cell-link" [title]="s.bestDeal.title">
                       <span class="badge badge-discount">-{{ s.bestDeal.discountPct.toFixed(2) }}%</span>
                       <strong class="deal-price-text" *ngIf="s.bestDeal.sellingPrice">(\${{ s.bestDeal.sellingPrice.toFixed(2) }})</strong>
@@ -157,8 +157,8 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
                 </ng-container>
 
                 <ng-container matColumnDef="scrapedAt">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Last Scraped</th>
-                  <td mat-cell *matCellDef="let s" class="scraped-date">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-scraped">Last Scraped</th>
+                  <td mat-cell *matCellDef="let s" class="col-scraped scraped-date">
                     {{ formatDate(s.scrapedAt) }}
                   </td>
                 </ng-container>
@@ -218,7 +218,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
         </mat-card-header>
         <mat-card-content class="card-table-content">
           <div class="table-wrapper">
-            <table mat-table [dataSource]="filteredDeals" matSort (matSortChange)="sortDeals($event)" class="data-table">
+            <table mat-table [dataSource]="filteredDeals" matSort (matSortChange)="sortDeals($event)" class="data-table deals-table">
               <ng-container matColumnDef="rank">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-rank">Rank</th>
                 <td mat-cell *matCellDef="let deal; let i = index" class="col-rank">
@@ -401,9 +401,32 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       width: 100%;
       background: transparent;
     }
+    .category-table {
+      min-width: 860px !important;
+    }
+    .deals-table {
+      min-width: 920px !important;
+    }
+    .col-cat {
+      min-width: 120px !important;
+      white-space: nowrap !important;
+    }
+    .col-instock {
+      min-width: 95px !important;
+      white-space: nowrap !important;
+    }
+    .col-avg {
+      min-width: 110px !important;
+      white-space: nowrap !important;
+    }
+    .col-best-deal {
+      min-width: 290px !important;
+      white-space: nowrap !important;
+    }
     .cat-title {
       font-weight: 700;
       color: var(--mat-sys-on-surface);
+      white-space: nowrap !important;
     }
     .deal-title-wrapper {
       display: inline-flex;
@@ -421,6 +444,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       gap: 0.35rem;
       text-decoration: none;
       color: var(--mat-sys-on-surface);
+      white-space: nowrap !important;
       max-width: 320px;
       line-height: 1.3;
 
@@ -435,11 +459,11 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       color: var(--mat-sys-primary);
       font-size: 0.82rem;
       font-weight: 700;
-      white-space: nowrap;
+      white-space: nowrap !important;
     }
     .deal-title-text {
       font-size: 0.82rem;
-      white-space: nowrap;
+      white-space: nowrap !important;
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 160px;
@@ -448,11 +472,16 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       color: var(--mat-sys-primary);
       font-size: 0.82rem;
       font-weight: 700;
+      white-space: nowrap !important;
     }
     .scraped-date {
       font-size: 0.78rem;
       color: var(--mat-sys-on-surface-variant);
-      white-space: nowrap;
+      white-space: nowrap !important;
+    }
+    .col-scraped {
+      min-width: 120px !important;
+      white-space: nowrap !important;
     }
     .col-rank {
       width: 55px !important;
@@ -714,7 +743,8 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
         topDealsLimit: this.topDealsLimit,
         alertThresholdPct: this.alertThresholdPct,
       },
-      width: '500px',
+      width: '520px',
+      maxWidth: '94vw',
     });
 
     dialogRef.afterClosed().subscribe((res) => {

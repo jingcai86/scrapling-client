@@ -536,3 +536,19 @@ tr.mat-mdc-row {
 .mat-mdc-form-field {
   font-family: $font-stack !important;
 }
+
+.mat-mdc-form-field-subscript-wrapper {
+  position: static !important;
+  height: auto !important;
+  margin-top: 4px !important;
+}
+
+.mat-mdc-form-field-hint-wrapper {
+  padding: 0 !important;
+}
+
+.mat-mdc-form-field-hint {
+  display: block !important;
+  line-height: 1.35 !important;
+  font-size: 0.78rem !important;
+}

@@ -39,35 +39,39 @@ export interface EnebaConfigDialogData {
       </button>
     </div>
 
-    <form (ngSubmit)="save()">
+    <form (ngSubmit)="save()" class="config-form">
       <div mat-dialog-content class="form-content">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Pull Limit (Top Deals per Category)</mat-label>
-          <input
-            matInput
-            type="number"
-            [(ngModel)]="topDealsLimit"
-            name="topDealsLimit"
-            min="1"
-            max="50"
-            required
-          />
-          <mat-hint>Number of top-ranked deals to persist in PostgreSQL per category (1–50)</mat-hint>
-        </mat-form-field>
+        <div class="field-container">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Pull Limit (Top Deals per Category)</mat-label>
+            <input
+              matInput
+              type="number"
+              [(ngModel)]="topDealsLimit"
+              name="topDealsLimit"
+              min="1"
+              max="50"
+              required
+            />
+            <mat-hint>Top-ranked deals to persist in PostgreSQL per category (1–50)</mat-hint>
+          </mat-form-field>
+        </div>
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Alert Threshold (%)</mat-label>
-          <input
-            matInput
-            type="number"
-            [(ngModel)]="alertThresholdPct"
-            name="alertThresholdPct"
-            min="0"
-            max="100"
-            required
-          />
-          <mat-hint>Minimum direct discount percentage required to trigger alert emails</mat-hint>
-        </mat-form-field>
+        <div class="field-container">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Alert Threshold (%)</mat-label>
+            <input
+              matInput
+              type="number"
+              [(ngModel)]="alertThresholdPct"
+              name="alertThresholdPct"
+              min="0"
+              max="100"
+              required
+            />
+            <mat-hint>Minimum direct discount percentage required to trigger alert emails</mat-hint>
+          </mat-form-field>
+        </div>
       </div>
 
       <div mat-dialog-actions align="end" class="actions-bar">
@@ -92,7 +96,7 @@ export interface EnebaConfigDialogData {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      font-size: 1.2rem;
+      font-size: 1.18rem;
       font-weight: 700;
       margin: 0;
       padding: 0;
@@ -109,16 +113,39 @@ export interface EnebaConfigDialogData {
       font-size: 0.85rem;
       color: var(--mat-sys-on-surface-variant);
       margin: 0.35rem 0 0;
+      line-height: 1.4;
+    }
+    .config-form {
+      display: flex;
+      flex-direction: column;
     }
     .form-content {
       display: flex;
       flex-direction: column;
-      gap: 1.25rem;
-      min-width: 440px;
-      padding: 1rem 1.5rem;
+      gap: 1.5rem;
+      padding: 1.25rem 1.5rem 0.5rem !important;
+      overflow: visible !important;
+    }
+    .field-container {
+      display: flex;
+      flex-direction: column;
     }
     .full-width {
       width: 100%;
+    }
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+      position: static !important;
+      height: auto !important;
+      margin-top: 5px !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint-wrapper {
+      padding: 0 !important;
+    }
+    ::ng-deep .mat-mdc-form-field-hint {
+      display: block !important;
+      font-size: 0.78rem !important;
+      line-height: 1.35 !important;
+      color: var(--mat-sys-on-surface-variant) !important;
     }
     .actions-bar {
       padding: 0.75rem 1.5rem 1.25rem;
