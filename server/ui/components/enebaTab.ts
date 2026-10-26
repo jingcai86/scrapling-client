@@ -100,34 +100,58 @@ export function renderEnebaTab(): string {
         </div>
       </dialog>
 
-      <!-- Eneba Table 1: Category Status & Competing Seller Offers (Sortable) -->
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2 class="card-title">Eneba Gift Card Categories — Status &amp; Seller Offers</h2>
-            <div style="font-size:0.8rem;color:var(--text-muted);">
-              Eneba-specific metrics including discount percentages and competing third-party merchant offers. Click any header to sort.
+      <!-- Eneba Mid Section: Categories Table (Left) + Best Discount in History Chart (Right) -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(460px, 1fr));gap:1.25rem;margin-block-end:1.25rem;align-items:stretch;">
+        <!-- Left: Category Status & Competing Seller Offers -->
+        <div class="card" style="margin-block-end:0;display:flex;flex-direction:column;">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Eneba Gift Card Categories — Status &amp; Seller Offers</h2>
+              <div style="font-size:0.8rem;color:var(--text-muted);">
+                Eneba-specific metrics including discount percentages and competing third-party merchant offers. Click any header to sort.
+              </div>
             </div>
+          </div>
+
+          <div tabindex="0" role="region" aria-labelledby="eneba-summary-caption" class="table-wrapper" style="flex:1;">
+            <table id="enebaSummaryTable" style="--label-2:'In Stock';--label-3:'Avg Discount';--label-4:'#1 Best Deal on Page';--label-5:'Competing Sellers';--label-6:'Last Scraped';">
+              <caption id="eneba-summary-caption">Eneba category status and competing seller offers</caption>
+              <thead>
+                <tr>
+                  <th class="sortable" data-table="enebaSummary" data-sort-key="category" aria-sort="none">Eneba Category <span class="sort-icon">↕</span></th>
+                  <th class="sortable" data-table="enebaSummary" data-sort-key="inStockCount" aria-sort="none">In Stock <span class="sort-icon">↕</span></th>
+                  <th class="sortable" data-table="enebaSummary" data-sort-key="avgDirect" aria-sort="descending">Avg Discount <span class="sort-icon">↓</span></th>
+                  <th class="sortable" data-table="enebaSummary" data-sort-key="bestEffective" aria-sort="none">#1 Best Deal on Page <span class="sort-icon">↕</span></th>
+                  <th class="sortable" data-table="enebaSummary" data-sort-key="offersCount" aria-sort="none">Competing Sellers <span class="sort-icon">↕</span></th>
+                  <th class="sortable" data-table="enebaSummary" data-sort-key="scrapedAt" aria-sort="none">Last Scraped <span class="sort-icon">↕</span></th>
+                </tr>
+              </thead>
+              <tbody id="enebaSummaryBody">
+                <tr><td colspan="6" style="color:var(--text-muted);text-align:center;">Loading Eneba categories...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div tabindex="0" role="region" aria-labelledby="eneba-summary-caption" class="table-wrapper">
-          <table id="enebaSummaryTable" style="--label-2:'In Stock';--label-3:'Avg Discount';--label-4:'#1 Best Deal on Page';--label-5:'Competing Sellers';--label-6:'Last Scraped';">
-            <caption id="eneba-summary-caption">Eneba category status and competing seller offers</caption>
-            <thead>
-              <tr>
-                <th class="sortable" data-table="enebaSummary" data-sort-key="category" aria-sort="none">Eneba Category <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="enebaSummary" data-sort-key="inStockCount" aria-sort="none">In Stock <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="enebaSummary" data-sort-key="avgDirect" aria-sort="descending">Avg Discount <span class="sort-icon">↓</span></th>
-                <th class="sortable" data-table="enebaSummary" data-sort-key="bestEffective" aria-sort="none">#1 Best Deal on Page <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="enebaSummary" data-sort-key="offersCount" aria-sort="none">Competing Sellers <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-table="enebaSummary" data-sort-key="scrapedAt" aria-sort="none">Last Scraped <span class="sort-icon">↕</span></th>
-              </tr>
-            </thead>
-            <tbody id="enebaSummaryBody">
-              <tr><td colspan="6" style="color:var(--text-muted);text-align:center;">Loading Eneba categories...</td></tr>
-            </tbody>
-          </table>
+        <!-- Right: Best Discount in History Chart -->
+        <div class="card" style="margin-block-end:0;display:flex;flex-direction:column;">
+          <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
+            <div>
+              <h2 class="card-title" style="display:flex;align-items:center;gap:0.5rem;">
+                <span>📈 Best Discount in History</span>
+              </h2>
+              <div style="font-size:0.8rem;color:var(--text-muted);">
+                Historical #1 highest discount across scrape runs. Hover point for seller, cost, and face value.
+              </div>
+            </div>
+            <div style="font-size:0.82rem;background:var(--bg-panel-alt);padding:0.3rem 0.65rem;border-radius:6px;border:1px solid var(--border);">
+              <span style="color:var(--text-muted);">All-Time Peak:</span>
+              <strong id="enebaBestDiscountPeak" style="color:#10b981;margin-inline-start:0.35rem;">—</strong>
+            </div>
+          </div>
+          <div style="position:relative;width:100%;height:320px;padding:0.5rem 0.75rem 0.75rem;flex:1;">
+            <div id="chartEnebaBestDiscount" style="width:100%;height:100%;"></div>
+          </div>
         </div>
       </div>
 
@@ -135,9 +159,9 @@ export function renderEnebaTab(): string {
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Eneba Top <span id="enebaTableLimitTitle">10</span> Ranked Gift Card Deals</h2>
+            <h2 class="card-title">Eneba Top <span id="enebaTableLimitTitle">10</span> Ranked Gift Card Deals (Latest Scrape)</h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
-              The top <span id="enebaTableLimitSub">10</span> highest discount deals across monitored categories. Click any column header to sort.
+              Active live deals from the most recent scrape run. Expired deals from older scrapes are excluded.
             </div>
           </div>
           <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">

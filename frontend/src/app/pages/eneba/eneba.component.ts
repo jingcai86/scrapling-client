@@ -1,5 +1,5 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, Inject, PLATFORM_ID } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
@@ -10,10 +10,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
+import * as echarts from 'echarts';
 import { ApiService } from '../../core/services/api.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { SellerOffersDialogComponent } from '../../dialogs/seller-offers-dialog.component';
 import { EnebaConfigDialogComponent } from '../../dialogs/eneba-config-dialog.component';
-import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/dashboard.model';
+import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from '../../core/models/dashboard.model';
 
 @Component({
   selector: 'app-eneba',
@@ -87,85 +89,110 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
         </mat-card>
       </div>
 
-      <!-- Category Summary Table -->
-      <mat-card class="main-card" appearance="outlined">
-        <mat-card-header class="table-header">
-          <div>
-            <mat-card-title>Eneba Gift Card Categories — Status & Seller Offers</mat-card-title>
-            <mat-card-subtitle>
-              Category-specific metrics including discount percentages and competing merchant offers. Click any column header to sort.
-            </mat-card-subtitle>
-          </div>
-        </mat-card-header>
-        <mat-card-content class="card-table-content">
-          <table mat-table [dataSource]="sortedCategories" matSort (matSortChange)="sortCategories($event)" class="data-table">
-            <ng-container matColumnDef="category">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Category</th>
-              <td mat-cell *matCellDef="let s">
-                <span class="cat-title">{{ s.category }}</span>
-              </td>
-            </ng-container>
+      <!-- Eneba Mid Section: Categories Table (Left) + Best Discount in History Chart (Right) -->
+      <div class="mid-section-grid">
+        <!-- Category Summary Table -->
+        <mat-card class="main-card half-card" appearance="outlined">
+          <mat-card-header class="table-header">
+            <div>
+              <mat-card-title>Eneba Gift Card Categories — Status &amp; Seller Offers</mat-card-title>
+              <mat-card-subtitle>
+                Category-specific metrics including discount percentages and competing merchant offers. Click any column header to sort.
+              </mat-card-subtitle>
+            </div>
+          </mat-card-header>
+          <mat-card-content class="card-table-content">
+            <table mat-table [dataSource]="sortedCategories" matSort (matSortChange)="sortCategories($event)" class="data-table">
+              <ng-container matColumnDef="category">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Category</th>
+                <td mat-cell *matCellDef="let s">
+                  <span class="cat-title">{{ s.category }}</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="inStockCount">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>In Stock</th>
-              <td mat-cell *matCellDef="let s">
-                {{ s.inStockCount }} / {{ s.totalListings }}
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="inStockCount">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>In Stock</th>
+                <td mat-cell *matCellDef="let s">
+                  {{ s.inStockCount }} / {{ s.totalListings }}
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="averageDiscountPctAllInStock">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Avg Discount</th>
-              <td mat-cell *matCellDef="let s">
-                -{{ s.averageDiscountPctAllInStock.toFixed(2) }}%
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="averageDiscountPctAllInStock">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Avg Discount</th>
+                <td mat-cell *matCellDef="let s">
+                  -{{ s.averageDiscountPctAllInStock.toFixed(2) }}%
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="bestEffectiveDeal">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>#1 Best Deal on Page</th>
-              <td mat-cell *matCellDef="let s">
-                <span *ngIf="s.bestDeal" class="deal-pill">
-                  -{{ s.bestDeal.discountPct.toFixed(2) }}% ({{ s.bestDeal.title }})
-                </span>
-                <span *ngIf="!s.bestDeal" class="muted">—</span>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="bestEffectiveDeal">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>#1 Best Deal on Page</th>
+                <td mat-cell *matCellDef="let s">
+                  <span *ngIf="s.bestDeal" class="deal-pill">
+                    -{{ s.bestDeal.discountPct.toFixed(2) }}% ({{ s.bestDeal.title }})
+                  </span>
+                  <span *ngIf="!s.bestDeal" class="muted">—</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="offersCount">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Competing Sellers</th>
-              <td mat-cell *matCellDef="let s">
-                <button
-                  *ngIf="s.bestDealOffers?.length"
-                  mat-stroked-button
-                  color="accent"
-                  class="btn-xs"
-                  (click)="openOffers(s)"
-                >
-                  🏪 View {{ s.bestDealOffers.length }} Offers
-                </button>
-                <span *ngIf="!s.bestDealOffers?.length" class="muted">No competing offers</span>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="offersCount">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Competing Sellers</th>
+                <td mat-cell *matCellDef="let s">
+                  <button
+                    *ngIf="s.bestDealOffers?.length"
+                    mat-stroked-button
+                    color="accent"
+                    class="btn-xs"
+                    (click)="openOffers(s)"
+                  >
+                    🏪 View {{ s.bestDealOffers.length }} Offers
+                  </button>
+                  <span *ngIf="!s.bestDealOffers?.length" class="muted">No competing offers</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="scrapedAt">
-              <th mat-header-cell *matHeaderCellDef mat-sort-header>Last Scraped</th>
-              <td mat-cell *matCellDef="let s">
-                {{ formatDate(s.scrapedAt) }}
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="scrapedAt">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Last Scraped</th>
+                <td mat-cell *matCellDef="let s">
+                  {{ formatDate(s.scrapedAt) }}
+                </td>
+              </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="categoryColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: categoryColumns;"></tr>
-          </table>
-        </mat-card-content>
-      </mat-card>
+              <tr mat-header-row *matHeaderRowDef="categoryColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: categoryColumns;"></tr>
+            </table>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Best Discount in History Chart -->
+        <mat-card class="main-card half-card" appearance="outlined">
+          <mat-card-header class="table-header">
+            <div>
+              <mat-card-title class="chart-header-title">
+                <span class="material-symbols-outlined chart-icon">trending_up</span>
+                Best Discount in History
+              </mat-card-title>
+              <mat-card-subtitle>
+                Historical #1 highest discount across scrape runs. Hover point for seller, cost, and face value.
+              </mat-card-subtitle>
+            </div>
+            <div class="peak-badge-box">
+              <span class="peak-label">All-Time Peak:</span>
+              <strong class="peak-val">{{ peakDiscountPct() }}</strong>
+            </div>
+          </mat-card-header>
+          <mat-card-content class="chart-card-content">
+            <div #bestDiscountChartContainer class="echarts-container" style="height: 320px; width: 100%;"></div>
+          </mat-card-content>
+        </mat-card>
+      </div>
 
       <!-- Top Deals Table -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="table-header">
           <div>
-            <mat-card-title>Eneba Top {{ topDealsLimit }} Ranked Gift Card Deals</mat-card-title>
+            <mat-card-title>Eneba Top {{ topDealsLimit }} Ranked Gift Card Deals (Latest Scrape)</mat-card-title>
             <mat-card-subtitle>
-              The top {{ topDealsLimit }} highest discount deals across monitored categories. Click any column header to sort.
+              Active live deals from the most recent scrape run. Expired deals from older scrapes are excluded.
             </mat-card-subtitle>
           </div>
           <div class="filter-controls">
@@ -392,9 +419,57 @@ import type { PageDealStatus, RankedDeal, SellerOffer } from '../../core/models/
     .muted {
       color: var(--mat-sys-outline);
     }
+    .mid-section-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 1.5rem;
+      align-items: stretch;
+    }
+    .half-card {
+      display: flex;
+      flex-direction: column;
+    }
+    .chart-header-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .chart-icon {
+      color: #10b981;
+      font-size: 1.35rem;
+    }
+    .peak-badge-box {
+      font-size: 0.85rem;
+      background: var(--mat-sys-surface-container-high);
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .peak-label {
+      color: var(--mat-sys-on-surface-variant);
+    }
+    .peak-val {
+      color: #10b981;
+      font-weight: 700;
+    }
+    .chart-card-content {
+      flex: 1;
+      min-height: 320px;
+      padding: 0.5rem 1rem 1rem !important;
+    }
+    .echarts-container {
+      width: 100%;
+      height: 100%;
+    }
   `],
 })
-export class EnebaComponent {
+export class EnebaComponent implements AfterViewInit, OnDestroy {
+  @ViewChild('bestDiscountChartContainer') bestDiscountChartContainerRef?: ElementRef<HTMLDivElement>;
+  private chartInstance?: echarts.ECharts;
+  private resizeObserver?: ResizeObserver;
+
   categoryColumns: string[] = [
     'category',
     'inStockCount',
@@ -429,7 +504,20 @@ export class EnebaComponent {
     private apiService: ApiService,
     private dialog: MatDialog,
     private snackBar: MatSnackBar,
+    private themeService: ThemeService,
+    @Inject(PLATFORM_ID) private platformId: object,
   ) {}
+
+  ngAfterViewInit() {
+    if (isPlatformBrowser(this.platformId)) {
+      setTimeout(() => this.renderBestDiscountChart(), 50);
+    }
+  }
+
+  ngOnDestroy() {
+    this.resizeObserver?.disconnect();
+    this.chartInstance?.dispose();
+  }
 
   ngDoCheck() {
     this.syncData();
@@ -467,6 +555,10 @@ export class EnebaComponent {
     collected.sort((a, b) => b.discountPct - a.discountPct);
     this.allDeals = collected;
     this.applyDealsFilter();
+
+    if (isPlatformBrowser(this.platformId)) {
+      this.renderBestDiscountChart();
+    }
   }
 
   categoriesCount(): number {
@@ -611,8 +703,272 @@ export class EnebaComponent {
       }
     });
   }
+
+  peakDiscountPct(): string {
+    const data = this.apiService.dashboardData();
+    const history = data?.history || [];
+    const statuses = data?.statuses || [];
+    let maxPct = 0;
+
+    for (const h of history) {
+      if (h.bestDeal && h.bestDeal.discountPct > maxPct) {
+        maxPct = h.bestDeal.discountPct;
+      }
+    }
+    for (const s of statuses) {
+      const d = s.bestDeal || s.bestEffectiveDeal;
+      if (d && d.discountPct > maxPct) {
+        maxPct = d.discountPct;
+      }
+    }
+
+    return maxPct > 0 ? `-${maxPct.toFixed(1)}%` : '—';
+  }
+
+  private renderBestDiscountChart(): void {
+    if (!this.bestDiscountChartContainerRef?.nativeElement) return;
+
+    const data = this.apiService.dashboardData();
+    const history = data?.history || [];
+    const statuses = data?.statuses || [];
+
+    let items = history.filter((h) => h.bestDeal || (h.totalListings && h.totalListings > 0));
+
+    if (items.length === 0 && statuses.length > 0) {
+      let bestItem: {
+        title: string;
+        category: string;
+        sellerName: string;
+        cost: number;
+        faceValue: number;
+        discountPct: number;
+        url?: string;
+      } | null = null;
+      let highest = -1;
+
+      for (const st of statuses) {
+        const top = st.bestDeal || st.bestEffectiveDeal || (st.rankedDeals && st.rankedDeals[0]);
+        if (top && (top.discountPct || 0) > highest) {
+          highest = top.discountPct;
+          bestItem = {
+            title: top.title,
+            category: st.category,
+            sellerName: (st.bestDealOffers && st.bestDealOffers[0]?.sellerName) ||
+              top.lowestSellerName || 'Top Merchant',
+            cost: top.sellingPrice ?? 0,
+            faceValue: top.faceValue ?? top.originalPrice ?? 0,
+            discountPct: top.discountPct,
+            url: top.url,
+          };
+        }
+      }
+
+      if (bestItem) {
+        items = [{
+          timestamp: statuses[0].scrapedAt,
+          totalPages: statuses.length,
+          successfulPages: statuses.filter((s) => s.totalListings > 0).length,
+          successRate: 100,
+          bestDeal: bestItem,
+        }];
+      }
+    }
+
+    if (items.length === 0) {
+      this.chartInstance?.dispose();
+      this.chartInstance = undefined;
+      return;
+    }
+
+    if (!this.chartInstance) {
+      this.chartInstance = echarts.init(this.bestDiscountChartContainerRef.nativeElement);
+      if (typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(() => {
+          this.chartInstance?.resize();
+        });
+        this.resizeObserver.observe(this.bestDiscountChartContainerRef.nativeElement);
+      }
+    }
+
+    const currentTheme = this.themeService.themeMode();
+    const isDark = currentTheme === 'dark' ||
+      (currentTheme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    const resolvedPoints = items.map((it) => {
+      let deal = it.bestDeal;
+      if (!deal && statuses.length > 0) {
+        const fallback = statuses[0].bestDeal || statuses[0].bestEffectiveDeal;
+        if (fallback) {
+          deal = {
+            title: fallback.title,
+            category: statuses[0].category,
+            sellerName: (statuses[0].bestDealOffers && statuses[0].bestDealOffers[0]?.sellerName) || 'Top Merchant',
+            cost: fallback.sellingPrice,
+            faceValue: fallback.faceValue ?? 0,
+            discountPct: fallback.discountPct,
+          };
+        }
+      }
+      const pct = deal ? Number((deal.discountPct || 0).toFixed(1)) : 0;
+      return { it, deal, pct };
+    });
+
+    const categories = resolvedPoints.map((p, idx) => {
+      const d = new Date(p.it.timestamp);
+      if (isNaN(d.getTime())) return `Run #${idx + 1}`;
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    });
+
+    const values = resolvedPoints.map((p) => p.pct);
+
+    const option: echarts.EChartsOption = {
+      backgroundColor: 'transparent',
+      animationDuration: 500,
+      grid: {
+        top: 24,
+        right: 20,
+        bottom: 28,
+        left: 45,
+        containLabel: false,
+      },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: isDark ? '#1e293b' : '#ffffff',
+        borderColor: isDark ? '#334155' : '#cbd5e1',
+        borderWidth: 1,
+        textStyle: {
+          color: isDark ? '#f8fafc' : '#0f172a',
+          fontSize: 12,
+        },
+        padding: [10, 14],
+        extraCssText: 'box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1); border-radius: 8px; z-index: 100;',
+        axisPointer: {
+          type: 'cross',
+          lineStyle: {
+            color: '#10b981',
+            type: 'dashed',
+          },
+          crossStyle: {
+            color: '#10b981',
+          },
+        },
+        formatter: (params: any) => {
+          if (!Array.isArray(params) || !params.length) return '';
+          const p = params[0];
+          const idx = p.dataIndex;
+          const point = resolvedPoints[idx];
+          if (!point) return '';
+          const it = point.it;
+          const d = point.deal;
+          const fullTime = isNaN(new Date(it.timestamp).getTime())
+            ? 'Recent Scrape'
+            : new Date(it.timestamp).toLocaleString();
+          if (!d) {
+            return `<div style="font-weight:600;">🕒 ${escapeHtml(fullTime)}</div><div>Discount: <strong>${p.value}%</strong></div>`;
+          }
+          const costStr = d.cost != null ? '$' + Number(d.cost).toFixed(2) : 'N/A';
+          const faceStr = d.faceValue != null ? '$' + Number(d.faceValue).toFixed(2) : 'N/A';
+          const discountStr = (d.discountPct || p.value || 0).toFixed(1) + '%';
+          const sellerStr = d.sellerName || 'Top Merchant';
+          return `
+            <div style="font-weight:700;margin-bottom:6px;color:${isDark ? '#f8fafc' : '#0f172a'};">
+              🕒 ${escapeHtml(fullTime)}
+            </div>
+            <div style="font-size:12.5px;font-weight:600;color:#10b981;margin-bottom:6px;line-height:1.3;">
+              🏷️ ${escapeHtml(d.title)} ${d.category ? `<span style="font-size:11px;opacity:0.85;">(${escapeHtml(d.category)})</span>` : ''}
+            </div>
+            <div style="display:grid;grid-template-columns:auto auto;gap:4px 14px;font-size:12px;margin-top:6px;border-top:1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'};padding-top:6px;">
+              <span style="color:${isDark ? '#94a3b8' : '#64748b'};">Seller / Merchant:</span>
+              <strong>${escapeHtml(sellerStr)}</strong>
+              <span style="color:${isDark ? '#94a3b8' : '#64748b'};">Exact Cost:</span>
+              <strong style="color:#10b981;">${escapeHtml(costStr)}</strong>
+              <span style="color:${isDark ? '#94a3b8' : '#64748b'};">Face Value:</span>
+              <strong>${escapeHtml(faceStr)}</strong>
+              <span style="color:${isDark ? '#94a3b8' : '#64748b'};">Calculated Discount:</span>
+              <strong style="color:#10b981;">${escapeHtml(discountStr)} off</strong>
+            </div>
+          `;
+        },
+      },
+      xAxis: {
+        type: 'category',
+        data: categories,
+        boundaryGap: false,
+        axisLine: {
+          lineStyle: { color: isDark ? '#334155' : '#e2e8f0' },
+        },
+        axisTick: { show: false },
+        axisLabel: {
+          color: isDark ? '#94a3b8' : '#64748b',
+          fontSize: 11,
+        },
+      },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        max: (val: { max: number }) => Math.max(Math.ceil((val.max + 5) / 5) * 5, 25),
+        axisLabel: {
+          formatter: '{value}%',
+          color: isDark ? '#94a3b8' : '#64748b',
+          fontSize: 11,
+        },
+        splitLine: {
+          lineStyle: {
+            color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.8)',
+            type: 'dashed',
+          },
+        },
+      },
+      series: [
+        {
+          name: 'Best Discount %',
+          type: 'line',
+          smooth: true,
+          showSymbol: items.length < 35,
+          symbol: 'circle',
+          symbolSize: 7,
+          itemStyle: {
+            color: '#10b981',
+            borderWidth: 2,
+            borderColor: isDark ? '#0f172a' : '#ffffff',
+          },
+          lineStyle: {
+            width: 3,
+            color: '#10b981',
+          },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(16, 185, 129, 0.42)' },
+                { offset: 1, color: 'rgba(16, 185, 129, 0.02)' },
+              ],
+            },
+          },
+          data: values,
+        },
+      ],
+    };
+
+    this.chartInstance.setOption(option, true);
+    this.chartInstance.resize();
+  }
 }
 
 function compare(a: number | string, b: number | string, isAsc: boolean) {
   return (a < b ? -1 : 1) * (isAsc ? 1 : -1);
+}
+
+function escapeHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

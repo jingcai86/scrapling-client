@@ -31,6 +31,15 @@ export interface ScrapeHistoryItem {
   successRate: number; // 0..100
   totalListings: number;
   inStockCount: number;
+  bestDeal?: {
+    title: string;
+    category: string;
+    sellerName: string;
+    cost: number;
+    faceValue: number;
+    discountPct: number;
+    url?: string;
+  };
 }
 
 export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [

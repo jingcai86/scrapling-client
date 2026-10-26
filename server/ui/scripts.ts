@@ -187,6 +187,11 @@ export function renderClientScripts(): string {
           if (window._scrapeResultsEchart) window._scrapeResultsEchart.resize();
         }, 50);
       }
+      if (tabName === 'eneba') {
+        setTimeout(() => {
+          if (window._enebaBestDiscountEchart) window._enebaBestDiscountEchart.resize();
+        }, 50);
+      }
       if (pushUrl) {
         const route = isScheduler ? '/scheduler' : (tabName === 'home' ? '/' : '/' + tabName);
         if (window.location.pathname !== route) {
@@ -321,8 +326,9 @@ export function renderClientScripts(): string {
       renderScrapeSuccessChart(dashboardData?.history || [], statuses);
       renderScrapeResultsChart(dashboardData?.history || [], statuses);
 
-      // Render ENEBA Dedicated Page KPIs & Tables
+      // Render ENEBA Dedicated Page KPIs, Tables & Charts
       renderEnebaPage(pages, statuses, enebaThreshold);
+      renderEnebaBestDiscountChart(dashboardData?.history || [], statuses);
 
       // Render Logs
       const logBox = document.getElementById('logBox');
@@ -830,6 +836,250 @@ export function renderClientScripts(): string {
         '</defs>' +
         barsHtml +
       '</svg>';
+    }
+
+    // ENEBA CHART: Best Discount in History Over Time
+    function renderEnebaBestDiscountChart(historyList, statuses) {
+      window._lastEnebaDiscountHistory = historyList;
+      window._lastEnebaDiscountStatuses = statuses;
+
+      const container = document.getElementById('chartEnebaBestDiscount');
+      const peakLabel = document.getElementById('enebaBestDiscountPeak');
+      if (!container) return;
+
+      let items = (historyList || []).filter((h) => h.bestDeal || (h.totalListings && h.totalListings > 0));
+
+      if (items.length === 0 && statuses && statuses.length > 0) {
+        let bestItem = null;
+        let highest = -1;
+        statuses.forEach((st) => {
+          const top = st.bestDeal || st.bestEffectiveDeal || (st.rankedDeals && st.rankedDeals[0]);
+          if (top && (top.discountPct || 0) > highest) {
+            highest = top.discountPct;
+            bestItem = {
+              title: top.title,
+              category: st.category,
+              sellerName: (st.bestDealOffers && st.bestDealOffers[0] && st.bestDealOffers[0].sellerName) ||
+                (top.offers && top.offers[0] && top.offers[0].sellerName) ||
+                top.lowestSellerName || 'Top Merchant',
+              cost: top.sellingPrice ?? 0,
+              faceValue: top.faceValue ?? top.originalPrice ?? 0,
+              discountPct: top.discountPct,
+              url: top.url,
+            };
+          }
+        });
+        if (bestItem) {
+          items = [{
+            timestamp: statuses[0].scrapedAt,
+            bestDeal: bestItem,
+          }];
+        }
+      }
+
+      if (items.length === 0) {
+        if (peakLabel) peakLabel.textContent = '—';
+        if (window._enebaBestDiscountEchart) {
+          try { window._enebaBestDiscountEchart.dispose(); } catch (e) {}
+          window._enebaBestDiscountEchart = null;
+        }
+        container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);gap:0.5rem;">' +
+          '<div style="font-size:2rem;">📈</div>' +
+          '<div>No scrape runs recorded yet. Click "Scrape Now" to track discounts over time.</div>' +
+        '</div>';
+        return;
+      }
+
+      const resolvedPoints = items.map((it) => {
+        let deal = it.bestDeal;
+        if (!deal && statuses && statuses.length > 0) {
+          deal = statuses[0].bestDeal || statuses[0].bestEffectiveDeal;
+        }
+        const pct = deal ? Number((deal.discountPct || 0).toFixed(1)) : 0;
+        return {
+          it,
+          deal,
+          pct,
+        };
+      });
+
+      const maxPct = Math.max(...resolvedPoints.map((p) => p.pct), 0);
+      if (peakLabel) {
+        peakLabel.textContent = maxPct > 0 ? '-' + maxPct.toFixed(1) + '%' : '—';
+      }
+
+      const categories = resolvedPoints.map((p, idx) => {
+        const d = new Date(p.it.timestamp);
+        if (isNaN(d.getTime())) return 'Run #' + (idx + 1);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      });
+
+      const values = resolvedPoints.map((p) => p.pct);
+
+      if (typeof window.echarts !== 'undefined') {
+        if (!window._enebaBestDiscountEchart) {
+          container.innerHTML = '';
+          window._enebaBestDiscountEchart = window.echarts.init(container);
+          if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(() => {
+              if (window._enebaBestDiscountEchart) window._enebaBestDiscountEchart.resize();
+            });
+            ro.observe(container);
+          }
+          window.addEventListener('resize', () => {
+            if (window._enebaBestDiscountEchart) window._enebaBestDiscountEchart.resize();
+          });
+        }
+
+        const isDark =
+          document.documentElement.getAttribute('data-theme') === 'dark' ||
+          (!document.body.classList.contains('light-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+        const option = {
+          backgroundColor: 'transparent',
+          animationDuration: 500,
+          grid: {
+            top: 24,
+            right: 20,
+            bottom: 28,
+            left: 45,
+            containLabel: false,
+          },
+          tooltip: {
+            trigger: 'axis',
+            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+            borderColor: isDark ? '#334155' : '#cbd5e1',
+            borderWidth: 1,
+            textStyle: {
+              color: isDark ? '#f8fafc' : '#0f172a',
+              fontSize: 12,
+            },
+            padding: [10, 14],
+            extraCssText: 'box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1); border-radius: 8px; z-index: 100;',
+            axisPointer: {
+              type: 'cross',
+              lineStyle: {
+                color: '#10b981',
+                type: 'dashed',
+              },
+              crossStyle: {
+                color: '#10b981',
+              },
+            },
+            formatter: (params) => {
+              if (!Array.isArray(params) || !params.length) return '';
+              const p = params[0];
+              const idx = p.dataIndex;
+              const point = resolvedPoints[idx];
+              if (!point) return '';
+              const it = point.it;
+              const d = point.deal;
+              const fullTime = isNaN(new Date(it.timestamp).getTime())
+                ? 'Recent Scrape'
+                : new Date(it.timestamp).toLocaleString();
+              if (!d) {
+                return '<div style="font-weight:600;">🕒 ' + escapeHtml(fullTime) + '</div>' +
+                  '<div>Discount: <strong>' + p.value + '%</strong></div>';
+              }
+              const costStr = d.cost != null ? '$' + Number(d.cost).toFixed(2) : (d.sellingPrice != null ? '$' + Number(d.sellingPrice).toFixed(2) : 'N/A');
+              const faceStr = d.faceValue != null ? '$' + Number(d.faceValue).toFixed(2) : (d.originalPrice != null ? '$' + Number(d.originalPrice).toFixed(2) : 'N/A');
+              const discountStr = (d.discountPct || p.value || 0).toFixed(1) + '%';
+              const sellerStr = d.sellerName || (d.offers && d.offers[0] && d.offers[0].sellerName) || 'Top Merchant';
+              return (
+                '<div style="font-weight:700;margin-bottom:6px;color:' + (isDark ? '#f8fafc' : '#0f172a') + ';">' +
+                  '🕒 ' + escapeHtml(fullTime) +
+                '</div>' +
+                '<div style="font-size:12.5px;font-weight:600;color:#10b981;margin-bottom:6px;line-height:1.3;">' +
+                  '🏷️ ' + escapeHtml(d.title) + (d.category ? ' <span style="font-size:11px;opacity:0.85;">(' + escapeHtml(d.category) + ')</span>' : '') +
+                '</div>' +
+                '<div style="display:grid;grid-template-columns:auto auto;gap:4px 14px;font-size:12px;margin-top:6px;border-top:1px solid ' + (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') + ';padding-top:6px;">' +
+                  '<span style="color:' + (isDark ? '#94a3b8' : '#64748b') + ';">Seller / Merchant:</span>' +
+                  '<strong>' + escapeHtml(sellerStr) + '</strong>' +
+                  '<span style="color:' + (isDark ? '#94a3b8' : '#64748b') + ';">Exact Cost:</span>' +
+                  '<strong style="color:#10b981;">' + escapeHtml(costStr) + '</strong>' +
+                  '<span style="color:' + (isDark ? '#94a3b8' : '#64748b') + ';">Face Value:</span>' +
+                  '<strong>' + escapeHtml(faceStr) + '</strong>' +
+                  '<span style="color:' + (isDark ? '#94a3b8' : '#64748b') + ';">Calculated Discount:</span>' +
+                  '<strong style="color:#10b981;">' + escapeHtml(discountStr) + ' off</strong>' +
+                '</div>'
+              );
+            },
+          },
+          xAxis: {
+            type: 'category',
+            data: categories,
+            boundaryGap: false,
+            axisLine: {
+              lineStyle: { color: isDark ? '#334155' : '#e2e8f0' },
+            },
+            axisTick: { show: false },
+            axisLabel: {
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontSize: 11,
+            },
+          },
+          yAxis: {
+            type: 'value',
+            min: 0,
+            max: (val) => Math.max(Math.ceil((val.max + 5) / 5) * 5, 25),
+            axisLabel: {
+              formatter: '{value}%',
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontSize: 11,
+            },
+            splitLine: {
+              lineStyle: {
+                color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.8)',
+                type: 'dashed',
+              },
+            },
+          },
+          series: [
+            {
+              name: 'Best Discount %',
+              type: 'line',
+              smooth: true,
+              symbol: 'circle',
+              symbolSize: 8,
+              itemStyle: {
+                color: '#10b981',
+                borderColor: isDark ? '#0f172a' : '#ffffff',
+                borderWidth: 2,
+              },
+              emphasis: {
+                itemStyle: {
+                  color: '#34d399',
+                  borderColor: isDark ? '#0f172a' : '#ffffff',
+                  borderWidth: 3,
+                  shadowBlur: 10,
+                  shadowColor: 'rgba(16, 185, 129, 0.6)',
+                },
+              },
+              lineStyle: {
+                color: '#10b981',
+                width: 3,
+              },
+              areaStyle: {
+                color: {
+                  type: 'linear',
+                  x: 0,
+                  y: 0,
+                  x2: 0,
+                  y2: 1,
+                  colorStops: [
+                    { offset: 0, color: 'rgba(16, 185, 129, 0.4)' },
+                    { offset: 1, color: 'rgba(16, 185, 129, 0.02)' },
+                  ],
+                },
+              },
+              data: values,
+            },
+          ],
+        };
+
+        window._enebaBestDiscountEchart.setOption(option, true);
+        window._enebaBestDiscountEchart.resize();
+      }
     }
 
     // HOME TABLE 1: Monitored Store Providers Overview (No Deals)
@@ -1580,6 +1830,9 @@ export function renderClientScripts(): string {
       }
       if (window._lastResultsHistory) {
         renderScrapeResultsChart(window._lastResultsHistory, window._lastResultsStatuses);
+      }
+      if (window._lastEnebaDiscountHistory) {
+        renderEnebaBestDiscountChart(window._lastEnebaDiscountHistory, window._lastEnebaDiscountStatuses);
       }
     }
 

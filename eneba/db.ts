@@ -952,6 +952,15 @@ export async function fetchScrapeHistoryFromDb(
   successRate: number;
   totalListings: number;
   inStockCount: number;
+  bestDeal?: {
+    title: string;
+    category: string;
+    sellerName: string;
+    cost: number;
+    faceValue: number;
+    discountPct: number;
+    url?: string;
+  };
 }>> {
   if (!process.env.DATABASE_URL?.trim()) {
     return [];
@@ -981,6 +990,64 @@ export async function fetchScrapeHistoryFromDb(
       LIMIT $1
     `, [limit]);
 
+    const batchIds = res.rows.map((r) => r.batch_id).filter(Boolean);
+    const dealsByBatch = new Map<string, {
+      title: string;
+      category: string;
+      sellerName: string;
+      cost: number;
+      faceValue: number;
+      discountPct: number;
+      url?: string;
+    }>();
+
+    if (batchIds.length > 0) {
+      try {
+        const topDealsRes = await p.query<{
+          batch_id: string;
+          title: string;
+          category: string;
+          selling_price: string | null;
+          face_value: string | null;
+          original_price: string | null;
+          discount_pct: string;
+          url: string;
+          seller_name: string | null;
+        }>(`
+          SELECT DISTINCT ON (r.batch_id)
+            r.batch_id,
+            d.title,
+            d.category,
+            d.selling_price,
+            d.face_value,
+            d.original_price,
+            d.discount_pct,
+            d.url,
+            COALESCE(s.seller_name, 'Top Merchant') as seller_name
+          FROM scrapling.eneba_top_deals d
+          JOIN scrapling.eneba_scrape_runs r ON d.scrape_run_id = r.id
+          LEFT JOIN scrapling.eneba_product_offers o ON o.product_id = d.product_id AND o.is_lowest_price = TRUE
+          LEFT JOIN scrapling.eneba_sellers s ON o.seller_id = s.id
+          WHERE r.batch_id = ANY($1::uuid[])
+          ORDER BY r.batch_id, d.discount_pct DESC
+        `, [batchIds]);
+
+        for (const dr of topDealsRes.rows) {
+          dealsByBatch.set(dr.batch_id, {
+            title: dr.title,
+            category: dr.category,
+            sellerName: dr.seller_name || 'Top Merchant',
+            cost: Number(dr.selling_price) || 0,
+            faceValue: Number(dr.face_value) || Number(dr.original_price) || 0,
+            discountPct: Number(dr.discount_pct) || 0,
+            url: dr.url,
+          });
+        }
+      } catch {
+        // Fallback gracefully without deals join
+      }
+    }
+
     return res.rows.map((r) => {
       const totalPages = Number(r.total_pages) || 1;
       const successfulPages = Number(r.successful_pages) || 0;
@@ -993,6 +1060,7 @@ export async function fetchScrapeHistoryFromDb(
         successRate,
         totalListings: Number(r.total_listings) || 0,
         inStockCount: Number(r.in_stock_count) || 0,
+        bestDeal: dealsByBatch.get(r.batch_id),
       };
     });
   } catch {

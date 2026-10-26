@@ -302,6 +302,26 @@ export class ScrapeRunner {
       const totalPages = targetPages.length;
       const successfulPages = scrapedResults.filter((s) => s.totalListings > 0).length;
       const successRate = totalPages > 0 ? Number(((successfulPages / totalPages) * 100).toFixed(1)) : 100;
+
+      let bestItem: ScrapeHistoryItem["bestDeal"] = undefined;
+      let highestDiscount = -1;
+      for (const st of scrapedResults) {
+        const top = st.bestDeal || st.bestEffectiveDeal || st.rankedDeals?.[0];
+        if (top && (top.discountPct ?? 0) > highestDiscount) {
+          highestDiscount = top.discountPct;
+          const seller = st.bestDealOffers?.[0]?.sellerName || top.offers?.[0]?.sellerName || (top as any).lowestSellerName || "Top Merchant";
+          bestItem = {
+            title: top.title,
+            category: st.category,
+            sellerName: seller,
+            cost: top.sellingPrice ?? 0,
+            faceValue: top.faceValue ?? top.originalPrice ?? 0,
+            discountPct: top.discountPct,
+            url: top.url,
+          };
+        }
+      }
+
       const historyItem: ScrapeHistoryItem = {
         id: dbStatus?.batchId || crypto.randomUUID(),
         timestamp: this.lastCompletedAt,
@@ -310,6 +330,7 @@ export class ScrapeRunner {
         successRate,
         totalListings: scrapedResults.reduce((acc, s) => acc + (s.totalListings || 0), 0),
         inStockCount: scrapedResults.reduce((acc, s) => acc + (s.inStockCount || 0), 0),
+        bestDeal: bestItem,
       };
       this.scrapeHistory.push(historyItem);
       this.pageStore.addHistoryItem(historyItem);
@@ -338,6 +359,26 @@ export class ScrapeRunner {
       const latestTime = this.getLatestScrapeTime() || new Date();
       const successfulPages = statuses.filter((s) => s.totalListings > 0).length;
       const totalPages = statuses.length;
+
+      let bestItem: ScrapeHistoryItem["bestDeal"] = undefined;
+      let highestDiscount = -1;
+      for (const st of statuses) {
+        const top = st.bestDeal || st.bestEffectiveDeal || st.rankedDeals?.[0];
+        if (top && (top.discountPct ?? 0) > highestDiscount) {
+          highestDiscount = top.discountPct;
+          const seller = st.bestDealOffers?.[0]?.sellerName || top.offers?.[0]?.sellerName || (top as any).lowestSellerName || "Top Merchant";
+          bestItem = {
+            title: top.title,
+            category: st.category,
+            sellerName: seller,
+            cost: top.sellingPrice ?? 0,
+            faceValue: top.faceValue ?? top.originalPrice ?? 0,
+            discountPct: top.discountPct,
+            url: top.url,
+          };
+        }
+      }
+
       return [
         {
           id: "initial-snapshot",
@@ -347,6 +388,7 @@ export class ScrapeRunner {
           successRate: totalPages > 0 ? Number(((successfulPages / totalPages) * 100).toFixed(1)) : 100,
           totalListings: statuses.reduce((acc, s) => acc + (s.totalListings || 0), 0),
           inStockCount: statuses.reduce((acc, s) => acc + (s.inStockCount || 0), 0),
+          bestDeal: bestItem,
         },
       ];
     }
