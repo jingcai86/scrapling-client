@@ -37,12 +37,9 @@ export function renderDashboardHtml(): string {
     <!-- PAGE 3: SCRAPING & TARGETS (ALL SCRAPING ACTIONS, SCHEDULE & PAGES) -->
     <!-- =================================================================== -->
     ${renderScrapingTab()}
-
-    <!-- =================================================================== -->
-    <!-- PAGE 4: CONFIGURATION (ALL .ENV, DB, CRON & EMAIL IN ONE PLACE)     -->
-    <!-- =================================================================== -->
-    ${renderConfigTab()}
   </main>
+
+  ${renderConfigTab()}
 
   ${renderModals()}
 

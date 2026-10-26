@@ -6,8 +6,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { ThemeService } from '../../core/services/theme.service';
 import { ApiService } from '../../core/services/api.service';
+import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
 
 @Component({
   selector: 'app-header',
@@ -20,6 +22,7 @@ import { ApiService } from '../../core/services/api.service';
     MatIconModule,
     MatMenuModule,
     MatTooltipModule,
+    MatDialogModule,
   ],
   template: `
     <header class="app-header">
@@ -43,9 +46,9 @@ import { ApiService } from '../../core/services/api.service';
             <span class="material-symbols-outlined nav-icon">bolt</span> Scraping & Targets
             <span class="badge" *ngIf="pagesCount()">{{ pagesCount() }}</span>
           </a>
-          <a mat-button routerLink="/config" routerLinkActive="active">
+          <button mat-button type="button" class="nav-btn config-btn" (click)="openConfigModal()">
             <span class="material-symbols-outlined nav-icon">settings</span> Configuration
-          </a>
+          </button>
         </nav>
 
         <div class="header-actions">
@@ -142,7 +145,7 @@ import { ApiService } from '../../core/services/api.service';
       gap: 0.35rem;
       flex-wrap: wrap;
 
-      a {
+      a, button {
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
@@ -225,7 +228,17 @@ export class HeaderComponent {
   constructor(
     public themeService: ThemeService,
     private apiService: ApiService,
+    private dialog: MatDialog,
   ) {}
+
+  openConfigModal(): void {
+    this.dialog.open(ConfigDialogComponent, {
+      width: '1050px',
+      maxWidth: '96vw',
+      maxHeight: '92vh',
+      autoFocus: false,
+    });
+  }
 
   pagesCount(): number {
     return this.apiService.dashboardData()?.pages?.length ?? 0;

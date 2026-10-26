@@ -618,6 +618,10 @@ export function renderStyles(): string {
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
     }
 
+    dialog.config-modal-dialog {
+      max-width: min(1050px, 96vw);
+    }
+
     dialog::backdrop {
       background-color: rgba(0, 0, 0, 0.65);
       backdrop-filter: blur(3px);

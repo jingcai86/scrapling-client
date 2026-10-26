@@ -160,7 +160,20 @@ export function renderClientScripts(): string {
     }
 
     // Navigation & URL Route Sync (/ , /eneba , /scraping , /config)
+    let previousActiveTab = 'home';
     window.switchTab = (tabName, pushUrl = true) => {
+      if (tabName === 'config') {
+        const modal = document.getElementById('configModal');
+        if (modal) {
+          if (!modal.open) modal.showModal();
+          if (pushUrl && window.location.pathname !== '/config') {
+            window.history.pushState({ tab: 'config' }, '', '/config');
+          }
+          return;
+        }
+      }
+
+      previousActiveTab = tabName;
       document.querySelectorAll('.tab-btn').forEach((b) => {
         b.classList.toggle('active', b.dataset.tab === tabName);
       });
@@ -175,6 +188,18 @@ export function renderClientScripts(): string {
         }
       }
     };
+
+    const configModalEl = document.getElementById('configModal');
+    if (configModalEl) {
+      configModalEl.addEventListener('close', () => {
+        if (window.location.pathname === '/config') {
+          const prevBtn = document.querySelector('.tab-btn[data-tab="' + previousActiveTab + '"]');
+          const route = prevBtn?.dataset?.route || '/';
+          window.history.pushState({ tab: previousActiveTab }, '', route);
+          switchTab(previousActiveTab, false);
+        }
+      });
+    }
 
     document.querySelectorAll('.tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => switchTab(btn.dataset.tab, true));
