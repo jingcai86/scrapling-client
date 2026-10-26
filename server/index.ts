@@ -454,7 +454,7 @@ if (isMain) {
     const emailStatus = getEmailConfigStatus();
     console.log("=".repeat(76));
     console.log(
-      `🚀 Scrapling Deal Monitor Server running at http://localhost:${instance.port}`,
+      `🚀 Scrapling Monitor Server running at http://localhost:${instance.port}`,
     );
     console.log(
       `🗄️  PostgreSQL Schema Ready: "scrapling" (scrapling.config + scrapling.eneba_*)`,

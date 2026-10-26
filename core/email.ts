@@ -214,7 +214,7 @@ export function renderDealAlertEmailTemplate(
   <div style="max-width:760px;margin:0 auto;background:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 4px 12px rgba(15,23,42,0.05);">
     <div style="background:linear-gradient(135deg,#312e81,#4f46e5);padding:24px 28px;color:#ffffff;">
       <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.85;font-weight:600;">
-        Scrapling Deal Monitor Alert
+        Scrapling Monitor Alert
       </div>
       <h1 style="margin:6px 0 4px;font-size:22px;font-weight:700;">
         ${deals.length} Deal${deals.length === 1 ? "" : "s"} Exceeded ${thresholdPct}% Discount Threshold

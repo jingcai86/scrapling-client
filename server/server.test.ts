@@ -298,7 +298,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       const prevRes = await fetch(`${baseUrl}/api/email/preview`);
       assert.equal(prevRes.status, 200);
       const prev = (await prevRes.json()) as { html: string; subject: string };
-      assert.match(prev.html, /Scrapling Deal Monitor Alert/);
+      assert.match(prev.html, /Scrapling Monitor Alert/);
 
       // 6. Seed cached statuses (including a yesterday snapshot and today snapshot) and test /api/deals/search for Hermes
       const yesterdayDate = new Date();
