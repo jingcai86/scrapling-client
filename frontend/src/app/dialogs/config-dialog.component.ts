@@ -125,7 +125,7 @@ interface ConfigRow {
             <!-- Group 3: Cron Scheduler -->
             <div class="section-box">
               <h3>3. Daily Randomized Cron Schedule</h3>
-              <p class="section-hint">Automated background scraping window, daily start time, and random jitter interval.</p>
+              <p class="section-hint">Daily cron schedule, base start time, and random jitter delay window.</p>
               <div class="fields-grid">
                 <!-- CRON_ENABLED as true/false dropdown -->
                 <div class="field-item">
@@ -174,7 +174,7 @@ interface ConfigRow {
             <!-- Group 4: Email Notifications -->
             <div class="section-box">
               <h3>4. Resend Email Notifications</h3>
-              <p class="section-hint">Email notification API key and sender.</p>
+              <p class="section-hint">Email notification API key, sender address, and recipient settings.</p>
               <div class="fields-grid">
                 <!-- EMAIL_ENABLED as true/false dropdown -->
                 <div class="field-item">
