@@ -86,13 +86,11 @@ export function renderClientScripts(): string {
       enebaSummary: { key: 'avgDirect', dir: 'desc' },
       enebaDeals: { key: 'discountPct', dir: 'desc' },
       pages: { key: 'categoryName', dir: 'asc' },
-      config: { key: 'group', dir: 'asc' },
       offers: { key: 'price', dir: 'asc' },
     };
 
     let dashboardData = null;
     let showSecrets = false;
-    let isConfigEditing = false;
     let activeOffersModalIdx = null;
 
     function compareValues(a, b, dir) {
@@ -337,11 +335,8 @@ export function renderClientScripts(): string {
       // Render Scraping Pages Table
       renderPagesTable(pages);
 
-      // Render Configuration Table & Edit Form
-      renderConfigTable(env);
-      if (!isConfigEditing) {
-        renderEnvEditorFields(env);
-      }
+      // Render Configuration Form (Edit mode is only mode)
+      renderEnvEditorFields(env);
     }
 
     // HOME LINE CHART: Scraping Success Rate Over Time (Apache ECharts with SVG fallback)
@@ -1079,57 +1074,6 @@ export function renderClientScripts(): string {
       }).join('');
     }
 
-    function renderConfigTable(env) {
-      safeSetText('envFilePathLabel', env.envFilePath || '.env');
-      const testEmailInput = document.getElementById('testEmailRecipientInput');
-      if (testEmailInput && !window._testEmailUserModified) {
-        testEmailInput.value = env.values['ALERT_EMAIL_TO'] || '';
-      }
-      if (testEmailInput && !testEmailInput._hasInputListener) {
-        testEmailInput._hasInputListener = true;
-        testEmailInput.addEventListener('input', () => {
-          window._testEmailUserModified = true;
-        });
-      }
-
-      const tbody = document.getElementById('configTableBody');
-      if (!tbody) return;
-      const schemaByKey = new Map((env.schema || []).map((f) => [f.key, f]));
-      const allKeys = Array.from(schemaByKey.keys());
-
-      const rows = allKeys.map((key) => {
-        const meta = schemaByKey.get(key);
-        const val = env.values[key] ?? '';
-        const isEnvOnly = Boolean(meta?.envOnly) || key === 'PORT' || key === 'DATABASE_URL';
-        const isSecret = meta?.isSecret || /PASSWORD|SECRET|KEY|DATABASE_URL/i.test(key);
-        const displayVal = !val
-          ? '<span style="color:var(--text-muted);font-style:italic;">(empty)</span>'
-          : (isSecret && !showSecrets ? '••••••••••••••••' : '<code>' + escapeHtml(val) + '</code>');
-        return {
-          key,
-          group: meta ? meta.group : 'config',
-          isEnvOnly,
-          value: val,
-          displayVal,
-          description: meta ? meta.description : '',
-        };
-      });
-
-      const sort = tableSortState.config;
-      rows.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
-
-      tbody.innerHTML = rows.map((r) => {
-        const lockIcon = r.isEnvOnly ? ' <span title="Change in .env (Restart Required)">🔒</span>' : '';
-
-        return '<tr>' +
-          '<th><code>' + escapeHtml(r.key) + '</code>' + lockIcon + '</th>' +
-          '<td><span class="badge badge-provider">' + escapeHtml(r.group) + '</span></td>' +
-          '<td>' + r.displayVal + '</td>' +
-          '<td style="color:var(--text-muted);font-size:0.82rem;">' + escapeHtml(r.description) + '</td>' +
-        '</tr>';
-      }).join('');
-    }
-
     function syncDependentConfigFields() {
       const cronSelect = document.getElementById('env_CRON_ENABLED');
       const isCronDisabled = cronSelect ? cronSelect.value === 'false' : false;
@@ -1157,7 +1101,23 @@ export function renderClientScripts(): string {
     }
 
     function renderEnvEditorFields(env) {
+      safeSetText('envFilePathLabel', env.envFilePath || '.env');
+      const testEmailInput = document.getElementById('testEmailRecipientInput');
+      if (testEmailInput && !window._testEmailUserModified) {
+        testEmailInput.value = env.values['ALERT_EMAIL_TO'] || '';
+      }
+      if (testEmailInput && !testEmailInput._hasInputListener) {
+        testEmailInput._hasInputListener = true;
+        testEmailInput.addEventListener('input', () => {
+          window._testEmailUserModified = true;
+        });
+      }
+
       const container = document.getElementById('envFieldsContainer');
+      if (!container) return;
+      if (document.activeElement && container.contains(document.activeElement)) {
+        return;
+      }
       const schemaByKey = new Map((env.schema || []).map((f) => [f.key, f]));
       const allKeys = Array.from(schemaByKey.keys());
 
@@ -1447,45 +1407,52 @@ export function renderClientScripts(): string {
       await fetchDashboard();
     });
 
-    // Configuration View Mode vs Edit Mode toggle
-    function setConfigEditMode(editing) {
-      isConfigEditing = editing;
-      document.getElementById('configViewMode').style.display = editing ? 'none' : 'block';
-      document.getElementById('configEditMode').style.display = editing ? 'block' : 'none';
-      document.getElementById('btnEnterConfigEdit').style.display = editing ? 'none' : 'inline-flex';
-      if (editing && dashboardData) {
-        renderEnvEditorFields(dashboardData.env);
-      }
+    const btnToggleSecrets = document.getElementById('btnToggleSecrets');
+    if (btnToggleSecrets) {
+      btnToggleSecrets.addEventListener('click', () => {
+        showSecrets = !showSecrets;
+        btnToggleSecrets.textContent = showSecrets ? '🙈 Hide Secrets' : '👁 Show Secrets';
+        if (dashboardData) {
+          renderEnvEditorFields(dashboardData.env);
+        }
+      });
     }
 
-    document.getElementById('btnEnterConfigEdit').addEventListener('click', () => setConfigEditMode(true));
-    document.getElementById('btnCancelConfigEdit').addEventListener('click', () => setConfigEditMode(false));
-
-    document.getElementById('btnToggleSecrets').addEventListener('click', () => {
-      showSecrets = !showSecrets;
-      document.getElementById('btnToggleSecrets').textContent = showSecrets ? '🙈 Hide Secrets' : '👁 Show Secrets';
-      if (dashboardData) {
-        renderConfigTable(dashboardData.env);
-        if (isConfigEditing) renderEnvEditorFields(dashboardData.env);
-      }
-    });
-
-    document.getElementById('btnSaveAllEnv').addEventListener('click', async () => {
-      const updates = {};
-      document.querySelectorAll('[data-env-key]').forEach((input) => {
-        updates[input.dataset.envKey] = input.value;
+    const btnSaveAllEnv = document.getElementById('btnSaveAllEnv');
+    const btnSaveAllEnvFooter = document.getElementById('btnSaveAllEnvFooter');
+    if (btnSaveAllEnvFooter && btnSaveAllEnv) {
+      btnSaveAllEnvFooter.addEventListener('click', () => btnSaveAllEnv.click());
+    }
+    if (btnSaveAllEnv) {
+      btnSaveAllEnv.addEventListener('click', async () => {
+        const updates = {};
+        document.querySelectorAll('[data-env-key]').forEach((input) => {
+          updates[input.dataset.envKey] = input.value;
+        });
+        const origText = btnSaveAllEnv.textContent;
+        btnSaveAllEnv.disabled = true;
+        btnSaveAllEnv.textContent = '⏳ Saving...';
+        try {
+          const res = await fetch('/api/env', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ updates }),
+          });
+          if (res.ok) {
+            showToast('Configuration saved successfully!');
+            await fetchDashboard();
+          } else {
+            const err = await res.json();
+            showToast('Failed to save configuration: ' + (err.error || res.statusText));
+          }
+        } catch (e) {
+          showToast('Failed to save configuration: ' + e.message);
+        } finally {
+          btnSaveAllEnv.disabled = false;
+          btnSaveAllEnv.textContent = origText;
+        }
       });
-      const res = await fetch('/api/env', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates }),
-      });
-      if (res.ok) {
-        setConfigEditMode(false);
-        showToast('Saved configuration to .env');
-        await fetchDashboard();
-      }
-    });
+    }
 
 
 

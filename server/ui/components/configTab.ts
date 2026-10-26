@@ -22,7 +22,7 @@ export function renderConfigTab(): string {
 
       <div class="config-modal-scroll" style="max-height:72vh;overflow-y:auto;padding-right:0.25rem;">
         <div class="card">
-          <div class="card-header">
+          <div class="card-header" style="flex-wrap:wrap;gap:0.75rem;">
             <div>
               <h4 style="margin:0;font-size:0.95rem;">Configuration Variables</h4>
             </div>
@@ -30,41 +30,15 @@ export function renderConfigTab(): string {
               <button type="button" class="btn btn-sm" id="btnToggleSecrets">👁 Show Secrets</button>
               <button type="button" class="btn btn-sm" id="btnPreviewEmailConfig">✉ Preview Alert Email</button>
               <div style="display:inline-flex;align-items:center;gap:0.35rem;">
+                <button type="button" class="btn btn-sm btn-success" id="btnSendTestEmail">🚀 Send Test Email to</button>
                 <input type="email" id="testEmailRecipientInput" class="form-control" style="font-size:0.8rem;padding:0.25rem 0.55rem;width:210px;height:31px;border-radius:6px;border:1px solid var(--border);background:var(--bg-panel);color:var(--text);" placeholder="Recipient email" title="Test email recipient (defaults to ALERT_EMAIL_TO)">
-                <button type="button" class="btn btn-sm btn-success" id="btnSendTestEmail">🚀 Send Test Email</button>
               </div>
-              <button type="button" class="btn btn-sm btn-primary" id="btnEnterConfigEdit">✎ Edit Configuration</button>
+              <button type="button" class="btn btn-sm btn-primary" id="btnSaveAllEnv">💾 Save Changes</button>
             </div>
           </div>
 
-          <!-- VIEW MODE: Sortable Read-Only Configuration Table -->
-          <div id="configViewMode">
-            <div tabindex="0" role="region" aria-labelledby="config-table-caption" class="table-wrapper">
-              <table id="configTable" style="--label-2:'Section';--label-3:'Current Value';--label-4:'Description';">
-                <caption id="config-table-caption">Current system and application configuration variables</caption>
-                <thead>
-                  <tr>
-                    <th class="sortable" data-table="config" data-sort-key="key" aria-sort="none">Variable Key <span class="sort-icon">↕</span></th>
-                    <th class="sortable" data-table="config" data-sort-key="group" aria-sort="ascending">Section <span class="sort-icon">↑</span></th>
-                    <th class="sortable" data-table="config" data-sort-key="value" aria-sort="none">Current Value <span class="sort-icon">↕</span></th>
-                    <th class="sortable" data-table="config" data-sort-key="description" aria-sort="none">Description <span class="sort-icon">↕</span></th>
-                  </tr>
-                </thead>
-                <tbody id="configTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- EDIT MODE: Sectioned Form Editor -->
-          <div id="configEditMode" style="display:none;">
-            <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.4);padding:0.75rem 1rem;border-radius:10px;margin-block-end:1rem;">
-              <span style="font-size:0.85rem;font-weight:600;color:#a5b4fc;">Editing Configuration — Runtime settings apply immediately.</span>
-              <div style="display:flex;gap:0.5rem;">
-                <button type="button" class="btn btn-sm" id="btnCancelConfigEdit">Cancel</button>
-                <button type="button" class="btn btn-sm btn-primary" id="btnSaveAllEnv">💾 Save Changes</button>
-              </div>
-            </div>
-
+          <!-- Sectioned Form Editor (Edit mode is the only mode) -->
+          <div id="configEditMode" style="display:block;">
             <form id="envEditorForm">
               <div id="envFieldsContainer"></div>
             </form>
@@ -72,7 +46,8 @@ export function renderConfigTab(): string {
         </div>
       </div>
 
-      <div class="dialog-footer" style="display:flex;justify-content:flex-end;margin-top:1rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+      <div class="dialog-footer" style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('btnSaveAllEnv')?.click()">💾 Save Changes</button>
         <form method="dialog">
           <button type="submit" class="btn">Close</button>
         </form>

@@ -73,71 +73,26 @@ interface ConfigRow {
               ✉ Preview Alert Email
             </button>
             <div class="test-email-group">
+              <button mat-flat-button color="accent" (click)="sendTestEmail()" [disabled]="isSendingTestEmail">
+                {{ isSendingTestEmail ? '⏳ Sending...' : '🚀 Send Test Email to' }}
+              </button>
               <mat-form-field appearance="outline" class="test-email-field" subscriptSizing="dynamic">
                 <input matInput type="email" [(ngModel)]="testEmailRecipient" placeholder="Recipient email" aria-label="Test email recipient" />
               </mat-form-field>
-              <button mat-flat-button color="accent" (click)="sendTestEmail()" [disabled]="isSendingTestEmail">
-                {{ isSendingTestEmail ? '⏳ Sending...' : '🚀 Send Test Email' }}
-              </button>
             </div>
             <button
               mat-flat-button
               color="primary"
-              (click)="isEditMode = !isEditMode"
+              (click)="saveAllConfig()"
             >
-              {{ isEditMode ? '✕ Exit Edit Mode' : '✎ Edit Configuration' }}
+              💾 Save Changes
             </button>
           </div>
         </mat-card-header>
 
         <mat-card-content class="card-content-wrapper">
-          <!-- VIEW MODE: Sortable Read-Only Configuration Table -->
-          <div *ngIf="!isEditMode">
-            <table mat-table [dataSource]="sortedConfig" matSort (matSortChange)="sortConfig($event)" class="data-table">
-              <ng-container matColumnDef="key">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Variable Key</th>
-                <td mat-cell *matCellDef="let row">
-                  <code class="key-code">{{ row.key }}</code>
-                  <span class="env-lock" *ngIf="row.disabled" matTooltip="Managed in .env (requires app restart)">🔒</span>
-                </td>
-              </ng-container>
-
-              <ng-container matColumnDef="group">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Section</th>
-                <td mat-cell *matCellDef="let row">
-                  <span class="group-pill">{{ row.group | titlecase }}</span>
-                </td>
-              </ng-container>
-
-              <ng-container matColumnDef="value">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Current Value</th>
-                <td mat-cell *matCellDef="let row" class="val-cell">
-                  <span class="val-text">{{ displayValue(row) }}</span>
-                </td>
-              </ng-container>
-
-              <ng-container matColumnDef="description">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Description</th>
-                <td mat-cell *matCellDef="let row" class="desc-cell">
-                  {{ row.description }}
-                </td>
-              </ng-container>
-
-              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-            </table>
-          </div>
-
-          <!-- EDIT MODE: Sectioned Form Editor -->
-          <div *ngIf="isEditMode" class="edit-mode-container">
-            <div class="edit-banner">
-              <span>Editing Configuration — Runtime settings save immediately.</span>
-              <div class="banner-buttons">
-                <button mat-stroked-button (click)="isEditMode = false">Cancel</button>
-                <button mat-flat-button color="primary" (click)="saveAllConfig()">💾 Save Changes</button>
-              </div>
-            </div>
-
+          <!-- Form Editor (Edit mode is only mode) -->
+          <div class="edit-mode-container">
             <!-- Group 1: Boot Variables (.env) -->
             <div class="section-box">
               <h3>1. Server & Database Boot Variables</h3>
@@ -328,6 +283,7 @@ interface ConfigRow {
     </mat-dialog-content>
 
     <div mat-dialog-actions align="end" class="modal-actions-bar">
+      <button mat-flat-button color="primary" (click)="saveAllConfig()">💾 Save Changes</button>
       <button mat-button mat-dialog-close>Close</button>
     </div>
   `,
@@ -508,7 +464,6 @@ interface ConfigRow {
 export class ConfigDialogComponent implements DoCheck {
   displayedColumns: string[] = ['key', 'group', 'value', 'description'];
   showSecrets = false;
-  isEditMode = false;
 
   sortedConfig: ConfigRow[] = [];
   editFormValues: Record<string, string> = {};
@@ -575,7 +530,7 @@ export class ConfigDialogComponent implements DoCheck {
       this.testEmailRecipient = values['ALERT_EMAIL_TO'];
       this.testEmailInitialized = true;
     }
-    if (!this.isEditMode && Object.keys(this.editFormValues).length === 0) {
+    if (Object.keys(this.editFormValues).length === 0) {
       this.editFormValues = {
         ...values,
         ENEBA_TOP_DEALS_LIMIT: eneba['top_deals_limit'] || '10',
@@ -640,7 +595,6 @@ export class ConfigDialogComponent implements DoCheck {
         this.snackBar.open('Saved configuration successfully!', 'OK', {
           duration: 3500,
         });
-        this.isEditMode = false;
         this.apiService.loadDashboard(false);
       },
       error: (err) => {
