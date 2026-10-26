@@ -8,18 +8,17 @@ import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/services/api.service';
 import { ThemeService } from '../core/services/theme.service';
 import { EmailPreviewDialogComponent } from './email-preview-dialog.component';
-import type { EnvFieldSchema } from '../core/models/dashboard.model';
 
 interface ConfigRow {
   key: string;
   group: string;
-  storage: 'env' | 'db';
   value: string;
   description: string;
   isSecret: boolean;
@@ -39,6 +38,7 @@ interface ConfigRow {
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MatIconModule,
     MatTooltipModule,
     MatSnackBarModule,
@@ -50,7 +50,7 @@ interface ConfigRow {
         <div>
           <h2 mat-dialog-title class="modal-title">System & Application Configuration</h2>
           <p class="modal-subtitle">
-            Boot variables (<code>PORT</code>, <code>DATABASE_URL</code>) in <code>{{ envPath() }}</code>; runtime settings in PostgreSQL table <code>scrapling.config</code>.
+            Boot variables (<code>PORT</code>, <code>DATABASE_URL</code>) in <code>{{ envPath() }}</code>; runtime settings apply immediately.
           </p>
         </div>
       </div>
@@ -118,7 +118,7 @@ interface ConfigRow {
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="card-header-flex">
           <div>
-            <mat-card-title>Configuration Variables (<code>scrapling.config</code> & <code>.env</code>)</mat-card-title>
+            <mat-card-title>Configuration Variables</mat-card-title>
           </div>
           <div class="toolbar-actions">
             <button mat-stroked-button (click)="showSecrets = !showSecrets">
@@ -148,6 +148,7 @@ interface ConfigRow {
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Variable Key</th>
                 <td mat-cell *matCellDef="let row">
                   <code class="key-code">{{ row.key }}</code>
+                  <span class="env-lock" *ngIf="row.disabled" matTooltip="Managed in .env (requires app restart)">🔒</span>
                 </td>
               </ng-container>
 
@@ -155,15 +156,6 @@ interface ConfigRow {
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Section</th>
                 <td mat-cell *matCellDef="let row">
                   <span class="group-pill">{{ row.group | titlecase }}</span>
-                </td>
-              </ng-container>
-
-              <ng-container matColumnDef="storage">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Storage</th>
-                <td mat-cell *matCellDef="let row">
-                  <span class="storage-badge" [class.env-badge]="row.storage === 'env'">
-                    {{ row.storage === 'env' ? '.env (Boot)' : 'scrapling.config' }}
-                  </span>
                 </td>
               </ng-container>
 
@@ -189,7 +181,7 @@ interface ConfigRow {
           <!-- EDIT MODE: Sectioned Form Editor -->
           <div *ngIf="isEditMode" class="edit-mode-container">
             <div class="edit-banner">
-              <span>Editing Configuration — Runtime settings save to PostgreSQL <code>scrapling.config</code> and apply immediately.</span>
+              <span>Editing Configuration — Runtime settings save immediately.</span>
               <div class="banner-buttons">
                 <button mat-stroked-button (click)="isEditMode = false">Cancel</button>
                 <button mat-flat-button color="primary" (click)="saveAllConfig()">💾 Save Changes</button>
@@ -199,7 +191,7 @@ interface ConfigRow {
             <!-- Group 1: Boot Variables (.env) -->
             <div class="section-box">
               <h3>1. Server & Database Boot Variables</h3>
-              <p class="section-hint">These variables sit in <code>.env</code> and cannot be changed via UI (require app restart).</p>
+              <p class="section-hint">These variables sit in <code>.env</code> and require app restart if changed.</p>
               <div class="fields-grid">
                 <div *ngFor="let item of getItemsByGroup('boot')" class="field-item">
                   <mat-form-field appearance="outline" class="full-width" matTooltip="Change in .env and restart server if changed">
@@ -214,7 +206,7 @@ interface ConfigRow {
             <div class="section-box">
               <h3>2. Scrapling Anti-Bot & Engine Configuration</h3>
               <div class="fields-grid">
-                <div *ngFor="let item of getItemsByGroup('bot')" class="field-item">
+                <div *ngFor="let item of getItemsByGroup('scrapling')" class="field-item">
                   <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ item.key }}</mat-label>
                     <input matInput [(ngModel)]="editFormValues[item.key]" />
@@ -224,62 +216,125 @@ interface ConfigRow {
               </div>
             </div>
 
-            <!-- Group 3: Alert & Notification -->
+            <!-- Group 3: Cron Scheduler -->
             <div class="section-box">
-              <h3>3. Alert Thresholds & Notification Configuration</h3>
+              <h3>3. Daily Randomized Cron Schedule</h3>
               <div class="fields-grid">
-                <div *ngFor="let item of getItemsByGroup('alert')" class="field-item">
+                <!-- CRON_ENABLED as true/false dropdown -->
+                <div class="field-item">
                   <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ item.key }}</mat-label>
-                    <input matInput [(ngModel)]="editFormValues[item.key]" />
-                    <mat-hint>{{ item.description }}</mat-hint>
+                    <mat-label>CRON_ENABLED</mat-label>
+                    <mat-select [(ngModel)]="editFormValues['CRON_ENABLED']">
+                      <mat-option value="true">true</mat-option>
+                      <mat-option value="false">false</mat-option>
+                    </mat-select>
+                    <mat-hint>Whether the daily randomized cron job is active (true/false).</mat-hint>
+                  </mat-form-field>
+                </div>
+
+                <!-- CRON_BASE_TIME (disabled when CRON_ENABLED === false) -->
+                <div class="field-item" [class.field-disabled]="isCronDisabled()">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>CRON_BASE_TIME</mat-label>
+                    <input
+                      matInput
+                      type="time"
+                      [(ngModel)]="editFormValues['CRON_BASE_TIME']"
+                      [disabled]="isCronDisabled()"
+                    />
+                    <mat-hint>Daily window start time (24h HH:MM, e.g. 19:00 = 7:00 PM).</mat-hint>
+                  </mat-form-field>
+                </div>
+
+                <!-- CRON_JITTER_MINUTES (disabled when CRON_ENABLED === false) -->
+                <div class="field-item" [class.field-disabled]="isCronDisabled()">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>CRON_JITTER_MINUTES</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [(ngModel)]="editFormValues['CRON_JITTER_MINUTES']"
+                      [disabled]="isCronDisabled()"
+                      min="0"
+                      max="720"
+                    />
+                    <mat-hint>Random delay window in minutes added to start time daily.</mat-hint>
                   </mat-form-field>
                 </div>
               </div>
             </div>
 
-            <!-- Group 4: Cron Scheduler -->
+            <!-- Group 4: Alert & Notification -->
             <div class="section-box">
-              <h3>4. Daily Randomized Cron Schedule</h3>
+              <h3>4. Alert Thresholds & Notification Configuration</h3>
               <div class="fields-grid">
-                <div *ngFor="let item of getItemsByGroup('cron')" class="field-item">
+                <!-- EMAIL_ENABLED as true/false dropdown -->
+                <div class="field-item">
                   <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ item.key }}</mat-label>
-                    <input matInput [(ngModel)]="editFormValues[item.key]" />
-                    <mat-hint>{{ item.description }}</mat-hint>
+                    <mat-label>EMAIL_ENABLED</mat-label>
+                    <mat-select [(ngModel)]="editFormValues['EMAIL_ENABLED']">
+                      <mat-option value="true">true</mat-option>
+                      <mat-option value="false">false</mat-option>
+                    </mat-select>
+                    <mat-hint>Send email alerts via Resend when deals meet the threshold.</mat-hint>
                   </mat-form-field>
                 </div>
-              </div>
-            </div>
 
-            <!-- Group 5: Custom Variables -->
-            <div class="section-box">
-              <h3>5. Custom & Third-Party Configuration</h3>
-              <div class="fields-grid">
-                <div *ngFor="let item of getItemsByGroup('custom')" class="field-item custom-row">
-                  <mat-form-field appearance="outline" class="flex-grow">
-                    <mat-label>{{ item.key }}</mat-label>
-                    <input matInput [(ngModel)]="editFormValues[item.key]" />
+                <!-- RESEND_API_KEY (disabled when EMAIL_ENABLED === false) -->
+                <div class="field-item" [class.field-disabled]="isEmailDisabled()">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>RESEND_API_KEY</mat-label>
+                    <input
+                      matInput
+                      [(ngModel)]="editFormValues['RESEND_API_KEY']"
+                      [disabled]="isEmailDisabled()"
+                      placeholder="re_..."
+                    />
+                    <mat-hint>Your Resend API key.</mat-hint>
                   </mat-form-field>
-                  <button mat-icon-button color="warn" (click)="deleteCustomKey(item.key)" matTooltip="Delete variable">
-                    <span class="material-symbols-outlined">delete</span>
-                  </button>
                 </div>
-              </div>
 
-              <!-- Add new custom variable -->
-              <div class="add-custom-box">
-                <h4>+ Add Custom Configuration Variable (<code>scrapling.config</code>)</h4>
-                <div class="add-custom-fields">
-                  <mat-form-field appearance="outline" class="custom-key-field">
-                    <mat-label>Variable Name</mat-label>
-                    <input matInput [(ngModel)]="newCustomKey" placeholder="CUSTOM_KEY" />
+                <!-- ALERT_EMAIL_FROM (disabled when EMAIL_ENABLED === false) -->
+                <div class="field-item" [class.field-disabled]="isEmailDisabled()">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>ALERT_EMAIL_FROM</mat-label>
+                    <input
+                      matInput
+                      [(ngModel)]="editFormValues['ALERT_EMAIL_FROM']"
+                      [disabled]="isEmailDisabled()"
+                    />
+                    <mat-hint>Verified sender address in Resend.</mat-hint>
                   </mat-form-field>
-                  <mat-form-field appearance="outline" class="custom-val-field">
-                    <mat-label>Value</mat-label>
-                    <input matInput [(ngModel)]="newCustomVal" placeholder="value" />
+                </div>
+
+                <!-- ALERT_EMAIL_TO (disabled when EMAIL_ENABLED === false) -->
+                <div class="field-item" [class.field-disabled]="isEmailDisabled()">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>ALERT_EMAIL_TO</mat-label>
+                    <input
+                      matInput
+                      type="email"
+                      [(ngModel)]="editFormValues['ALERT_EMAIL_TO']"
+                      [disabled]="isEmailDisabled()"
+                    />
+                    <mat-hint>Recipient email address(es) to notify.</mat-hint>
                   </mat-form-field>
-                  <button mat-flat-button (click)="addCustomVariable()">+ Add</button>
+                </div>
+
+                <!-- ALERT_DISCOUNT_THRESHOLD_PCT (disabled when EMAIL_ENABLED === false) -->
+                <div class="field-item" [class.field-disabled]="isEmailDisabled()">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>ALERT_DISCOUNT_THRESHOLD_PCT</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [(ngModel)]="editFormValues['ALERT_DISCOUNT_THRESHOLD_PCT']"
+                      [disabled]="isEmailDisabled()"
+                      min="0"
+                      max="100"
+                    />
+                    <mat-hint>Minimum discount % (e.g. 20 for 20% off) to trigger alerts.</mat-hint>
+                  </mat-form-field>
                 </div>
               </div>
             </div>
@@ -419,6 +474,11 @@ interface ConfigRow {
       font-weight: 700;
       color: var(--mat-sys-primary);
     }
+    .env-lock {
+      margin-left: 0.35rem;
+      font-size: 0.85rem;
+      opacity: 0.8;
+    }
     .group-pill {
       display: inline-block;
       padding: 0.2rem 0.5rem;
@@ -427,20 +487,6 @@ interface ConfigRow {
       font-weight: 600;
       background: var(--mat-sys-surface-container-high);
       color: var(--mat-sys-on-surface-variant);
-    }
-    .storage-badge {
-      display: inline-block;
-      padding: 0.2rem 0.5rem;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      font-weight: 700;
-      background: rgba(99, 102, 241, 0.15);
-      color: #818cf8;
-
-      &.env-badge {
-        background: rgba(16, 185, 129, 0.15);
-        color: #34d399;
-      }
     }
     .val-cell {
       max-width: 260px;
@@ -500,49 +546,25 @@ interface ConfigRow {
     .field-item {
       display: flex;
       align-items: center;
-    }
-    .custom-row {
-      gap: 0.5rem;
-    }
-    .flex-grow {
-      flex: 1;
+      transition: opacity 0.2s ease;
+
+      &.field-disabled {
+        opacity: 0.45;
+        pointer-events: none;
+      }
     }
     .full-width {
       width: 100%;
     }
-    .add-custom-box {
-      margin-top: 1.25rem;
-      padding-top: 1rem;
-      border-top: 1px dashed var(--mat-sys-outline-variant);
-
-      h4 {
-        margin: 0 0 0.75rem;
-        font-size: 0.9rem;
-        font-weight: 600;
-      }
-    }
-    .add-custom-fields {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    .custom-key-field,
-    .custom-val-field {
-      flex: 1;
-      min-width: 200px;
-    }
   `],
 })
 export class ConfigDialogComponent implements DoCheck {
-  displayedColumns: string[] = ['key', 'group', 'storage', 'value', 'description'];
+  displayedColumns: string[] = ['key', 'group', 'value', 'description'];
   showSecrets = false;
   isEditMode = false;
 
   sortedConfig: ConfigRow[] = [];
   editFormValues: Record<string, string> = {};
-  newCustomKey = '';
-  newCustomVal = '';
 
   constructor(
     private apiService: ApiService,
@@ -564,22 +586,31 @@ export class ConfigDialogComponent implements DoCheck {
     const values = data.env?.values || {};
 
     const rows: ConfigRow[] = Object.keys(values).map((key) => {
-      const s = schema[key];
+      const s = Array.isArray(schema)
+        ? schema.find((f: any) => f.key === key)
+        : (schema as any)[key];
       return {
         key,
         group: s?.group || 'custom',
-        storage: s?.storage || (key === 'PORT' || key === 'DATABASE_URL' ? 'env' : 'db'),
         value: values[key] ?? '',
-        description: s?.description || 'Custom configuration variable stored in scrapling.config',
+        description: s?.description || 'Configuration variable',
         isSecret: Boolean(s?.isSecret || key.toLowerCase().includes('key') || key.toLowerCase().includes('pass')),
-        disabled: s?.storage === 'env' || key === 'PORT' || key === 'DATABASE_URL',
+        disabled: Boolean(s?.envOnly || key === 'PORT' || key === 'DATABASE_URL'),
       };
     });
 
     this.sortedConfig = rows;
-    if (!this.isEditMode) {
+    if (!this.isEditMode && Object.keys(this.editFormValues).length === 0) {
       this.editFormValues = { ...values };
     }
+  }
+
+  isCronDisabled(): boolean {
+    return this.editFormValues['CRON_ENABLED'] === 'false';
+  }
+
+  isEmailDisabled(): boolean {
+    return this.editFormValues['EMAIL_ENABLED'] === 'false';
   }
 
   envPath(): string {
@@ -595,7 +626,13 @@ export class ConfigDialogComponent implements DoCheck {
   }
 
   getItemsByGroup(group: string): ConfigRow[] {
-    return this.sortedConfig.filter((item) => item.group === group);
+    return this.sortedConfig.filter((item) => {
+      if (group === 'boot') return item.disabled;
+      if (group === 'scrapling') return item.group === 'scrapling';
+      if (group === 'cron') return item.group === 'scheduler';
+      if (group === 'alert') return item.group === 'email';
+      return item.group === group;
+    });
   }
 
   saveAllConfig() {
@@ -609,7 +646,7 @@ export class ConfigDialogComponent implements DoCheck {
 
     this.apiService.updateEnv(updates).subscribe({
       next: () => {
-        this.snackBar.open('Saved configuration to PostgreSQL scrapling.config!', 'OK', {
+        this.snackBar.open('Saved configuration successfully!', 'OK', {
           duration: 3500,
         });
         this.isEditMode = false;
@@ -621,29 +658,6 @@ export class ConfigDialogComponent implements DoCheck {
         });
       },
     });
-  }
-
-  addCustomVariable() {
-    const cleanKey = this.newCustomKey.trim().toUpperCase();
-    if (!cleanKey) return;
-
-    this.editFormValues[cleanKey] = this.newCustomVal;
-    this.apiService.updateEnv({ [cleanKey]: this.newCustomVal }).subscribe(() => {
-      this.snackBar.open(`Added variable ${cleanKey}!`, 'OK', { duration: 3000 });
-      this.newCustomKey = '';
-      this.newCustomVal = '';
-      this.apiService.loadDashboard(false);
-    });
-  }
-
-  deleteCustomKey(key: string) {
-    if (confirm(`Remove custom variable ${key}?`)) {
-      this.apiService.deleteEnvKey(key).subscribe(() => {
-        delete this.editFormValues[key];
-        this.snackBar.open(`Removed variable ${key}!`, 'OK', { duration: 3000 });
-        this.apiService.loadDashboard(false);
-      });
-    }
   }
 
   previewEmail() {
@@ -677,7 +691,6 @@ export class ConfigDialogComponent implements DoCheck {
       switch (sort.active) {
         case 'key': return compare(a.key, b.key, isAsc);
         case 'group': return compare(a.group, b.group, isAsc);
-        case 'storage': return compare(a.storage, b.storage, isAsc);
         case 'value': return compare(a.value, b.value, isAsc);
         case 'description': return compare(a.description, b.description, isAsc);
         default: return 0;

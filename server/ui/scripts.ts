@@ -556,7 +556,7 @@ export function renderClientScripts(): string {
       document.getElementById('envFilePathLabel').textContent = env.envFilePath || '.env';
       const tbody = document.getElementById('configTableBody');
       const schemaByKey = new Map((env.schema || []).map((f) => [f.key, f]));
-      const allKeys = Array.from(new Set([...schemaByKey.keys(), ...Object.keys(env.values || {})]));
+      const allKeys = Array.from(schemaByKey.keys());
 
       const rows = allKeys.map((key) => {
         const meta = schemaByKey.get(key);
@@ -568,12 +568,11 @@ export function renderClientScripts(): string {
           : (isSecret && !showSecrets ? '••••••••••••••••' : '<code>' + escapeHtml(val) + '</code>');
         return {
           key,
-          group: meta ? meta.group : 'custom',
+          group: meta ? meta.group : 'config',
           isEnvOnly,
-          storage: isEnvOnly ? '.env (locked)' : 'scrapling.config',
           value: val,
           displayVal,
-          description: meta ? meta.description : 'Custom configuration variable in scrapling.config',
+          description: meta ? meta.description : '',
         };
       });
 
@@ -581,57 +580,75 @@ export function renderClientScripts(): string {
       rows.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
 
       tbody.innerHTML = rows.map((r) => {
-        const storageBadge = r.isEnvOnly
-          ? '<span class="badge badge-alert" title="Change in .env and require restart if changed">🔒 .env (Restart Required)</span>'
-          : '<span class="badge badge-discount">🗄️ scrapling.config</span>';
+        const lockIcon = r.isEnvOnly ? ' <span title="Change in .env (Restart Required)">🔒</span>' : '';
 
         return '<tr>' +
-          '<th><code>' + escapeHtml(r.key) + '</code></th>' +
+          '<th><code>' + escapeHtml(r.key) + '</code>' + lockIcon + '</th>' +
           '<td><span class="badge badge-provider">' + escapeHtml(r.group) + '</span></td>' +
-          '<td>' + storageBadge + '</td>' +
           '<td>' + r.displayVal + '</td>' +
           '<td style="color:var(--text-muted);font-size:0.82rem;">' + escapeHtml(r.description) + '</td>' +
         '</tr>';
       }).join('');
     }
 
+    function syncDependentConfigFields() {
+      const cronSelect = document.getElementById('env_CRON_ENABLED');
+      const isCronDisabled = cronSelect ? cronSelect.value === 'false' : false;
+      ['CRON_BASE_TIME', 'CRON_JITTER_MINUTES'].forEach((k) => {
+        const el = document.getElementById('env_' + k);
+        const container = document.getElementById('field_container_' + k);
+        if (el) el.disabled = isCronDisabled;
+        if (container) {
+          container.style.opacity = isCronDisabled ? '0.45' : '1';
+          container.style.pointerEvents = isCronDisabled ? 'none' : 'auto';
+        }
+      });
+
+      const emailSelect = document.getElementById('env_EMAIL_ENABLED');
+      const isEmailDisabled = emailSelect ? emailSelect.value === 'false' : false;
+      ['RESEND_API_KEY', 'ALERT_EMAIL_FROM', 'ALERT_EMAIL_TO', 'ALERT_DISCOUNT_THRESHOLD_PCT'].forEach((k) => {
+        const el = document.getElementById('env_' + k);
+        const container = document.getElementById('field_container_' + k);
+        if (el) el.disabled = isEmailDisabled;
+        if (container) {
+          container.style.opacity = isEmailDisabled ? '0.45' : '1';
+          container.style.pointerEvents = isEmailDisabled ? 'none' : 'auto';
+        }
+      });
+    }
+
     function renderEnvEditorFields(env) {
       const container = document.getElementById('envFieldsContainer');
       const schemaByKey = new Map((env.schema || []).map((f) => [f.key, f]));
-      const allKeys = Array.from(new Set([...schemaByKey.keys(), ...Object.keys(env.values || {})]));
+      const allKeys = Array.from(schemaByKey.keys());
 
       const sections = [
         {
           id: 'env',
-          title: '🔒 Section 1: Boot & Database Environment (.env — Read-Only, Requires Restart)',
+          title: '🔒 Section 1: Boot & Database Environment (.env — Read-Only)',
           subtitle: 'These settings sit in .env and cannot be changed from the UI. Change in .env and restart the server if modified.',
         },
         {
           id: 'scrapling',
-          title: '🕸️ Section 2: Scrapling MCP Engine & Timezone (scrapling.config)',
-          subtitle: 'Stored in PostgreSQL table scrapling.config and applied immediately.',
+          title: '🕸️ Section 2: Scrapling MCP Engine & Timezone',
+          subtitle: 'MCP server port, engine mode, and local timezone settings.',
         },
         {
           id: 'scheduler',
-          title: '⏰ Section 3: Daily Randomized Cron Scheduler (scrapling.config)',
+          title: '⏰ Section 3: Daily Randomized Cron Scheduler',
           subtitle: 'Controls the daily scrape window (base start time + random jitter minutes).',
         },
         {
           id: 'email',
-          title: '✉️ Section 4: Resend Email Deal Alerts (scrapling.config)',
+          title: '✉️ Section 4: Resend Email Deal Alerts',
           subtitle: 'Controls email notification recipient, sender, API key, and discount % threshold.',
-        },
-        {
-          id: 'custom',
-          title: '🧩 Section 5: Custom Configuration Variables (scrapling.config)',
-          subtitle: 'User-defined keys stored in PostgreSQL table scrapling.config.',
         },
       ];
 
       const grouped = new Map(sections.map((s) => [s.id, []]));
       allKeys.forEach((key) => {
         const meta = schemaByKey.get(key);
-        const groupId = meta?.group && grouped.has(meta.group) ? meta.group : 'custom';
+        const groupId = meta?.group && grouped.has(meta.group) ? meta.group : 'scrapling';
         grouped.get(groupId).push(key);
       });
 
@@ -645,25 +662,37 @@ export function renderClientScripts(): string {
           const isEnvOnly = Boolean(meta?.envOnly) || key === 'PORT' || key === 'DATABASE_URL';
           const isSecret = meta?.isSecret || /PASSWORD|SECRET|KEY|DATABASE_URL/i.test(key);
           const inputType = isSecret && !showSecrets ? 'password' : 'text';
-          const desc = meta ? meta.description : 'Custom configuration variable';
+          const isBoolean = meta?.inputType === 'boolean' || key === 'CRON_ENABLED' || key === 'EMAIL_ENABLED';
+          const desc = meta ? meta.description : '';
           const tooltipAttr = isEnvOnly
             ? ' disabled title="Change in .env and require restart if changed" style="opacity:0.65;cursor:not-allowed;"'
             : '';
 
-          return '<div class="field" style="background:var(--bg-panel-alt);padding:0.85rem;border:1px solid var(--border);border-radius:10px;"' +
+          let inputHtml = '';
+          if (isBoolean) {
+            const normVal = String(val).toLowerCase() === 'false' ? 'false' : 'true';
+            inputHtml = '<select class="form-select" id="env_' + escapeHtml(key) + '"' +
+              (isEnvOnly ? ' disabled' : ' data-env-key="' + escapeHtml(key) + '"') +
+              ' aria-describedby="hint_' + escapeHtml(key) + '"' + tooltipAttr + '>' +
+              '<option value="true"' + (normVal === 'true' ? ' selected' : '') + '>true (Enabled)</option>' +
+              '<option value="false"' + (normVal === 'false' ? ' selected' : '') + '>false (Disabled)</option>' +
+            '</select>';
+          } else {
+            inputHtml = '<input type="' + inputType + '" id="env_' + escapeHtml(key) + '"' +
+              (isEnvOnly ? '' : ' data-env-key="' + escapeHtml(key) + '"') +
+              ' value="' + escapeHtml(val) + '" aria-describedby="hint_' + escapeHtml(key) + '"' + tooltipAttr + ' />';
+          }
+
+          return '<div class="field" id="field_container_' + escapeHtml(key) + '" style="background:var(--bg-panel-alt);padding:0.85rem;border:1px solid var(--border);border-radius:10px;transition:opacity 0.2s ease;"' +
             (isEnvOnly ? ' title="Change in .env and require restart if changed"' : '') + '>' +
             '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;">' +
               '<label for="env_' + escapeHtml(key) + '"><code>' + escapeHtml(key) + '</code></label>' +
               (isEnvOnly
                 ? '<span class="badge badge-alert" title="Change in .env and require restart if changed">🔒 Change in .env (Restart Required)</span>'
-                : (!meta
-                  ? '<button type="button" class="btn btn-sm btn-danger" onclick="removeEnvKey(\\'' + escapeHtml(key) + '\\')">Remove</button>'
-                  : '<span class="badge badge-discount">scrapling.config</span>')) +
+                : '') +
             '</div>' +
             '<span id="hint_' + escapeHtml(key) + '" class="hint">' + escapeHtml(desc) + '</span>' +
-            '<input type="' + inputType + '" id="env_' + escapeHtml(key) + '"' +
-              (isEnvOnly ? '' : ' data-env-key="' + escapeHtml(key) + '"') +
-              ' value="' + escapeHtml(val) + '" aria-describedby="hint_' + escapeHtml(key) + '"' + tooltipAttr + ' />' +
+            inputHtml +
           '</div>';
         }).join('');
 
@@ -673,6 +702,12 @@ export function renderClientScripts(): string {
           '<div class="form-grid">' + fieldsHtml + '</div>' +
         '</div>';
       }).join('');
+
+      const cronSelect = document.getElementById('env_CRON_ENABLED');
+      if (cronSelect) cronSelect.addEventListener('change', syncDependentConfigFields);
+      const emailSelect = document.getElementById('env_EMAIL_ENABLED');
+      if (emailSelect) emailSelect.addEventListener('change', syncDependentConfigFields);
+      syncDependentConfigFields();
     }
 
     // Filter listeners & Eneba configuration
@@ -904,29 +939,7 @@ export function renderClientScripts(): string {
       }
     });
 
-    document.getElementById('addCustomEnvForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const key = document.getElementById('customEnvKey').value.trim();
-      const val = document.getElementById('customEnvVal').value;
-      if (!key) return;
-      await fetch('/api/env', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates: { [key]: val } }),
-      });
-      document.getElementById('customEnvKey').value = '';
-      document.getElementById('customEnvVal').value = '';
-      showToast('Added ' + key + ' to .env');
-      await fetchDashboard();
-      if (dashboardData) renderEnvEditorFields(dashboardData.env);
-    });
 
-    window.removeEnvKey = async (key) => {
-      await fetch('/api/env/' + encodeURIComponent(key), { method: 'DELETE' });
-      showToast('Removed ' + key + ' from .env');
-      await fetchDashboard();
-      if (dashboardData) renderEnvEditorFields(dashboardData.env);
-    };
 
     // Email preview & test buttons
     async function openEmailPreview() {
