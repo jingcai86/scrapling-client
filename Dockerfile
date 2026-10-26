@@ -1,16 +1,25 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 RUN apk add --no-cache tzdata
 
 WORKDIR /app
 
+# 1. Install root dependencies
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY tsconfig.json .env.example ./
+# 2. Install frontend dependencies and build Angular UI
+COPY frontend/package.json frontend/package-lock.json ./frontend/
+RUN cd frontend && npm ci
+COPY frontend ./frontend
+RUN npm run build:ui
+
+# 3. Copy application backend code & configs
+COPY tsconfig.json .env.example drizzle.config.ts ./
 COPY core ./core
 COPY eneba ./eneba
 COPY server ./server
+COPY drizzle ./drizzle
 
 RUN mkdir -p /app/data
 
