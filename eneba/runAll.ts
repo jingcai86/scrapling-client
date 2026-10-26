@@ -80,7 +80,7 @@ if (isMain) {
     console.log(formatCrossCategorySummary(statuses));
     if (dbStatus.saved) {
       console.log(
-        `\n[PostgreSQL] Stored ${dbStatus.topDealsInserted} top deals & ${dbStatus.offersInserted ?? 0} competing seller offers across ${dbStatus.scrapeRunsInserted} page runs into schema "eneba" (batch: ${dbStatus.batchId})`,
+        `\n[PostgreSQL] Stored ${dbStatus.topDealsInserted} top deals & ${dbStatus.offersInserted ?? 0} competing seller offers across ${dbStatus.scrapeRunsInserted} page runs into schema "scrapling" (batch: ${dbStatus.batchId})`,
       );
     }
   }

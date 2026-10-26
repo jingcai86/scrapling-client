@@ -116,13 +116,13 @@ export class RandomizedDailyScheduler {
    */
   reloadFromEnv(): SchedulerState {
     loadEnv();
-    const enabled =
-      String(process.env.CRON_ENABLED ?? "true").toLowerCase() !== "false";
-    const { normalized } = parseBaseTime(process.env.CRON_BASE_TIME ?? "19:00");
-    const jitter = Math.max(
-      0,
-      Math.min(720, Number(process.env.CRON_JITTER_MINUTES ?? "60") || 0),
+    const rawEnabled = process.env.CRON_ENABLED?.trim() || "true";
+    const enabled = rawEnabled.toLowerCase() !== "false";
+    const { normalized } = parseBaseTime(
+      process.env.CRON_BASE_TIME?.trim() || "19:00",
     );
+    const rawJitter = process.env.CRON_JITTER_MINUTES?.trim() || "60";
+    const jitter = Math.max(0, Math.min(720, Number(rawJitter) || 0));
 
     this.enabled = enabled;
     this.baseTime = normalized;
@@ -132,11 +132,11 @@ export class RandomizedDailyScheduler {
   }
 
   /**
-   * Updates the scheduler settings, persists them to `.env`, and recalculates the next randomized run.
+   * Updates the scheduler settings in memory (`process.env`) and recalculates the next randomized run.
    */
   updateConfig(
     partial: Partial<SchedulerConfig>,
-    persistToEnv = true,
+    persistToEnv = false,
   ): SchedulerState {
     if (partial.enabled !== undefined) {
       this.enabled = Boolean(partial.enabled);
@@ -150,6 +150,10 @@ export class RandomizedDailyScheduler {
         Math.min(720, Math.floor(Number(partial.jitterMinutes) || 0)),
       );
     }
+
+    process.env.CRON_ENABLED = String(this.enabled);
+    process.env.CRON_BASE_TIME = this.baseTime;
+    process.env.CRON_JITTER_MINUTES = String(this.jitterMinutes);
 
     if (persistToEnv) {
       updateEnvValues({

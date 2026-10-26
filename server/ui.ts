@@ -959,9 +959,9 @@ export function renderDashboardHtml(): string {
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">System &amp; Environment Configuration (<code>.env</code>)</h2>
+            <h2 class="card-title">System &amp; Database Configuration (<code>scrapling.config</code> &amp; <code>.env</code>)</h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
-              File: <code id="envFilePathLabel">.env</code> — All Scrapling MCP, PostgreSQL, Cron, and Resend Email settings in one place.
+              Boot variables (<code>PORT</code>, <code>DATABASE_URL</code>) live in <code id="envFilePathLabel">.env</code>; all runtime settings are stored in PostgreSQL table <code>scrapling.config</code>.
             </div>
           </div>
           <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
@@ -975,12 +975,13 @@ export function renderDashboardHtml(): string {
         <!-- VIEW MODE: Sortable Read-Only Configuration Table -->
         <div id="configViewMode">
           <div tabindex="0" role="region" aria-labelledby="config-table-caption" class="table-wrapper">
-            <table id="configTable" style="--label-2:'Group';--label-3:'Current Value';--label-4:'Description';">
-              <caption id="config-table-caption">Current environment configuration variables</caption>
+            <table id="configTable" style="--label-2:'Section';--label-3:'Storage';--label-4:'Current Value';--label-5:'Description';">
+              <caption id="config-table-caption">Current configuration variables across .env and scrapling.config</caption>
               <thead>
                 <tr>
                   <th class="sortable" data-table="config" data-sort-key="key" aria-sort="none">Variable Key <span class="sort-icon">↕</span></th>
-                  <th class="sortable" data-table="config" data-sort-key="group" aria-sort="ascending">Group <span class="sort-icon">↑</span></th>
+                  <th class="sortable" data-table="config" data-sort-key="group" aria-sort="ascending">Section <span class="sort-icon">↑</span></th>
+                  <th class="sortable" data-table="config" data-sort-key="storage" aria-sort="none">Storage <span class="sort-icon">↕</span></th>
                   <th class="sortable" data-table="config" data-sort-key="value" aria-sort="none">Current Value <span class="sort-icon">↕</span></th>
                   <th class="sortable" data-table="config" data-sort-key="description" aria-sort="none">Description <span class="sort-icon">↕</span></th>
                 </tr>
@@ -990,10 +991,10 @@ export function renderDashboardHtml(): string {
           </div>
         </div>
 
-        <!-- EDIT MODE: Unified Form Editor (Hidden until "Edit Configuration" is clicked) -->
+        <!-- EDIT MODE: Sectioned Form Editor -->
         <div id="configEditMode" style="display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.4);padding:0.75rem 1rem;border-radius:10px;margin-block-end:1rem;">
-            <span style="font-size:0.85rem;font-weight:600;color:#a5b4fc;">Editing Configuration — Changes save directly to <code>.env</code> and apply immediately.</span>
+            <span style="font-size:0.85rem;font-weight:600;color:#a5b4fc;">Editing Configuration — Runtime settings save to PostgreSQL <code>scrapling.config</code> and apply immediately.</span>
             <div style="display:flex;gap:0.5rem;">
               <button type="button" class="btn btn-sm" id="btnCancelConfigEdit">Cancel</button>
               <button type="button" class="btn btn-sm btn-primary" id="btnSaveAllEnv">💾 Save Changes</button>
@@ -1001,11 +1002,11 @@ export function renderDashboardHtml(): string {
           </div>
 
           <form id="envEditorForm">
-            <div id="envFieldsContainer" class="form-grid"></div>
+            <div id="envFieldsContainer"></div>
           </form>
 
           <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);">
-            <h3 style="margin:0 0 0.75rem;font-size:0.95rem;">Add Custom Environment Variable</h3>
+            <h3 style="margin:0 0 0.75rem;font-size:0.95rem;">Add Custom Configuration Variable (<code>scrapling.config</code>)</h3>
             <form id="addCustomEnvForm" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
               <div class="field" style="flex:1;min-width:220px;margin:0;">
                 <label for="customEnvKey">Variable Name</label>
@@ -1014,7 +1015,7 @@ export function renderDashboardHtml(): string {
               </div>
               <div class="field" style="flex:2;min-width:280px;margin:0;">
                 <label for="customEnvVal">Value</label>
-                <span id="customval-hint" class="hint">Value to store in .env</span>
+                <span id="customval-hint" class="hint">Value to store in scrapling.config</span>
                 <input type="text" id="customEnvVal" placeholder="value" aria-describedby="customval-hint" />
               </div>
               <button type="submit" class="btn">+ Add Variable</button>
@@ -1803,16 +1804,19 @@ export function renderDashboardHtml(): string {
       const rows = allKeys.map((key) => {
         const meta = schemaByKey.get(key);
         const val = env.values[key] ?? '';
+        const isEnvOnly = Boolean(meta?.envOnly) || key === 'PORT' || key === 'DATABASE_URL';
         const isSecret = meta?.isSecret || /PASSWORD|SECRET|KEY|DATABASE_URL/i.test(key);
         const displayVal = !val
-          ? '<span style="color:var(--text-muted);font-style:italic;">(not set)</span>'
+          ? '<span style="color:var(--text-muted);font-style:italic;">(empty)</span>'
           : (isSecret && !showSecrets ? '••••••••••••••••' : '<code>' + escapeHtml(val) + '</code>');
         return {
           key,
           group: meta ? meta.group : 'custom',
+          isEnvOnly,
+          storage: isEnvOnly ? '.env (locked)' : 'scrapling.config',
           value: val,
           displayVal,
-          description: meta ? meta.description : 'Custom environment variable',
+          description: meta ? meta.description : 'Custom configuration variable in scrapling.config',
         };
       });
 
@@ -1820,9 +1824,14 @@ export function renderDashboardHtml(): string {
       rows.sort((a, b) => compareValues(a[sort.key], b[sort.key], sort.dir));
 
       tbody.innerHTML = rows.map((r) => {
+        const storageBadge = r.isEnvOnly
+          ? '<span class="badge badge-alert" title="Change in .env and require restart if changed">🔒 .env (Restart Required)</span>'
+          : '<span class="badge badge-discount">🗄️ scrapling.config</span>';
+
         return '<tr>' +
           '<th><code>' + escapeHtml(r.key) + '</code></th>' +
           '<td><span class="badge badge-provider">' + escapeHtml(r.group) + '</span></td>' +
+          '<td>' + storageBadge + '</td>' +
           '<td>' + r.displayVal + '</td>' +
           '<td style="color:var(--text-muted);font-size:0.82rem;">' + escapeHtml(r.description) + '</td>' +
         '</tr>';
@@ -1834,20 +1843,77 @@ export function renderDashboardHtml(): string {
       const schemaByKey = new Map((env.schema || []).map((f) => [f.key, f]));
       const allKeys = Array.from(new Set([...schemaByKey.keys(), ...Object.keys(env.values || {})]));
 
-      container.innerHTML = allKeys.map((key) => {
-        const meta = schemaByKey.get(key);
-        const val = env.values[key] ?? '';
-        const isSecret = meta?.isSecret || /PASSWORD|SECRET|KEY|DATABASE_URL/i.test(key);
-        const inputType = isSecret && !showSecrets ? 'password' : 'text';
-        const desc = meta ? meta.description : 'Custom environment variable';
+      const sections = [
+        {
+          id: 'env',
+          title: '🔒 Section 1: Boot & Database Environment (.env — Read-Only, Requires Restart)',
+          subtitle: 'These settings sit in .env and cannot be changed from the UI. Change in .env and restart the server if modified.',
+        },
+        {
+          id: 'scrapling',
+          title: '🕸️ Section 2: Scrapling MCP Engine & Timezone (scrapling.config)',
+          subtitle: 'Stored in PostgreSQL table scrapling.config and applied immediately.',
+        },
+        {
+          id: 'scheduler',
+          title: '⏰ Section 3: Daily Randomized Cron Scheduler (scrapling.config)',
+          subtitle: 'Controls the daily scrape window (base start time + random jitter minutes).',
+        },
+        {
+          id: 'email',
+          title: '✉️ Section 4: Resend Email Deal Alerts (scrapling.config)',
+          subtitle: 'Controls email notification recipient, sender, API key, and discount % threshold.',
+        },
+        {
+          id: 'custom',
+          title: '🧩 Section 5: Custom Configuration Variables (scrapling.config)',
+          subtitle: 'User-defined keys stored in PostgreSQL table scrapling.config.',
+        },
+      ];
 
-        return '<div class="field" style="background:var(--bg-panel-alt);padding:0.85rem;border:1px solid var(--border);border-radius:10px;">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-            '<label for="env_' + escapeHtml(key) + '"><code>' + escapeHtml(key) + '</code></label>' +
-            (!meta ? '<button type="button" class="btn btn-sm btn-danger" onclick="removeEnvKey(\\'' + escapeHtml(key) + '\\')">Remove</button>' : '<span class="badge badge-muted">' + escapeHtml(meta.group) + '</span>') +
-          '</div>' +
-          '<span id="hint_' + escapeHtml(key) + '" class="hint">' + escapeHtml(desc) + '</span>' +
-          '<input type="' + inputType + '" id="env_' + escapeHtml(key) + '" data-env-key="' + escapeHtml(key) + '" value="' + escapeHtml(val) + '" aria-describedby="hint_' + escapeHtml(key) + '" />' +
+      const grouped = new Map(sections.map((s) => [s.id, []]));
+      allKeys.forEach((key) => {
+        const meta = schemaByKey.get(key);
+        const groupId = meta?.group && grouped.has(meta.group) ? meta.group : 'custom';
+        grouped.get(groupId).push(key);
+      });
+
+      container.innerHTML = sections.map((sec) => {
+        const keys = grouped.get(sec.id) || [];
+        if (keys.length === 0) return '';
+
+        const fieldsHtml = keys.map((key) => {
+          const meta = schemaByKey.get(key);
+          const val = env.values[key] ?? '';
+          const isEnvOnly = Boolean(meta?.envOnly) || key === 'PORT' || key === 'DATABASE_URL';
+          const isSecret = meta?.isSecret || /PASSWORD|SECRET|KEY|DATABASE_URL/i.test(key);
+          const inputType = isSecret && !showSecrets ? 'password' : 'text';
+          const desc = meta ? meta.description : 'Custom configuration variable';
+          const tooltipAttr = isEnvOnly
+            ? ' disabled title="Change in .env and require restart if changed" style="opacity:0.65;cursor:not-allowed;"'
+            : '';
+
+          return '<div class="field" style="background:var(--bg-panel-alt);padding:0.85rem;border:1px solid var(--border);border-radius:10px;"' +
+            (isEnvOnly ? ' title="Change in .env and require restart if changed"' : '') + '>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;">' +
+              '<label for="env_' + escapeHtml(key) + '"><code>' + escapeHtml(key) + '</code></label>' +
+              (isEnvOnly
+                ? '<span class="badge badge-alert" title="Change in .env and require restart if changed">🔒 Change in .env (Restart Required)</span>'
+                : (!meta
+                  ? '<button type="button" class="btn btn-sm btn-danger" onclick="removeEnvKey(\\'' + escapeHtml(key) + '\\')">Remove</button>'
+                  : '<span class="badge badge-discount">scrapling.config</span>')) +
+            '</div>' +
+            '<span id="hint_' + escapeHtml(key) + '" class="hint">' + escapeHtml(desc) + '</span>' +
+            '<input type="' + inputType + '" id="env_' + escapeHtml(key) + '"' +
+              (isEnvOnly ? '' : ' data-env-key="' + escapeHtml(key) + '"') +
+              ' value="' + escapeHtml(val) + '" aria-describedby="hint_' + escapeHtml(key) + '"' + tooltipAttr + ' />' +
+          '</div>';
+        }).join('');
+
+        return '<div style="margin-block-end:1.4rem;padding-block-end:1rem;border-block-end:1px solid var(--border);">' +
+          '<h3 style="margin:0 0 0.2rem;font-size:0.95rem;color:#e2e8f0;">' + escapeHtml(sec.title) + '</h3>' +
+          '<div style="font-size:0.78rem;color:var(--text-muted);margin-block-end:0.85rem;">' + escapeHtml(sec.subtitle) + '</div>' +
+          '<div class="form-grid">' + fieldsHtml + '</div>' +
         '</div>';
       }).join('');
     }

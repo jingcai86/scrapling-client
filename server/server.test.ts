@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type pg from "pg";
 import {
   computeNextRandomizedRun,
   filterAlertableDeals,
@@ -10,6 +11,77 @@ import {
   type DealAlertItem,
 } from "../core/index.js";
 import { createDashboardServer } from "./index.js";
+
+function createInMemoryConfigPool(): {
+  pool: pg.Pool;
+  configRows: Map<string, { key: string; value: string }>;
+} {
+  const configRows = new Map<string, { key: string; value: string }>();
+
+  const pool = {
+    query: async (sql: string, params: unknown[] = []) => {
+      const normalized = sql.replace(/\s+/g, " ").trim();
+
+      if (
+        normalized.startsWith("INSERT INTO scrapling.config") &&
+        normalized.includes("ON CONFLICT (key) DO NOTHING")
+      ) {
+        const key = String(params[0] ?? "");
+        const value = String(params[1] ?? "");
+        if (key && !configRows.has(key)) {
+          configRows.set(key, { key, value });
+        }
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (
+        normalized.startsWith("INSERT INTO scrapling.config") &&
+        normalized.includes("ON CONFLICT (key) DO UPDATE")
+      ) {
+        const key = String(params[0] ?? "");
+        const value = String(params[1] ?? "");
+        if (key) {
+          configRows.set(key, { key, value });
+        }
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (
+        normalized.startsWith(
+          "SELECT key, value FROM scrapling.config ORDER BY key ASC",
+        )
+      ) {
+        const rows = Array.from(configRows.values()).sort((a, b) =>
+          a.key.localeCompare(b.key),
+        );
+        return { rows, rowCount: rows.length };
+      }
+
+      if (
+        normalized.startsWith(
+          "UPDATE scrapling.config SET value = '', updated_at = NOW() WHERE key = $1",
+        )
+      ) {
+        const key = String(params[0] ?? "");
+        if (configRows.has(key)) {
+          configRows.set(key, { key, value: "" });
+        }
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (normalized.startsWith("DELETE FROM scrapling.config WHERE key = $1")) {
+        const key = String(params[0] ?? "");
+        configRows.delete(key);
+        return { rows: [], rowCount: 1 };
+      }
+
+      return { rows: [], rowCount: 0 };
+    },
+    end: async () => undefined,
+  } as unknown as pg.Pool;
+
+  return { pool, configRows };
+}
 
 describe("Server, Randomized Cron, Email Template & Page Store API", () => {
   it("computes randomized daily cron times within [baseTime, baseTime + jitterMinutes]", () => {
@@ -92,26 +164,67 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
     assert.match(template.html, /-24\.00%/);
   });
 
-  it("serves dashboard API, manages scrape pages, and updates .env and scheduler settings", async () => {
+  it("fails to start createDashboardServer if DATABASE_URL is missing or PostgreSQL is unreachable", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "scrapling-nodb-"));
+    const tmpEnvPath = path.join(tmpDir, ".env");
+    fs.writeFileSync(tmpEnvPath, "PORT=80\nDATABASE_URL=\n", "utf8");
+
+    const originalDbUrl = process.env.DATABASE_URL;
+    delete process.env.DATABASE_URL;
+
+    try {
+      await assert.rejects(
+        () =>
+          createDashboardServer({
+            port: 0,
+            dataDir: path.join(tmpDir, "data"),
+            envPath: tmpEnvPath,
+          }),
+        /Missing PostgreSQL connection string/,
+      );
+    } finally {
+      if (originalDbUrl !== undefined) {
+        process.env.DATABASE_URL = originalDbUrl;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("serves dashboard API, initializes scrapling.config (empty string for missing keys), protects .env keys, and manages pages", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "scrapling-srv-"));
     const tmpEnvPath = path.join(tmpDir, ".env");
     fs.writeFileSync(
       tmpEnvPath,
-      "SCRAPLING_MCP_URL=http://localhost:8000/mcp\nCRON_BASE_TIME=19:00\nCRON_JITTER_MINUTES=60\n",
+      "PORT=80\nDATABASE_URL=postgresql://mock:mock@127.0.0.1:1/postgres\nSCRAPLING_MCP_URL=http://localhost:8000/mcp\nCRON_BASE_TIME=19:00\nCRON_JITTER_MINUTES=60\n",
       "utf8",
     );
 
     const originalDbUrl = process.env.DATABASE_URL;
     delete process.env.DATABASE_URL;
 
+    const { pool, configRows } = createInMemoryConfigPool();
+
     const app = await createDashboardServer({
       port: 0,
       dataDir: path.join(tmpDir, "data"),
       envPath: tmpEnvPath,
+      pool,
     });
 
     try {
       const baseUrl = `http://127.0.0.1:${app.port}`;
+
+      // Verify missing keys in .env were created in scrapling.config with empty string ""
+      assert.equal(configRows.get("RESEND_API_KEY")?.value, "");
+      assert.equal(configRows.get("ALERT_EMAIL_TO")?.value, "");
+      // And keys present in .env were seeded into scrapling.config
+      assert.equal(
+        configRows.get("SCRAPLING_MCP_URL")?.value,
+        "http://localhost:8000/mcp",
+      );
+      // And PORT / DATABASE_URL are NOT stored in scrapling.config
+      assert.equal(configRows.has("PORT"), false);
+      assert.equal(configRows.has("DATABASE_URL"), false);
 
       // 1. GET /api/dashboard
       const dashRes = await fetch(`${baseUrl}/api/dashboard`);
@@ -119,10 +232,12 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       const dash = (await dashRes.json()) as {
         pages: Array<{ id: string; categoryName: string }>;
         scheduler: { baseTime: string; jitterMinutes: number };
+        env: { values: Record<string, string> };
       };
       assert.equal(dash.pages.length, 5); // PlayStation, Nintendo, Android, Amazon, Apple
       assert.equal(dash.scheduler.baseTime, "19:00");
       assert.equal(dash.scheduler.jitterMinutes, 60);
+      assert.equal(dash.env.values.RESEND_API_KEY, "");
 
       // 2. POST /api/pages (Add new page)
       const addRes = await fetch(`${baseUrl}/api/pages`, {
@@ -146,12 +261,14 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       );
       assert.equal(delRes.status, 200);
 
-      // 4. PUT /api/env (Update .env values)
+      // 4. PUT /api/env (Update scrapling.config values; verify PORT & DATABASE_URL cannot be changed)
       const envRes = await fetch(`${baseUrl}/api/env`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           updates: {
+            PORT: "9999",
+            DATABASE_URL: "postgresql://hacked",
             ALERT_DISCOUNT_THRESHOLD_PCT: "25",
             CRON_BASE_TIME: "20:00",
             CRON_JITTER_MINUTES: "45",
@@ -166,11 +283,16 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       assert.equal(envUpdated.values.ALERT_DISCOUNT_THRESHOLD_PCT, "25");
       assert.equal(envUpdated.scheduler.baseTime, "20:00");
       assert.equal(envUpdated.scheduler.jitterMinutes, 45);
-
-      const diskEnv = fs.readFileSync(tmpEnvPath, "utf8");
-      assert.match(diskEnv, /ALERT_DISCOUNT_THRESHOLD_PCT=25/);
-      assert.match(diskEnv, /CRON_BASE_TIME=20:00/);
-      assert.match(diskEnv, /CRON_JITTER_MINUTES=45/);
+      // PORT and DATABASE_URL must remain unchanged from .env
+      assert.equal(envUpdated.values.PORT, "80");
+      assert.equal(
+        envUpdated.values.DATABASE_URL,
+        "postgresql://mock:mock@127.0.0.1:1/postgres",
+      );
+      // Confirm updates went to scrapling.config
+      assert.equal(configRows.get("ALERT_DISCOUNT_THRESHOLD_PCT")?.value, "25");
+      assert.equal(configRows.get("CRON_BASE_TIME")?.value, "20:00");
+      assert.equal(configRows.get("CRON_JITTER_MINUTES")?.value, "45");
 
       // 5. GET /api/email/preview
       const prevRes = await fetch(`${baseUrl}/api/email/preview`);
@@ -247,6 +369,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
         port: 0,
         dataDir: path.join(tmpDir, "data"),
         envPath: tmpEnvPath,
+        pool,
       });
 
       try {

@@ -4,13 +4,13 @@ import { createPgPool, TerminalSpinner } from "../core/index.js";
 import type { SellerOffer } from "./baseScraper.js";
 import type { PageDealStatus } from "./pageStats.js";
 
-export const ENEBA_SCHEMA_NAME = "eneba";
+export const ENEBA_SCHEMA_NAME = "scrapling";
 
 const INIT_ENEBA_SCHEMA_SQL = `
-CREATE SCHEMA IF NOT EXISTS eneba;
+CREATE SCHEMA IF NOT EXISTS scrapling;
 
 -- 1. Normalized catalog of unique Eneba gift card products
-CREATE TABLE IF NOT EXISTS eneba.products (
+CREATE TABLE IF NOT EXISTS scrapling.eneba_products (
   id BIGSERIAL PRIMARY KEY,
   slug TEXT NOT NULL UNIQUE,
   url TEXT NOT NULL UNIQUE,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS eneba.products (
 );
 
 -- 2. Page-level scrape runs (one row per category page scrape)
-CREATE TABLE IF NOT EXISTS eneba.scrape_runs (
+CREATE TABLE IF NOT EXISTS scrapling.eneba_scrape_runs (
   id BIGSERIAL PRIMARY KEY,
   batch_id UUID NOT NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -43,10 +43,10 @@ CREATE TABLE IF NOT EXISTS eneba.scrape_runs (
 );
 
 -- 3. Top 10 ranked deals (rank 1-10) per page scrape
-CREATE TABLE IF NOT EXISTS eneba.top_deals (
+CREATE TABLE IF NOT EXISTS scrapling.eneba_top_deals (
   id BIGSERIAL PRIMARY KEY,
-  scrape_run_id BIGINT NOT NULL REFERENCES eneba.scrape_runs(id) ON DELETE CASCADE,
-  product_id BIGINT NOT NULL REFERENCES eneba.products(id) ON DELETE CASCADE,
+  scrape_run_id BIGINT NOT NULL REFERENCES scrapling.eneba_scrape_runs(id) ON DELETE CASCADE,
+  product_id BIGINT NOT NULL REFERENCES scrapling.eneba_products(id) ON DELETE CASCADE,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   rank SMALLINT NOT NULL CHECK (rank BETWEEN 1 AND 10),
   category TEXT NOT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS eneba.top_deals (
 );
 
 -- 4. Sellers / merchants table (for product-level seller relationships)
-CREATE TABLE IF NOT EXISTS eneba.sellers (
+CREATE TABLE IF NOT EXISTS scrapling.eneba_sellers (
   id BIGSERIAL PRIMARY KEY,
   seller_name TEXT NOT NULL UNIQUE,
   seller_slug TEXT,
@@ -81,16 +81,12 @@ CREATE TABLE IF NOT EXISTS eneba.sellers (
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE eneba.sellers ADD COLUMN IF NOT EXISTS seller_slug TEXT;
-ALTER TABLE eneba.sellers ADD COLUMN IF NOT EXISTS seller_url TEXT;
-ALTER TABLE eneba.sellers ADD COLUMN IF NOT EXISTS rating_label TEXT;
-
 -- 5. Individual seller offers for a product at a point in time
-CREATE TABLE IF NOT EXISTS eneba.product_offers (
+CREATE TABLE IF NOT EXISTS scrapling.eneba_product_offers (
   id BIGSERIAL PRIMARY KEY,
-  product_id BIGINT NOT NULL REFERENCES eneba.products(id) ON DELETE CASCADE,
-  seller_id BIGINT REFERENCES eneba.sellers(id) ON DELETE SET NULL,
-  scrape_run_id BIGINT REFERENCES eneba.scrape_runs(id) ON DELETE SET NULL,
+  product_id BIGINT NOT NULL REFERENCES scrapling.eneba_products(id) ON DELETE CASCADE,
+  seller_id BIGINT REFERENCES scrapling.eneba_sellers(id) ON DELETE SET NULL,
+  scrape_run_id BIGINT REFERENCES scrapling.eneba_scrape_runs(id) ON DELETE SET NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   price NUMERIC(10, 2) NOT NULL,
   cashback_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
@@ -98,22 +94,59 @@ CREATE TABLE IF NOT EXISTS eneba.product_offers (
   is_featured_offer BOOLEAN NOT NULL DEFAULT FALSE
 );
 
-ALTER TABLE eneba.product_offers ADD COLUMN IF NOT EXISTS is_lowest_price BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_scrape_runs_scraped_at
+  ON scrapling.eneba_scrape_runs (scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_eneba_scrape_runs_scraped_at
-  ON eneba.scrape_runs (scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_scrape_runs_category_time
+  ON scrapling.eneba_scrape_runs (category, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_eneba_scrape_runs_category_time
-  ON eneba.scrape_runs (category, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_top_deals_scraped_rank
+  ON scrapling.eneba_top_deals (category, scraped_at DESC, rank ASC);
 
-CREATE INDEX IF NOT EXISTS idx_eneba_top_deals_scraped_rank
-  ON eneba.top_deals (category, scraped_at DESC, rank ASC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_top_deals_product_time
+  ON scrapling.eneba_top_deals (product_id, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_eneba_top_deals_product_time
-  ON eneba.top_deals (product_id, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_product_offers_product_time
+  ON scrapling.eneba_product_offers (product_id, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_eneba_product_offers_product_time
-  ON eneba.product_offers (product_id, scraped_at DESC);
+-- Automatically migrate legacy eneba.* tables into scrapling.eneba_* if present and target is empty
+DO $$
+BEGIN
+  IF to_regclass('eneba.products') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_products LIMIT 1) THEN
+    INSERT INTO scrapling.eneba_products (id, slug, url, category, title, region, face_value, face_value_currency, first_seen_at, last_seen_at)
+    SELECT id, slug, url, category, title, region, face_value, face_value_currency, first_seen_at, last_seen_at
+    FROM eneba.products ON CONFLICT DO NOTHING;
+    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_products', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_products), 1));
+  END IF;
+
+  IF to_regclass('eneba.scrape_runs') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_scrape_runs LIMIT 1) THEN
+    INSERT INTO scrapling.eneba_scrape_runs (id, batch_id, scraped_at, category, page_url, page_number, total_listings, in_stock_count, out_of_stock_count, discounted_count, avg_discount_pct_on_discounted, avg_discount_pct_all_in_stock, avg_effective_discount_pct, max_discount_pct, max_effective_discount_pct)
+    SELECT id, batch_id, scraped_at, category, page_url, page_number, total_listings, in_stock_count, out_of_stock_count, discounted_count, avg_discount_pct_on_discounted, avg_discount_pct_all_in_stock, avg_effective_discount_pct, max_discount_pct, max_effective_discount_pct
+    FROM eneba.scrape_runs ON CONFLICT DO NOTHING;
+    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_scrape_runs', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_scrape_runs), 1));
+  END IF;
+
+  IF to_regclass('eneba.top_deals') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_top_deals LIMIT 1) THEN
+    INSERT INTO scrapling.eneba_top_deals (id, scrape_run_id, product_id, scraped_at, rank, category, title, url, region, selling_price, original_price, face_value, face_value_currency, listed_discount_pct, cashback_pct, in_stock, discount_pct, effective_discount_pct, effective_price, savings_amount)
+    SELECT id, scrape_run_id, product_id, scraped_at, rank, category, title, url, region, selling_price, original_price, face_value, face_value_currency, listed_discount_pct, cashback_pct, in_stock, discount_pct, effective_discount_pct, effective_price, savings_amount
+    FROM eneba.top_deals ON CONFLICT DO NOTHING;
+    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_top_deals', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_top_deals), 1));
+  END IF;
+
+  IF to_regclass('eneba.sellers') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_sellers LIMIT 1) THEN
+    INSERT INTO scrapling.eneba_sellers (id, seller_name, seller_slug, seller_url, rating_pct, rating_label, rating_count, is_verified, first_seen_at, last_seen_at)
+    SELECT id, seller_name, seller_slug, seller_url, rating_pct, rating_label, rating_count, is_verified, first_seen_at, last_seen_at
+    FROM eneba.sellers ON CONFLICT DO NOTHING;
+    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_sellers', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_sellers), 1));
+  END IF;
+
+  IF to_regclass('eneba.product_offers') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_product_offers LIMIT 1) THEN
+    INSERT INTO scrapling.eneba_product_offers (id, product_id, seller_id, scrape_run_id, scraped_at, price, cashback_pct, is_lowest_price, is_featured_offer)
+    SELECT id, product_id, seller_id, scrape_run_id, scraped_at, price, cashback_pct, is_lowest_price, is_featured_offer
+    FROM eneba.product_offers ON CONFLICT DO NOTHING;
+    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_product_offers', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_product_offers), 1));
+  END IF;
+END $$;
 `;
 
 export interface SaveDealsResult {
@@ -156,15 +189,15 @@ export function extractProductSlug(url: string): string {
 }
 
 /**
- * Ensures the `eneba` PostgreSQL schema and all relational tables exist.
+ * Ensures the `scrapling` PostgreSQL schema and all `scrapling.eneba_*` relational tables exist.
  */
 export async function ensureEnebaSchema(pool: pg.Pool): Promise<void> {
   await pool.query(INIT_ENEBA_SCHEMA_SQL);
 }
 
 /**
- * Saves page scrape run metadata (`eneba.scrape_runs`), upserts unique products (`eneba.products`),
- * and inserts the top 10 ranked deals (`rank` 1..10) into `eneba.top_deals`.
+ * Saves page scrape run metadata (`scrapling.eneba_scrape_runs`), upserts unique products (`scrapling.eneba_products`),
+ * and inserts the top 10 ranked deals (`rank` 1..10) into `scrapling.eneba_top_deals`.
  */
 export async function savePageDealsToDb(
   statuses: PageDealStatus | PageDealStatus[],
@@ -192,10 +225,10 @@ export async function savePageDealsToDb(
       await client.query("BEGIN");
 
       for (const status of statusList) {
-        // 1. Insert the page-level scrape run into eneba.scrape_runs
+        // 1. Insert the page-level scrape run into scrapling.eneba_scrape_runs
         const runRes = await client.query<{ id: string }>(
           `
-          INSERT INTO eneba.scrape_runs (
+          INSERT INTO scrapling.eneba_scrape_runs (
             batch_id,
             scraped_at,
             category,
@@ -235,7 +268,7 @@ export async function savePageDealsToDb(
         const scrapeRunId = runRes.rows[0].id;
         scrapeRunsInserted++;
 
-        // 2. Upsert each top 1..10 product into eneba.products and insert the ranked deal into eneba.top_deals
+        // 2. Upsert each top 1..10 product into scrapling.eneba_products and insert the ranked deal into scrapling.eneba_top_deals
         const topDeals = status.rankedDeals.slice(0, maxRank);
         for (let i = 0; i < topDeals.length; i++) {
           const deal = topDeals[i];
@@ -244,7 +277,7 @@ export async function savePageDealsToDb(
 
           const prodRes = await client.query<{ id: string }>(
             `
-            INSERT INTO eneba.products (
+            INSERT INTO scrapling.eneba_products (
               slug,
               url,
               category,
@@ -258,8 +291,8 @@ export async function savePageDealsToDb(
             ON CONFLICT (url) DO UPDATE SET
               title = EXCLUDED.title,
               region = EXCLUDED.region,
-              face_value = COALESCE(EXCLUDED.face_value, eneba.products.face_value),
-              face_value_currency = COALESCE(EXCLUDED.face_value_currency, eneba.products.face_value_currency),
+              face_value = COALESCE(EXCLUDED.face_value, scrapling.eneba_products.face_value),
+              face_value_currency = COALESCE(EXCLUDED.face_value_currency, scrapling.eneba_products.face_value_currency),
               last_seen_at = EXCLUDED.last_seen_at
             RETURNING id
             `,
@@ -278,7 +311,7 @@ export async function savePageDealsToDb(
 
           await client.query(
             `
-            INSERT INTO eneba.top_deals (
+            INSERT INTO scrapling.eneba_top_deals (
               scrape_run_id,
               product_id,
               scraped_at,
@@ -356,7 +389,7 @@ export interface SaveProductOffersResult {
 }
 
 /**
- * Persists scraped vendor offers for a given product URL into `eneba.sellers` and `eneba.product_offers`.
+ * Persists scraped vendor offers for a given product URL into `scrapling.eneba_sellers` and `scrapling.eneba_product_offers`.
  */
 export async function saveProductOffersToDb(
   productUrl: string,
@@ -389,7 +422,7 @@ export async function saveProductOffersToDb(
       await client.query("BEGIN");
 
       const prodRes = await client.query<{ id: string }>(
-        `SELECT id FROM eneba.products WHERE url = $1 LIMIT 1`,
+        `SELECT id FROM scrapling.eneba_products WHERE url = $1 LIMIT 1`,
         [productUrl],
       );
       if (prodRes.rows.length === 0) {
@@ -399,7 +432,7 @@ export async function saveProductOffersToDb(
       const productId = prodRes.rows[0].id;
 
       const latestDealRes = await client.query<{ scrape_run_id: string }>(
-        `SELECT scrape_run_id FROM eneba.top_deals WHERE product_id = $1 ORDER BY scraped_at DESC LIMIT 1`,
+        `SELECT scrape_run_id FROM scrapling.eneba_top_deals WHERE product_id = $1 ORDER BY scraped_at DESC LIMIT 1`,
         [productId],
       );
       const scrapeRunId = latestDealRes.rows[0]?.scrape_run_id ?? null;
@@ -407,7 +440,7 @@ export async function saveProductOffersToDb(
       for (const offer of offers) {
         const sellerRes = await client.query<{ id: string }>(
           `
-          INSERT INTO eneba.sellers (
+          INSERT INTO scrapling.eneba_sellers (
             seller_name,
             seller_slug,
             seller_url,
@@ -417,10 +450,10 @@ export async function saveProductOffersToDb(
             last_seen_at
           ) VALUES ($1, $2, $3, $4, $5, $6, $6)
           ON CONFLICT (seller_name) DO UPDATE SET
-            seller_slug = COALESCE(EXCLUDED.seller_slug, eneba.sellers.seller_slug),
-            seller_url = COALESCE(EXCLUDED.seller_url, eneba.sellers.seller_url),
-            rating_pct = COALESCE(EXCLUDED.rating_pct, eneba.sellers.rating_pct),
-            rating_label = COALESCE(EXCLUDED.rating_label, eneba.sellers.rating_label),
+            seller_slug = COALESCE(EXCLUDED.seller_slug, scrapling.eneba_sellers.seller_slug),
+            seller_url = COALESCE(EXCLUDED.seller_url, scrapling.eneba_sellers.seller_url),
+            rating_pct = COALESCE(EXCLUDED.rating_pct, scrapling.eneba_sellers.rating_pct),
+            rating_label = COALESCE(EXCLUDED.rating_label, scrapling.eneba_sellers.rating_label),
             last_seen_at = EXCLUDED.last_seen_at
           RETURNING id
           `,
@@ -438,7 +471,7 @@ export async function saveProductOffersToDb(
 
         await client.query(
           `
-          INSERT INTO eneba.product_offers (
+          INSERT INTO scrapling.eneba_product_offers (
             product_id,
             seller_id,
             scrape_run_id,
@@ -481,9 +514,6 @@ export async function saveProductOffersToDb(
 
 /**
  * Non-blocking, fault-tolerant database persistence helper.
- * If `DATABASE_URL` is missing, `--no-db` is passed, or PostgreSQL connection/insert fails for ANY reason,
- * this catches the error, logs a warning to `stderr`, and returns a status object so the scraper
- * always returns its full JSON/CLI results without crashing.
  */
 export async function tryPersistScrapeResult(
   statuses: PageDealStatus | PageDealStatus[],
@@ -508,7 +538,7 @@ export async function tryPersistScrapeResult(
 
   const spinner = new TerminalSpinner({ silent: options.showProgress === false });
   spinner.start(
-    `[PostgreSQL] Saving top deals & seller offers to schema "eneba"...`,
+    `[PostgreSQL] Saving top deals & seller offers to schema "scrapling" (eneba_* tables)...`,
   );
 
   let pool: pg.Pool | null = null;
@@ -538,7 +568,7 @@ export async function tryPersistScrapeResult(
     }
 
     spinner.succeed(
-      `[PostgreSQL] Saved ${savedDeals.topDealsInserted} top deals & ${totalOffers} seller offers into schema "eneba"`,
+      `[PostgreSQL] Saved ${savedDeals.topDealsInserted} top deals & ${totalOffers} seller offers into schema "scrapling"`,
     );
 
     const dbStatus: DbPersistenceStatus = {
@@ -577,8 +607,7 @@ export async function tryPersistScrapeResult(
 }
 
 /**
- * Loads the most recent `PageDealStatus` for each category from PostgreSQL (`eneba.*` schema).
- * Fault-tolerant: returns `[]` if `DATABASE_URL` is not configured or PostgreSQL is unreachable.
+ * Loads the most recent `PageDealStatus` for each category from PostgreSQL (`scrapling.eneba_*` tables).
  */
 export async function fetchLatestEnebaStatusesFromDb(): Promise<
   PageDealStatus[]
@@ -592,7 +621,6 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
     pool = createPgPool();
     await ensureEnebaSchema(pool);
 
-    // Get latest scrape_run per category
     const runsRes = await pool.query<{
       id: string;
       batch_id: string;
@@ -626,7 +654,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         avg_effective_discount_pct,
         max_discount_pct,
         max_effective_discount_pct
-      FROM eneba.scrape_runs
+      FROM scrapling.eneba_scrape_runs
       ORDER BY category, scraped_at DESC
     `);
 
@@ -669,7 +697,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
           effective_discount_pct,
           effective_price,
           savings_amount
-        FROM eneba.top_deals
+        FROM scrapling.eneba_top_deals
         WHERE scrape_run_id = $1
         ORDER BY rank ASC
         `,
@@ -699,7 +727,6 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         savingsAmount: Number(d.savings_amount),
       }));
 
-      // Fetch competing seller offers for this scrape run
       const offersRes = await pool.query<{
         seller_name: string;
         seller_slug: string | null;
@@ -722,8 +749,8 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
           po.cashback_pct,
           po.is_lowest_price,
           po.is_featured_offer
-        FROM eneba.product_offers po
-        JOIN eneba.sellers s ON s.id = po.seller_id
+        FROM scrapling.eneba_product_offers po
+        JOIN scrapling.eneba_sellers s ON s.id = po.seller_id
         WHERE po.scrape_run_id = $1
         ORDER BY po.price ASC
         `,

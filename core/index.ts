@@ -9,8 +9,18 @@ export {
   type ScraplingResponse,
   type WaitSelectorState,
 } from "./client.js";
-export { createPgPool, type DbPoolOptions } from "./db.js";
 export {
+  SCRAPLING_SCHEMA_NAME,
+  createPgPool,
+  deleteDbConfigKey,
+  ensureScraplingConfigTable,
+  initScraplingConfigOnStartup,
+  readAllConfigValues,
+  updateDbConfigValues,
+  type DbPoolOptions,
+} from "./db.js";
+export {
+  ENV_ONLY_KEYS,
   ENV_SCHEMA,
   deleteEnvKey,
   ensureDefaultEnvKeys,

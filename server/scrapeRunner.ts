@@ -117,7 +117,7 @@ export class ScrapeRunner {
         }
         this.pageStore.saveLatestStatuses(this.getLatestStatuses());
         this.addLog(
-          `Loaded ${dbStatuses.length} category snapshots from PostgreSQL (eneba schema).`,
+          `Loaded ${dbStatuses.length} category snapshots from PostgreSQL (scrapling.eneba_* tables).`,
         );
       }
     } catch {
@@ -219,7 +219,7 @@ export class ScrapeRunner {
       this.pageStore.saveLatestStatuses(scrapedResults);
 
       // Persist to PostgreSQL (fault-tolerant)
-      this.currentStep = `Saving ${scrapedResults.length} page run(s) to PostgreSQL (eneba schema)...`;
+      this.currentStep = `Saving ${scrapedResults.length} page run(s) to PostgreSQL (scrapling.eneba_* tables)...`;
       const dbStatus = await tryPersistScrapeResult(scrapedResults, {
         maxRank: 10,
         showProgress: true,

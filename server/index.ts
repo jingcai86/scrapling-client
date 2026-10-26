@@ -1,21 +1,25 @@
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type pg from "pg";
 import {
   ENV_SCHEMA,
   RandomizedDailyScheduler,
-  deleteEnvKey,
+  createPgPool,
+  deleteDbConfigKey,
   ensureDefaultEnvKeys,
   filterAlertableDeals,
   getEmailConfigStatus,
+  initScraplingConfigOnStartup,
   loadEnv,
-  readEnvValues,
+  readAllConfigValues,
   renderDealAlertEmailTemplate,
   resolveEnvFilePath,
   sendDealAlertEmail,
-  updateEnvValues,
+  updateDbConfigValues,
   type DealAlertItem,
 } from "../core/index.js";
+import { ensureEnebaSchema } from "../eneba/db.js";
 import { PageStore } from "./pageStore.js";
 import { ScrapeRunner, statusesToAlertItems } from "./scrapeRunner.js";
 import { searchDeals, type DealSearchQuery } from "./dealSearch.js";
@@ -95,9 +99,25 @@ export async function createDashboardServer(options: {
   port?: number;
   dataDir?: string;
   envPath?: string;
+  pool?: pg.Pool;
 } = {}): Promise<ServerInstance> {
   loadEnv(options.envPath);
   ensureDefaultEnvKeys(options.envPath);
+
+  // Mandatory startup check: Ensure PostgreSQL is reachable and initialize `scrapling.config` + `scrapling.eneba_*` tables.
+  // Fails fast if DATABASE_URL is missing or PostgreSQL is unreachable.
+  const startupPool = options.pool ?? createPgPool();
+  try {
+    await initScraplingConfigOnStartup({
+      pool: startupPool,
+      envPath: options.envPath,
+    });
+    await ensureEnebaSchema(startupPool);
+  } finally {
+    if (!options.pool) {
+      await startupPool.end();
+    }
+  }
 
   const pageStore = new PageStore(options.dataDir);
   const runner = new ScrapeRunner(pageStore);
@@ -131,6 +151,10 @@ export async function createDashboardServer(options: {
       if (method === "GET" && pathname === "/api/dashboard") {
         const pages = pageStore.listPages();
         const providers = Array.from(new Set(pages.map((p) => p.provider)));
+        const configValues = await readAllConfigValues({
+          pool: options.pool,
+          envPath: options.envPath,
+        });
         sendJson(res, 200, {
           pages,
           providers,
@@ -139,7 +163,7 @@ export async function createDashboardServer(options: {
           scheduler: scheduler.getState(),
           env: {
             schema: ENV_SCHEMA,
-            values: readEnvValues(options.envPath),
+            values: configValues,
             envFilePath: resolveEnvFilePath(options.envPath),
           },
         });
@@ -261,7 +285,6 @@ export async function createDashboardServer(options: {
         const withOffersOverride =
           body.withOffers !== undefined ? Boolean(body.withOffers) : undefined;
 
-        // Run asynchronously so UI can poll live status
         void runner
           .runScrape({ pageId, withOffersOverride })
           .catch(() => undefined);
@@ -273,15 +296,21 @@ export async function createDashboardServer(options: {
         return;
       }
 
-      // 6. PUT /api/env (Update .env values)
-      if (method === "PUT" && pathname === "/api/env") {
+      // 6. PUT /api/env (or /api/config) — Updates `scrapling.config` in PostgreSQL (envOnly keys like PORT/DATABASE_URL are ignored)
+      if (
+        method === "PUT" &&
+        (pathname === "/api/env" || pathname === "/api/config")
+      ) {
         const body = await readJsonBody(req);
         const rawUpdates = (body.updates ?? {}) as Record<string, unknown>;
         const cleanUpdates: Record<string, string> = {};
         for (const [k, v] of Object.entries(rawUpdates)) {
           cleanUpdates[k] = String(v ?? "");
         }
-        const values = updateEnvValues(cleanUpdates, options.envPath);
+        const values = await updateDbConfigValues(cleanUpdates, {
+          pool: options.pool,
+          envPath: options.envPath,
+        });
         if (
           "CRON_ENABLED" in cleanUpdates ||
           "CRON_BASE_TIME" in cleanUpdates ||
@@ -296,31 +325,52 @@ export async function createDashboardServer(options: {
         return;
       }
 
-      // 7. DELETE /api/env/:key
-      if (method === "DELETE" && pathname.startsWith("/api/env/")) {
-        const key = decodeURIComponent(pathname.slice("/api/env/".length));
-        const values = deleteEnvKey(key, options.envPath);
+      // 7. DELETE /api/env/:key (or /api/config/:key)
+      if (
+        method === "DELETE" &&
+        (pathname.startsWith("/api/env/") ||
+          pathname.startsWith("/api/config/"))
+      ) {
+        const prefix = pathname.startsWith("/api/env/")
+          ? "/api/env/"
+          : "/api/config/";
+        const key = decodeURIComponent(pathname.slice(prefix.length));
+        const values = await deleteDbConfigKey(key, {
+          pool: options.pool,
+          envPath: options.envPath,
+        });
         sendJson(res, 200, { values });
         return;
       }
 
-      // 8. PUT /api/scheduler (Update randomized daily cron config or re-roll offset)
+      // 8. PUT /api/scheduler (Update randomized daily cron config in `scrapling.config` or re-roll offset)
       if (method === "PUT" && pathname === "/api/scheduler") {
         const body = await readJsonBody(req);
         if (body.reroll) {
           sendJson(res, 200, { scheduler: scheduler.rerollNextRun() });
           return;
         }
-        const state = scheduler.updateConfig({
-          enabled:
-            body.enabled !== undefined ? Boolean(body.enabled) : undefined,
-          baseTime:
-            body.baseTime !== undefined ? String(body.baseTime) : undefined,
-          jitterMinutes:
-            body.jitterMinutes !== undefined
-              ? Number(body.jitterMinutes)
-              : undefined,
-        });
+        const state = scheduler.updateConfig(
+          {
+            enabled:
+              body.enabled !== undefined ? Boolean(body.enabled) : undefined,
+            baseTime:
+              body.baseTime !== undefined ? String(body.baseTime) : undefined,
+            jitterMinutes:
+              body.jitterMinutes !== undefined
+                ? Number(body.jitterMinutes)
+                : undefined,
+          },
+          false,
+        );
+        await updateDbConfigValues(
+          {
+            CRON_ENABLED: String(state.enabled),
+            CRON_BASE_TIME: state.baseTime,
+            CRON_JITTER_MINUTES: String(state.jitterMinutes),
+          },
+          { pool: options.pool, envPath: options.envPath },
+        );
         sendJson(res, 200, { scheduler: state });
         return;
       }
@@ -328,7 +378,7 @@ export async function createDashboardServer(options: {
       // 9. GET /api/email/preview (Preview Resend email template for >= threshold % deals)
       if (method === "GET" && pathname === "/api/email/preview") {
         const thresholdPct =
-          Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT ?? "20") || 20;
+          Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT || "20") || 20;
         const liveItems = statusesToAlertItems(runner.getLatestStatuses());
         const matchingLive = filterAlertableDeals(liveItems, thresholdPct);
         const dealsForPreview =
@@ -347,7 +397,7 @@ export async function createDashboardServer(options: {
       // 10. POST /api/email/test (Send test alert email via Resend)
       if (method === "POST" && pathname === "/api/email/test") {
         const thresholdPct =
-          Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT ?? "20") || 20;
+          Number(process.env.ALERT_DISCOUNT_THRESHOLD_PCT || "20") || 20;
         const liveItems = statusesToAlertItems(runner.getLatestStatuses());
         const matchingLive = filterAlertableDeals(liveItems, thresholdPct);
         const dealsToSend =
@@ -398,22 +448,33 @@ const isMain =
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMain) {
-  const instance = await createDashboardServer();
-  const sched = instance.scheduler.getState();
-  const emailStatus = getEmailConfigStatus();
-  console.log("=".repeat(76));
-  console.log(
-    `🚀 Scrapling Deal Monitor Server running at http://localhost:${instance.port}`,
-  );
-  console.log(
-    `⏰ Daily Randomized Cron: ${sched.enabled ? `${sched.baseTime} + 0..${sched.jitterMinutes}m jitter (Next: ${sched.nextRunAt ? new Date(sched.nextRunAt).toLocaleString() : "N/A"})` : "Disabled"}`,
-  );
-  if (emailStatus.warningMessage) {
-    console.warn(`⚠️  [Email Warning] ${emailStatus.warningMessage}`);
-  } else {
+  try {
+    const instance = await createDashboardServer();
+    const sched = instance.scheduler.getState();
+    const emailStatus = getEmailConfigStatus();
+    console.log("=".repeat(76));
     console.log(
-      `✉️  Resend Email Alerts: Enabled (threshold >= ${emailStatus.thresholdPct}% off)`,
+      `🚀 Scrapling Deal Monitor Server running at http://localhost:${instance.port}`,
     );
+    console.log(
+      `🗄️  PostgreSQL Schema Ready: "scrapling" (scrapling.config + scrapling.eneba_*)`,
+    );
+    console.log(
+      `⏰ Daily Randomized Cron: ${sched.enabled ? `${sched.baseTime} + 0..${sched.jitterMinutes}m jitter (Next: ${sched.nextRunAt ? new Date(sched.nextRunAt).toLocaleString() : "N/A"})` : "Disabled"}`,
+    );
+    if (emailStatus.warningMessage) {
+      console.warn(`⚠️  [Email Warning] ${emailStatus.warningMessage}`);
+    } else {
+      console.log(
+        `✉️  Resend Email Alerts: Enabled (threshold >= ${emailStatus.thresholdPct}% off)`,
+      );
+    }
+    console.log("=".repeat(76));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `❌ [Fatal Startup Error] Failed to initialize database (scrapling schema): ${message}`,
+    );
+    process.exit(1);
   }
-  console.log("=".repeat(76));
 }

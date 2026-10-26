@@ -8,29 +8,37 @@ const REPO_ROOT = path.resolve(__dirname, "..");
 export interface EnvFieldMeta {
   key: string;
   label: string;
-  group: "scrapling" | "database" | "scheduler" | "email" | "server";
+  group: "env" | "scrapling" | "scheduler" | "email";
   description: string;
   defaultValue: string;
+  /** If true, this setting must live in `.env` (read-only in UI; requires server restart if changed). */
+  envOnly?: boolean;
   isSecret?: boolean;
   inputType?: "text" | "number" | "time" | "boolean" | "email" | "url";
 }
+
+export const ENV_ONLY_KEYS = new Set<string>(["PORT", "DATABASE_URL"]);
 
 export const ENV_SCHEMA: EnvFieldMeta[] = [
   {
     key: "PORT",
     label: "Server Port",
-    group: "server",
-    description: "HTTP port for the web dashboard and API server.",
+    group: "env",
+    description:
+      "HTTP port for the web dashboard and API server. Stored in .env (requires restart if changed).",
     defaultValue: "80",
+    envOnly: true,
     inputType: "number",
   },
   {
-    key: "TZ",
-    label: "Timezone (IANA)",
-    group: "server",
+    key: "DATABASE_URL",
+    label: "PostgreSQL Connection URL",
+    group: "env",
     description:
-      "Server timezone for cron scheduling, logs, and email timestamps (e.g., America/Los_Angeles for PST/PDT).",
-    defaultValue: "America/Los_Angeles",
+      "PostgreSQL connection string for schema 'scrapling'. Stored in .env (requires restart if changed).",
+    defaultValue: "",
+    envOnly: true,
+    isSecret: true,
     inputType: "text",
   },
   {
@@ -38,7 +46,7 @@ export const ENV_SCHEMA: EnvFieldMeta[] = [
     label: "Scrapling MCP Endpoint",
     group: "scrapling",
     description: "Streamable HTTP endpoint for the Scrapling MCP server.",
-    defaultValue: "http://localhost:8000/mcp",
+    defaultValue: "",
     inputType: "url",
   },
   {
@@ -50,20 +58,20 @@ export const ENV_SCHEMA: EnvFieldMeta[] = [
     inputType: "number",
   },
   {
-    key: "DATABASE_URL",
-    label: "PostgreSQL Connection URL",
-    group: "database",
+    key: "TZ",
+    label: "Timezone (IANA)",
+    group: "scrapling",
     description:
-      "Optional PostgreSQL connection string for storing scrape runs, top deals, and competing seller offers.",
-    defaultValue: "",
-    isSecret: true,
+      "Server timezone for cron scheduling, logs, and email timestamps (e.g., America/Los_Angeles for PST/PDT).",
+    defaultValue: "America/Los_Angeles",
     inputType: "text",
   },
   {
     key: "CRON_ENABLED",
     label: "Enable Daily Cron Job",
     group: "scheduler",
-    description: "Whether the daily randomized cron job is active (true/false).",
+    description:
+      "Whether the daily randomized cron job is active (true/false).",
     defaultValue: "true",
     inputType: "boolean",
   },
@@ -81,7 +89,7 @@ export const ENV_SCHEMA: EnvFieldMeta[] = [
     label: "Random Jitter Window (Minutes)",
     group: "scheduler",
     description:
-      "Random delay added to CRON_BASE_TIME each day (e.g., 60 means a random offset between 0 and 60 minutes, scraping between 7:00 PM and 8:00 PM).",
+      "Random delay added to CRON_BASE_TIME each day (e.g., 60 means a random offset between 0 and 60 minutes).",
     defaultValue: "60",
     inputType: "number",
   },
@@ -194,7 +202,7 @@ export function loadEnv(customPath?: string): void {
 }
 
 /**
- * Reads all environment variables from `.env` merged with `ENV_SCHEMA` defaults and `process.env`.
+ * Reads all environment variables from `.env` merged with `ENV_SCHEMA` and `process.env`.
  */
 export function readEnvValues(customPath?: string): Record<string, string> {
   const envPath = resolveEnvFilePath(customPath);
@@ -205,7 +213,7 @@ export function readEnvValues(customPath?: string): Record<string, string> {
   const merged: Record<string, string> = {};
   for (const field of ENV_SCHEMA) {
     merged[field.key] =
-      fileValues[field.key] ?? process.env[field.key] ?? field.defaultValue;
+      fileValues[field.key] ?? process.env[field.key] ?? "";
   }
 
   for (const [k, v] of Object.entries(fileValues)) {
@@ -215,9 +223,6 @@ export function readEnvValues(customPath?: string): Record<string, string> {
   return merged;
 }
 
-/**
- * Formats a value safely for `.env` lines.
- */
 function formatEnvValue(val: string): string {
   const clean = String(val ?? "").replace(/\r?\n/g, " ");
   if (/\s|#/.test(clean) && !/^['"].*['"]$/.test(clean)) {
@@ -299,7 +304,7 @@ export function deleteEnvKey(
 }
 
 /**
- * Ensures all default keys from `ENV_SCHEMA` exist in the `.env` file without overwriting existing values.
+ * Ensures boot `.env` keys (`PORT`, `DATABASE_URL`) exist in the `.env` file without overwriting existing values.
  */
 export function ensureDefaultEnvKeys(customPath?: string): void {
   const envPath = resolveEnvFilePath(customPath);
@@ -309,7 +314,7 @@ export function ensureDefaultEnvKeys(customPath?: string): void {
 
   const missingUpdates: Record<string, string> = {};
   for (const field of ENV_SCHEMA) {
-    if (existing[field.key] === undefined) {
+    if (field.envOnly && existing[field.key] === undefined) {
       missingUpdates[field.key] =
         process.env[field.key] ?? field.defaultValue;
     }
