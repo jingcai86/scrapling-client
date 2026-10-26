@@ -1,12 +1,24 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  Component,
+  ElementRef,
+  ViewChild,
+  AfterViewInit,
+  OnDestroy,
+  Inject,
+  PLATFORM_ID,
+  HostListener,
+  DoCheck,
+} from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import * as echarts from 'echarts';
 import { ApiService } from '../../core/services/api.service';
+import { ThemeService } from '../../core/services/theme.service';
 import type { ScrapeHistoryItem } from '../../core/models/dashboard.model';
 
 interface ProviderRow {
@@ -45,18 +57,18 @@ interface ProviderRow {
 
         <mat-card class="kpi-card" appearance="outlined">
           <mat-card-header>
-            <mat-card-subtitle>Last Scraped</mat-card-subtitle>
-            <mat-card-title class="kpi-value small-text">{{ lastScrapedTime() }}</mat-card-title>
+            <mat-card-subtitle>Last Global Scrape</mat-card-subtitle>
+            <mat-card-title class="kpi-value time-val">{{ lastScrapedTime() }}</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <div class="kpi-sub">Provider: eneba</div>
+            <div class="kpi-sub">Across all configured categories</div>
           </mat-card-content>
         </mat-card>
 
         <mat-card class="kpi-card" appearance="outlined">
           <mat-card-header>
             <mat-card-subtitle>Next Scheduled Scrape</mat-card-subtitle>
-            <mat-card-title class="kpi-value small-text next-cron">{{ nextCronTime() }}</mat-card-title>
+            <mat-card-title class="kpi-value highlight">{{ nextCronTime() }}</mat-card-title>
           </mat-card-header>
           <mat-card-content>
             <div class="kpi-sub">{{ cronWindow() }}</div>
@@ -65,16 +77,16 @@ interface ProviderRow {
 
         <mat-card class="kpi-card" appearance="outlined">
           <mat-card-header>
-            <mat-card-subtitle>Engine & Storage Status</mat-card-subtitle>
-            <mat-card-title class="kpi-value status-active">Active</mat-card-title>
+            <mat-card-subtitle>Avg Scraping Success</mat-card-subtitle>
+            <mat-card-title class="kpi-value" [class.success]="avgSuccessRateNum >= 80">{{ avgSuccessRate }}</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <div class="kpi-sub">PostgreSQL (scrapling schema)</div>
+            <div class="kpi-sub">Extraction reliability across runs</div>
           </mat-card-content>
         </mat-card>
       </div>
 
-      <!-- Scraping Success Rate Over Time (Line Chart) -->
+      <!-- Scraping Success Rate Over Time (Apache ECharts) -->
       <mat-card class="main-card chart-card" appearance="outlined">
         <mat-card-header class="chart-header">
           <div>
@@ -83,103 +95,38 @@ interface ProviderRow {
               <span>Scraping Success Rate Over Time</span>
             </mat-card-title>
             <mat-card-subtitle>
-              Real-time trend line of page extraction success rate (0% – 100%) across scheduled and manual runs.
+              Real-time Apache ECharts trend line of page extraction success rate (0% – 100%) across scheduled and manual runs.
             </mat-card-subtitle>
           </div>
-          <div class="chart-kpis" *ngIf="chartPoints.length > 0">
+          <div class="chart-kpis" *ngIf="historyItems.length > 0">
             <div class="stat-pill">
-              <span class="stat-label">Avg Success Rate:</span>
+              <span class="stat-label">Avg Success:</span>
               <span class="stat-val" [class.success]="avgSuccessRateNum >= 80">{{ avgSuccessRate }}</span>
             </div>
             <div class="stat-pill">
               <span class="stat-label">Total Runs:</span>
-              <span class="stat-val">{{ chartPoints.length }}</span>
+              <span class="stat-val">{{ historyItems.length }}</span>
             </div>
           </div>
         </mat-card-header>
 
         <mat-card-content class="chart-content">
-          <!-- Active Tooltip Banner on hover -->
-          <div class="tooltip-bar" *ngIf="hoveredPoint">
-            <span class="tooltip-time">🕒 {{ hoveredPoint.fullTime }}</span>
-            <span class="tooltip-rate" [class.high]="hoveredPoint.rate >= 80">
-              ● {{ hoveredPoint.rate }}% Success Rate
-            </span>
-            <span class="tooltip-meta">({{ hoveredPoint.successfulPages }}/{{ hoveredPoint.totalPages }} pages extracted)</span>
+          <div
+            #chartContainer
+            class="echarts-container"
+            [style.display]="historyItems.length > 0 ? 'block' : 'none'"
+          ></div>
+
+          <div *ngIf="historyItems.length === 0" class="empty-chart">
+            <span class="material-symbols-outlined empty-icon">show_chart</span>
+            <p>No scraping history recorded yet. Run a scrape to populate success rate metrics.</p>
           </div>
-
-          <div class="svg-container" *ngIf="chartPoints.length > 0; else noHistory">
-            <svg viewBox="0 0 840 260" preserveAspectRatio="none" class="chart-svg">
-              <defs>
-                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#10b981" stop-opacity="0.32" />
-                  <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
-                </linearGradient>
-              </defs>
-
-              <!-- Horizontal Grid Lines & Y-Axis Labels -->
-              <!-- Y: 100% (25) -->
-              <line x1="60" y1="25" x2="810" y2="25" class="grid-line" />
-              <text x="50" y="29" class="y-label" text-anchor="end">100%</text>
-
-              <!-- Y: 75% (72.5) -->
-              <line x1="60" y1="72.5" x2="810" y2="72.5" class="grid-line" />
-              <text x="50" y="76.5" class="y-label" text-anchor="end">75%</text>
-
-              <!-- Y: 50% (120) -->
-              <line x1="60" y1="120" x2="810" y2="120" class="grid-line" />
-              <text x="50" y="124" class="y-label" text-anchor="end">50%</text>
-
-              <!-- Y: 25% (167.5) -->
-              <line x1="60" y1="167.5" x2="810" y2="167.5" class="grid-line" />
-              <text x="50" y="171.5" class="y-label" text-anchor="end">25%</text>
-
-              <!-- Y: 0% (215) Baseline -->
-              <line x1="60" y1="215" x2="810" y2="215" class="grid-line baseline" />
-              <text x="50" y="219" class="y-label" text-anchor="end">0%</text>
-
-              <!-- Gradient Area Fill -->
-              <path [attr.d]="areaPath" fill="url(#chartGradient)" />
-
-              <!-- Trend Line -->
-              <path [attr.d]="linePath" fill="none" class="chart-line" />
-
-              <!-- Interactive Data Points & X-Labels -->
-              <g *ngFor="let pt of chartPoints">
-                <circle
-                  [attr.cx]="pt.x"
-                  [attr.cy]="pt.y"
-                  r="6"
-                  class="chart-circle"
-                  (mouseenter)="hoveredPoint = pt"
-                  (mouseleave)="hoveredPoint = null"
-                >
-                  <title>{{ pt.fullTime }}: {{ pt.rate }}% Success ({{ pt.successfulPages }}/{{ pt.totalPages }} pages)</title>
-                </circle>
-                <text
-                  [attr.x]="pt.x"
-                  y="245"
-                  class="x-label"
-                  text-anchor="middle"
-                >
-                  {{ pt.timeLabel }}
-                </text>
-              </g>
-            </svg>
-          </div>
-
-          <ng-template #noHistory>
-            <div class="empty-chart">
-              <span class="material-symbols-outlined empty-icon">show_chart</span>
-              <p>No scraping history recorded yet. Run a scrape to populate success rate metrics.</p>
-            </div>
-          </ng-template>
         </mat-card-content>
       </mat-card>
 
       <!-- Provider Overview Table -->
       <mat-card class="main-card" appearance="outlined">
-        <mat-card-header>
+        <mat-card-header class="table-header">
           <div>
             <mat-card-title>Monitored Store Providers</mat-card-title>
             <mat-card-subtitle>
@@ -188,54 +135,46 @@ interface ProviderRow {
           </div>
         </mat-card-header>
         <mat-card-content class="card-table-content">
-          <table mat-table [dataSource]="sortedProviders" matSort (matSortChange)="sortProviders($event)" class="providers-table">
+          <table mat-table [dataSource]="sortedProviders" matSort (matSortChange)="sortProviders($event)" class="data-table">
             <ng-container matColumnDef="provider">
               <th mat-header-cell *matHeaderCellDef mat-sort-header>Provider</th>
-              <td mat-cell *matCellDef="let row">
-                <span class="provider-badge">{{ row.provider }}</span>
+              <td mat-cell *matCellDef="let p">
+                <span class="provider-pill">{{ p.provider | uppercase }}</span>
               </td>
             </ng-container>
 
             <ng-container matColumnDef="activePages">
               <th mat-header-cell *matHeaderCellDef mat-sort-header>Tracked Pages</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.activePages }} pages
+              <td mat-cell *matCellDef="let p">
+                <strong>{{ p.activePages }}</strong> pages enabled
               </td>
             </ng-container>
 
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
-              <td mat-cell *matCellDef="let row">
-                <span class="status-badge" [class.ready]="row.status === 'Ready' || row.status === 'Active'">
-                  ● {{ row.status }}
+              <td mat-cell *matCellDef="let p">
+                <span class="status-badge" [class.active]="p.status === 'Active'">
+                  ● {{ p.status }}
                 </span>
               </td>
             </ng-container>
 
             <ng-container matColumnDef="lastScraped">
               <th mat-header-cell *matHeaderCellDef mat-sort-header>Last Scraped</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.lastScraped }}
-              </td>
+              <td mat-cell *matCellDef="let p">{{ p.lastScraped }}</td>
             </ng-container>
 
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef>Store Deals</th>
-              <td mat-cell *matCellDef="let row">
-                <a mat-stroked-button color="primary" [routerLink]="'/' + row.provider">
-                  View {{ row.provider | titlecase }} Deals →
+              <td mat-cell *matCellDef="let p">
+                <a mat-stroked-button color="primary" [routerLink]="['/' + p.provider]" class="btn-xs">
+                  View {{ p.provider | titlecase }} Deals →
                 </a>
               </td>
             </ng-container>
 
             <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
             <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-
-            <tr class="mat-row" *matNoDataRow>
-              <td class="mat-cell empty-cell" [attr.colspan]="displayedColumns.length">
-                No store providers configured.
-              </td>
-            </tr>
           </table>
         </mat-card-content>
       </mat-card>
@@ -261,14 +200,16 @@ interface ProviderRow {
       font-weight: 800;
       color: var(--mat-sys-primary);
       margin: 0.25rem 0;
-      &.small-text {
-        font-size: 1.15rem;
+
+      &.highlight {
+        color: #818cf8;
       }
-      &.status-active {
+      &.success {
         color: #10b981;
       }
-      &.next-cron {
-        color: #818cf8;
+      &.time-val {
+        font-size: 1.25rem;
+        line-height: 2rem;
       }
     }
     .kpi-sub {
@@ -278,35 +219,6 @@ interface ProviderRow {
     .main-card {
       background: var(--mat-sys-surface-container);
       border-radius: 12px;
-    }
-    .card-table-content {
-      padding: 0 !important;
-      overflow-x: auto;
-    }
-    .providers-table {
-      width: 100%;
-      background: transparent;
-    }
-    .provider-badge {
-      font-weight: 700;
-      text-transform: capitalize;
-      background: var(--mat-sys-secondary-container);
-      color: var(--mat-sys-on-secondary-container);
-      padding: 0.2rem 0.6rem;
-      border-radius: 6px;
-    }
-    .status-badge {
-      font-weight: 600;
-      font-size: 0.82rem;
-      color: var(--mat-sys-outline);
-      &.ready {
-        color: #10b981;
-      }
-    }
-    .empty-cell {
-      text-align: center;
-      padding: 2rem;
-      color: var(--mat-sys-outline);
     }
     .chart-card {
       background: var(--mat-sys-surface-container);
@@ -319,32 +231,33 @@ interface ProviderRow {
       align-items: center;
       flex-wrap: wrap;
       gap: 1rem;
-      padding: 1.25rem 1.25rem 0.5rem;
+      padding: 1.25rem 1.5rem 0.5rem;
     }
     .chart-title {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-size: 1.15rem;
+      gap: 0.6rem;
+      font-size: 1.25rem;
       font-weight: 700;
-      color: var(--mat-sys-on-surface);
     }
     .chart-icon {
       color: #10b981;
+      font-size: 1.5rem;
     }
     .chart-kpis {
       display: flex;
-      gap: 0.75rem;
       align-items: center;
+      gap: 0.75rem;
       flex-wrap: wrap;
     }
     .stat-pill {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 0.4rem;
       padding: 0.35rem 0.75rem;
-      background: var(--mat-sys-surface-container-high);
       border-radius: 8px;
+      background: var(--mat-sys-surface-container-high);
+      border: 1px solid var(--mat-sys-outline-variant);
       font-size: 0.82rem;
     }
     .stat-label {
@@ -352,103 +265,85 @@ interface ProviderRow {
     }
     .stat-val {
       font-weight: 700;
+      color: var(--mat-sys-on-surface);
       &.success {
         color: #10b981;
       }
     }
     .chart-content {
-      padding: 0.5rem 1.25rem 1.25rem !important;
-    }
-    .tooltip-bar {
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
-      padding: 0.5rem 0.85rem;
-      background: var(--mat-sys-surface-container-highest);
-      border-radius: 8px;
-      margin-bottom: 0.75rem;
-      font-size: 0.82rem;
-    }
-    .tooltip-time {
-      font-weight: 600;
-    }
-    .tooltip-rate {
-      font-weight: 700;
-      color: #f59e0b;
-      &.high {
-        color: #10b981;
-      }
-    }
-    .tooltip-meta {
-      color: var(--mat-sys-on-surface-variant);
-    }
-    .svg-container {
-      width: 100%;
-      height: 260px;
+      padding: 0 1.25rem 1.25rem !important;
       position: relative;
     }
-    .chart-svg {
+    .echarts-container {
       width: 100%;
-      height: 100%;
-      overflow: visible;
-    }
-    .grid-line {
-      stroke: var(--mat-sys-outline-variant);
-      stroke-width: 1;
-      stroke-dasharray: 4 4;
-      opacity: 0.7;
-      &.baseline {
-        stroke-dasharray: none;
-        opacity: 0.9;
-      }
-    }
-    .y-label {
-      font-size: 11px;
-      fill: var(--mat-sys-on-surface-variant);
-      font-weight: 500;
-      font-family: inherit;
-    }
-    .x-label {
-      font-size: 11px;
-      fill: var(--mat-sys-on-surface-variant);
-      font-weight: 500;
-      font-family: inherit;
-    }
-    .chart-line {
-      stroke: #10b981;
-      stroke-width: 3;
-    }
-    .chart-circle {
-      fill: #10b981;
-      stroke: var(--mat-sys-surface);
-      stroke-width: 2.5;
-      cursor: pointer;
-      transition: r 0.2s ease, stroke-width 0.2s ease;
-      &:hover {
-        r: 8;
-        stroke-width: 3.5;
-      }
+      height: 300px;
     }
     .empty-chart {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 3rem 1rem;
+      height: 260px;
       color: var(--mat-sys-outline);
       gap: 0.5rem;
     }
     .empty-icon {
       font-size: 2.5rem;
     }
+    .table-header {
+      padding: 1.25rem 1.5rem 0.5rem;
+    }
+    .card-table-content {
+      padding: 0 !important;
+      overflow-x: auto;
+    }
+    .data-table {
+      width: 100%;
+      background: transparent;
+    }
+    .provider-pill {
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--mat-sys-primary);
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--mat-sys-surface-container-high);
+      color: var(--mat-sys-outline);
+
+      &.active {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+      }
+    }
+    .btn-xs {
+      font-size: 0.8rem;
+      padding: 0 0.75rem;
+      height: 32px;
+    }
   `],
 })
-export class HomeComponent {
+export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
   displayedColumns: string[] = ['provider', 'activePages', 'status', 'lastScraped', 'actions'];
   sortedProviders: ProviderRow[] = [];
-  hoveredPoint: any = null;
 
-  constructor(private apiService: ApiService) {}
+  @ViewChild('chartContainer') chartContainerRef?: ElementRef<HTMLDivElement>;
+  private chartInstance?: echarts.ECharts;
+  private resizeObserver?: ResizeObserver;
+  private lastRenderedTheme?: string;
+  private lastItemsCount = -1;
+
+  constructor(
+    private apiService: ApiService,
+    private themeService: ThemeService,
+    @Inject(PLATFORM_ID) private platformId: object,
+  ) {}
 
   get historyItems(): ScrapeHistoryItem[] {
     const history = this.apiService.dashboardData()?.history;
@@ -470,76 +365,6 @@ export class HomeComponent {
     return [];
   }
 
-  get chartPoints(): Array<{
-    x: number;
-    y: number;
-    rate: number;
-    timeLabel: string;
-    fullTime: string;
-    totalPages: number;
-    successfulPages: number;
-  }> {
-    const items = this.historyItems;
-    if (items.length === 0) return [];
-
-    const padLeft = 60;
-    const padRight = 30;
-    const chartW = 840 - padLeft - padRight;
-    const topY = 25;
-    const bottomY = 215;
-    const chartH = bottomY - topY;
-
-    return items.map((item, idx) => {
-      const x =
-        items.length === 1
-          ? padLeft + chartW / 2
-          : padLeft + (idx / (items.length - 1)) * chartW;
-      const rate = Math.max(0, Math.min(100, item.successRate));
-      const y = bottomY - (rate / 100) * chartH;
-      const d = new Date(item.timestamp);
-      const timeLabel = isNaN(d.getTime())
-        ? 'Recent'
-        : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const fullTime = isNaN(d.getTime()) ? 'Recent' : d.toLocaleString();
-
-      return {
-        x,
-        y,
-        rate,
-        timeLabel,
-        fullTime,
-        totalPages: item.totalPages,
-        successfulPages: item.successfulPages,
-      };
-    });
-  }
-
-  get linePath(): string {
-    const pts = this.chartPoints;
-    if (pts.length === 0) return '';
-    if (pts.length === 1) {
-      return `M ${pts[0].x - 50} ${pts[0].y} L ${pts[0].x + 50} ${pts[0].y}`;
-    }
-    return pts
-      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-      .join(' ');
-  }
-
-  get areaPath(): string {
-    const pts = this.chartPoints;
-    if (pts.length === 0) return '';
-    const bottomY = 215;
-    if (pts.length === 1) {
-      return `M ${pts[0].x - 50} ${bottomY} L ${pts[0].x - 50} ${pts[0].y} L ${pts[0].x + 50} ${pts[0].y} L ${pts[0].x + 50} ${bottomY} Z`;
-    }
-    const line = pts
-      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-      .join(' ');
-    const first = pts[0];
-    const last = pts[pts.length - 1];
-    return `${line} L ${last.x.toFixed(1)} ${bottomY} L ${first.x.toFixed(1)} ${bottomY} Z`;
-  }
-
   get avgSuccessRateNum(): number {
     const items = this.historyItems;
     if (!items.length) return 100;
@@ -549,6 +374,187 @@ export class HomeComponent {
 
   get avgSuccessRate(): string {
     return `${this.avgSuccessRateNum}%`;
+  }
+
+  ngAfterViewInit() {
+    if (isPlatformBrowser(this.platformId)) {
+      setTimeout(() => this.initOrUpdateChart(), 0);
+    }
+  }
+
+  ngDoCheck() {
+    this.updateProvidersList();
+    if (isPlatformBrowser(this.platformId)) {
+      const currentTheme = this.themeService.themeMode();
+      const currentCount = this.historyItems.length;
+      if (currentTheme !== this.lastRenderedTheme || currentCount !== this.lastItemsCount) {
+        this.initOrUpdateChart();
+      }
+    }
+  }
+
+  ngOnDestroy() {
+    this.resizeObserver?.disconnect();
+    this.chartInstance?.dispose();
+    this.chartInstance = undefined;
+  }
+
+  @HostListener('window:resize')
+  onResize() {
+    this.chartInstance?.resize();
+  }
+
+  private initOrUpdateChart() {
+    if (!this.chartContainerRef?.nativeElement) return;
+    const items = this.historyItems;
+    if (items.length === 0) {
+      this.chartInstance?.dispose();
+      this.chartInstance = undefined;
+      return;
+    }
+
+    if (!this.chartInstance) {
+      this.chartInstance = echarts.init(this.chartContainerRef.nativeElement);
+      if (typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(() => {
+          this.chartInstance?.resize();
+        });
+        this.resizeObserver.observe(this.chartContainerRef.nativeElement);
+      }
+    }
+
+    const currentTheme = this.themeService.themeMode();
+    const isDark = currentTheme === 'dark' ||
+      (currentTheme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    this.lastRenderedTheme = currentTheme;
+    this.lastItemsCount = items.length;
+
+    const categories = items.map((item) => {
+      const d = new Date(item.timestamp);
+      return isNaN(d.getTime())
+        ? 'Recent'
+        : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    });
+
+    const values = items.map((item) => Math.max(0, Math.min(100, item.successRate)));
+
+    const option: echarts.EChartsOption = {
+      backgroundColor: 'transparent',
+      animationDuration: 800,
+      grid: {
+        left: 20,
+        right: 25,
+        top: 25,
+        bottom: 25,
+        containLabel: true,
+      },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+        borderColor: isDark ? '#334155' : '#e2e8f0',
+        borderWidth: 1,
+        padding: [10, 14],
+        textStyle: {
+          color: isDark ? '#f8fafc' : '#0f172a',
+          fontSize: 13,
+        },
+        extraCssText: 'box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1); border-radius: 8px;',
+        formatter: (params: any) => {
+          const p = Array.isArray(params) ? params[0] : params;
+          const idx = p.dataIndex;
+          const item = items[idx];
+          const fullTime = item?.timestamp ? new Date(item.timestamp).toLocaleString() : p.name;
+          const pagesInfo = item ? `${item.successfulPages} of ${item.totalPages} pages extracted` : '';
+          const rate = p.value;
+          return `
+            <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:${isDark ? '#cbd5e1' : '#475569'};">
+              🕒 ${fullTime}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#10b981;box-shadow:0 0 6px #10b981;"></span>
+              <span>Success Rate: <strong style="color:${rate >= 80 ? '#10b981' : '#f59e0b'};font-size:14px;">${rate}%</strong></span>
+            </div>
+            ${pagesInfo ? `<div style="font-size:11px;color:${isDark ? '#94a3b8' : '#64748b'};margin-top:4px;">${pagesInfo}</div>` : ''}
+          `;
+        },
+      },
+      xAxis: {
+        type: 'category',
+        data: categories,
+        boundaryGap: false,
+        axisLine: {
+          lineStyle: {
+            color: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.15)',
+          },
+        },
+        axisTick: { show: false },
+        axisLabel: {
+          color: isDark ? '#94a3b8' : '#64748b',
+          fontSize: 11,
+          margin: 12,
+        },
+      },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        max: 100,
+        interval: 25,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: {
+          formatter: '{value}%',
+          color: isDark ? '#94a3b8' : '#64748b',
+          fontSize: 11,
+        },
+        splitLine: {
+          lineStyle: {
+            color: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+            type: 'dashed',
+          },
+        },
+      },
+      series: [
+        {
+          name: 'Success Rate',
+          type: 'line',
+          smooth: true,
+          data: values,
+          symbol: 'circle',
+          symbolSize: 8,
+          itemStyle: {
+            color: '#10b981',
+            borderColor: isDark ? '#0f172a' : '#ffffff',
+            borderWidth: 2,
+          },
+          emphasis: {
+            scale: 1.6,
+            itemStyle: {
+              color: '#10b981',
+              borderColor: '#ffffff',
+              borderWidth: 2,
+              shadowBlur: 10,
+              shadowColor: 'rgba(16, 185, 129, 0.6)',
+            },
+          },
+          lineStyle: {
+            color: '#10b981',
+            width: 3.5,
+            shadowColor: 'rgba(16, 185, 129, 0.35)',
+            shadowBlur: 8,
+            shadowOffsetY: 4,
+          },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(16, 185, 129, 0.38)' },
+              { offset: 1, color: 'rgba(16, 185, 129, 0.01)' },
+            ]),
+          },
+        },
+      ],
+    };
+
+    this.chartInstance.setOption(option);
   }
 
   providersCount(): number {
@@ -598,10 +604,6 @@ export class HomeComponent {
     const sched = this.apiService.dashboardData()?.scheduler;
     if (!sched || !sched.enabled) return 'Cron scheduler is currently off';
     return `Base ${sched.baseTime} + 0..${sched.jitterMinutes}m random jitter`;
-  }
-
-  ngDoCheck() {
-    this.updateProvidersList();
   }
 
   private updateProvidersList() {

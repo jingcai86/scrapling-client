@@ -324,8 +324,11 @@ export function renderClientScripts(): string {
       }
     }
 
-    // HOME LINE CHART: Scraping Success Rate Over Time
+    // HOME LINE CHART: Scraping Success Rate Over Time (Apache ECharts with SVG fallback)
     function renderScrapeSuccessChart(historyList, statuses) {
+      window._lastHistory = historyList;
+      window._lastStatuses = statuses;
+
       const container = document.getElementById('scrapeSuccessChartContainer');
       const tooltipBar = document.getElementById('chartTooltipBar');
       const avgLabel = document.getElementById('chartAvgSuccessRate');
@@ -347,6 +350,10 @@ export function renderClientScripts(): string {
       if (totalRunsLabel) totalRunsLabel.textContent = String(items.length);
       if (items.length === 0) {
         if (avgLabel) avgLabel.textContent = '—';
+        if (window._scrapeEchart) {
+          try { window._scrapeEchart.dispose(); } catch (e) {}
+          window._scrapeEchart = null;
+        }
         container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);gap:0.5rem;">' +
           '<div style="font-size:2rem;">📉</div>' +
           '<div>No scraping history recorded yet. Run a scrape to populate success rate metrics.</div>' +
@@ -358,6 +365,138 @@ export function renderClientScripts(): string {
       const avg = Number((sum / items.length).toFixed(1));
       if (avgLabel) avgLabel.textContent = avg + '%';
 
+      // Use Apache ECharts if loaded
+      if (typeof window.echarts !== 'undefined') {
+        if (tooltipBar) tooltipBar.style.display = 'none';
+        if (!window._scrapeEchart) {
+          window._scrapeEchart = window.echarts.init(container);
+          window.addEventListener('resize', () => {
+            if (window._scrapeEchart) window._scrapeEchart.resize();
+          });
+        }
+
+        const isDark = document.body.classList.contains('dark') ||
+          document.documentElement.getAttribute('data-theme') === 'dark' ||
+          (!document.body.classList.contains('light-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+        const categories = items.map((item) => {
+          const d = new Date(item.timestamp);
+          return isNaN(d.getTime()) ? 'Recent' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        });
+        const values = items.map((item) => Math.max(0, Math.min(100, item.successRate)));
+
+        const option = {
+          backgroundColor: 'transparent',
+          animationDuration: 800,
+          grid: {
+            left: 20,
+            right: 25,
+            top: 25,
+            bottom: 25,
+            containLabel: true,
+          },
+          tooltip: {
+            trigger: 'axis',
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            borderColor: isDark ? '#334155' : '#e2e8f0',
+            borderWidth: 1,
+            padding: [10, 14],
+            textStyle: {
+              color: isDark ? '#f8fafc' : '#0f172a',
+              fontSize: 13,
+            },
+            formatter: (params) => {
+              if (!Array.isArray(params) || !params.length) return '';
+              const p = params[0];
+              const idx = p.dataIndex;
+              const it = items[idx];
+              if (!it) return '';
+              const fullTime = isNaN(new Date(it.timestamp).getTime())
+                ? 'Recent'
+                : new Date(it.timestamp).toLocaleString();
+              return (
+                '<div style="font-weight:600;margin-bottom:6px;">🕒 ' + escapeHtml(fullTime) + '</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                  '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#10b981;"></span>' +
+                  '<span>Success Rate: <strong>' + it.successRate + '%</strong></span>' +
+                '</div>' +
+                '<div style="font-size:12px;color:' + (isDark ? '#94a3b8' : '#64748b') + ';margin-top:4px;">' +
+                  'Extracted: ' + it.successfulPages + '/' + it.totalPages + ' pages' +
+                  (it.totalListings ? ' (' + it.totalListings + ' listings)' : '') +
+                '</div>'
+              );
+            },
+          },
+          xAxis: {
+            type: 'category',
+            data: categories,
+            boundaryGap: false,
+            axisLine: {
+              lineStyle: { color: isDark ? '#334155' : '#e2e8f0' },
+            },
+            axisTick: { show: false },
+            axisLabel: {
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontSize: 11,
+            },
+          },
+          yAxis: {
+            type: 'value',
+            min: 0,
+            max: 100,
+            interval: 25,
+            axisLabel: {
+              formatter: '{value}%',
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontSize: 11,
+            },
+            splitLine: {
+              lineStyle: {
+                color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.8)',
+                type: 'dashed',
+              },
+            },
+          },
+          series: [
+            {
+              name: 'Success Rate',
+              type: 'line',
+              smooth: true,
+              showSymbol: items.length < 30,
+              symbol: 'circle',
+              symbolSize: 6,
+              itemStyle: {
+                color: '#10b981',
+                borderWidth: 2,
+                borderColor: isDark ? '#0f172a' : '#ffffff',
+              },
+              lineStyle: {
+                width: 3,
+                color: '#10b981',
+              },
+              areaStyle: {
+                color: {
+                  type: 'linear',
+                  x: 0,
+                  y: 0,
+                  x2: 0,
+                  y2: 1,
+                  colorStops: [
+                    { offset: 0, color: 'rgba(16, 185, 129, 0.38)' },
+                    { offset: 1, color: 'rgba(16, 185, 129, 0.01)' },
+                  ],
+                },
+              },
+              data: values,
+            },
+          ],
+        };
+
+        window._scrapeEchart.setOption(option, true);
+        return;
+      }
+
+      // Fallback SVG rendering if ECharts library fails to load
       const padLeft = 60;
       const padRight = 30;
       const chartW = 840 - padLeft - padRight;
@@ -1129,6 +1268,9 @@ export function renderClientScripts(): string {
         localStorage.removeItem('theme');
         if (btnIcon) btnIcon.textContent = '🖥️';
         if (btnLabel) btnLabel.textContent = 'Theme: System';
+      }
+      if (window._lastHistory) {
+        renderScrapeSuccessChart(window._lastHistory, window._lastStatuses);
       }
     }
 

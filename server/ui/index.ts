@@ -15,6 +15,7 @@ export function renderDashboardHtml(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Scrapling Monitor — Home, Eneba, Scraping & Configuration</title>
   ${renderStyles()}
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 </head>
 <body>
   ${renderHeader()}
