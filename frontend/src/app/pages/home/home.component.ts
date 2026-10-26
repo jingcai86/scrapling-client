@@ -16,6 +16,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import * as echarts from 'echarts';
 import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
@@ -40,6 +41,7 @@ interface ProviderRow {
     MatSortModule,
     MatButtonModule,
     MatIconModule,
+    MatProgressSpinnerModule,
   ],
   template: `
     <div class="page-container">
@@ -147,17 +149,25 @@ interface ProviderRow {
             </div>
           </mat-card-header>
 
-          <mat-card-content class="chart-content">
-            <div
-              #chartContainer
-              class="echarts-container"
-              [style.display]="historyItems.length > 0 ? 'block' : 'none'"
-            ></div>
+          <mat-card-content class="chart-content chart-wrapper-relative">
+            <!-- Loading State Overlay -->
+            <div *ngIf="isLoading" class="ui-loading-overlay">
+              <mat-spinner diameter="38" strokeWidth="3"></mat-spinner>
+              <span class="loading-label">Loading scraping success trends...</span>
+            </div>
 
-            <div *ngIf="historyItems.length === 0" class="empty-chart">
+            <!-- Empty State -->
+            <div *ngIf="!isLoading && historyItems.length === 0" class="empty-chart">
               <mat-icon class="empty-icon">show_chart</mat-icon>
               <p>No scraping history recorded yet.</p>
             </div>
+
+            <!-- Chart Container (always mounted with accurate dimensions) -->
+            <div
+              #chartContainer
+              class="echarts-container"
+              [style.visibility]="!isLoading && historyItems.length > 0 ? 'visible' : 'hidden'"
+            ></div>
           </mat-card-content>
         </mat-card>
 
@@ -183,17 +193,25 @@ interface ProviderRow {
             </div>
           </mat-card-header>
 
-          <mat-card-content class="chart-content">
-            <div
-              #resultsChartContainer
-              class="echarts-container"
-              [style.display]="historyItems.length > 0 ? 'block' : 'none'"
-            ></div>
+          <mat-card-content class="chart-content chart-wrapper-relative">
+            <!-- Loading State Overlay -->
+            <div *ngIf="isLoading" class="ui-loading-overlay">
+              <mat-spinner diameter="38" strokeWidth="3"></mat-spinner>
+              <span class="loading-label">Loading extracted results history...</span>
+            </div>
 
-            <div *ngIf="historyItems.length === 0" class="empty-chart">
+            <!-- Empty State -->
+            <div *ngIf="!isLoading && historyItems.length === 0" class="empty-chart">
               <mat-icon class="empty-icon">bar_chart</mat-icon>
               <p>No extraction results recorded yet.</p>
             </div>
+
+            <!-- Chart Container (always mounted with accurate dimensions) -->
+            <div
+              #resultsChartContainer
+              class="echarts-container"
+              [style.visibility]="!isLoading && historyItems.length > 0 ? 'visible' : 'hidden'"
+            ></div>
           </mat-card-content>
         </mat-card>
       </div>
@@ -212,8 +230,14 @@ interface ProviderRow {
             </a>
           </div>
         </mat-card-header>
-        <mat-card-content class="card-table-content">
-          <div class="table-wrapper">
+        <mat-card-content class="card-table-content table-wrapper-relative">
+          <!-- Loading State Overlay -->
+          <div *ngIf="isLoading" class="ui-loading-overlay">
+            <mat-spinner diameter="36" strokeWidth="3"></mat-spinner>
+            <span class="loading-label">Loading store provider metrics...</span>
+          </div>
+
+          <div class="table-wrapper" [class.table-loading-dimmed]="isLoading">
             <table mat-table [dataSource]="sortedProviders" matSort (matSortChange)="sortProviders($event)" class="data-table">
               <ng-container matColumnDef="provider">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Provider</th>
@@ -460,9 +484,14 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     return `${this.avgSuccessRateNum}%`;
   }
 
+  get isLoading(): boolean {
+    return this.apiService.isLoading() || !this.apiService.dashboardData();
+  }
+
   ngAfterViewInit() {
     if (isPlatformBrowser(this.platformId)) {
-      setTimeout(() => this.initOrUpdateCharts(), 0);
+      this.initOrUpdateCharts();
+      this.triggerAllChartsResize();
     }
   }
 
@@ -471,12 +500,21 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     if (data !== this.lastDataRef) {
       this.lastDataRef = data;
       this.updateProvidersList();
+      if (isPlatformBrowser(this.platformId)) {
+        setTimeout(() => {
+          this.initOrUpdateCharts();
+          this.triggerAllChartsResize();
+        }, 0);
+      }
     }
     if (isPlatformBrowser(this.platformId)) {
       const currentTheme = this.themeService.themeMode();
       const currentCount = this.historyItems.length;
       if (currentTheme !== this.lastRenderedTheme || currentCount !== this.lastItemsCount) {
-        this.initOrUpdateCharts();
+        setTimeout(() => {
+          this.initOrUpdateCharts();
+          this.triggerAllChartsResize();
+        }, 0);
       }
     }
   }
@@ -492,8 +530,23 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
 
   @HostListener('window:resize')
   onResize() {
-    this.chartInstance?.resize();
-    this.resultsChartInstance?.resize();
+    this.triggerAllChartsResize();
+  }
+
+  private triggerAllChartsResize(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    this.triggerChartResize(this.chartInstance);
+    this.triggerChartResize(this.resultsChartInstance);
+  }
+
+  private triggerChartResize(chart?: echarts.ECharts): void {
+    if (!chart || !isPlatformBrowser(this.platformId)) return;
+    chart.resize();
+    requestAnimationFrame(() => {
+      chart.resize();
+      setTimeout(() => chart.resize(), 60);
+      setTimeout(() => chart.resize(), 250);
+    });
   }
 
   private initOrUpdateCharts() {
@@ -510,13 +563,18 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
       return;
     }
 
+    const container = this.chartContainerRef.nativeElement;
     if (!this.chartInstance) {
-      this.chartInstance = echarts.init(this.chartContainerRef.nativeElement);
+      this.chartInstance = echarts.init(container);
       if (typeof ResizeObserver !== 'undefined') {
-        this.resizeObserver = new ResizeObserver(() => {
-          this.chartInstance?.resize();
+        this.resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+              this.chartInstance?.resize();
+            }
+          }
         });
-        this.resizeObserver.observe(this.chartContainerRef.nativeElement);
+        this.resizeObserver.observe(container);
       }
     }
 
@@ -652,7 +710,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     };
 
     this.chartInstance.setOption(option);
-    this.chartInstance.resize();
+    this.triggerChartResize(this.chartInstance);
   }
 
   private initOrUpdateResultsChart() {
@@ -664,13 +722,18 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
       return;
     }
 
+    const container = this.resultsChartContainerRef.nativeElement;
     if (!this.resultsChartInstance) {
-      this.resultsChartInstance = echarts.init(this.resultsChartContainerRef.nativeElement);
+      this.resultsChartInstance = echarts.init(container);
       if (typeof ResizeObserver !== 'undefined') {
-        this.resultsResizeObserver = new ResizeObserver(() => {
-          this.resultsChartInstance?.resize();
+        this.resultsResizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+              this.resultsChartInstance?.resize();
+            }
+          }
         });
-        this.resultsResizeObserver.observe(this.resultsChartContainerRef.nativeElement);
+        this.resultsResizeObserver.observe(container);
       }
     }
 
@@ -796,7 +859,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     };
 
     this.resultsChartInstance.setOption(option);
-    this.resultsChartInstance.resize();
+    this.triggerChartResize(this.resultsChartInstance);
   }
 
   providersCount(): number {

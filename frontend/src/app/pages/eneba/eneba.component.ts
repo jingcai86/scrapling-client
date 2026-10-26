@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, Inject, PLATFORM_ID } from '@angular/core';
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, Inject, PLATFORM_ID, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -12,6 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import * as echarts from 'echarts';
 import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
@@ -36,6 +37,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
     MatDialogModule,
     MatSnackBarModule,
     MatTooltipModule,
+    MatProgressSpinnerModule,
   ],
   template: `
     <div class="page-container">
@@ -154,8 +156,14 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
               Category metrics &amp; best discounts. Click any row to view third-party merchant offers; hover for scrape history.
             </mat-card-subtitle>
           </mat-card-header>
-          <mat-card-content class="card-table-content">
-            <div class="table-wrapper no-scroll-wrapper">
+          <mat-card-content class="card-table-content table-wrapper-relative">
+            <!-- Loading State Overlay -->
+            <div *ngIf="isLoading" class="ui-loading-overlay">
+              <mat-spinner diameter="34" strokeWidth="3"></mat-spinner>
+              <span class="loading-label">Loading category statuses &amp; best offers...</span>
+            </div>
+
+            <div class="table-wrapper no-scroll-wrapper" [class.table-loading-dimmed]="isLoading">
               <table mat-table [dataSource]="sortedCategories" matSort (matSortChange)="sortCategories($event)" class="data-table category-table">
                 <!-- Category Column -->
                 <ng-container matColumnDef="category">
@@ -234,13 +242,31 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
             <mat-card-subtitle>
               Historical #1 highest discount across scrape runs. Hover point for seller, cost, and face value.
             </mat-card-subtitle>
-            <div class="peak-badge-box">
+            <div class="peak-badge-box" *ngIf="!isLoading">
               <span class="peak-label">All-Time Peak:</span>
               <strong class="peak-val">{{ peakDiscountPct() }}</strong>
             </div>
           </mat-card-header>
-          <mat-card-content class="chart-card-content">
-            <div #bestDiscountChartContainer class="echarts-container" style="height: 320px; width: 100%;"></div>
+          <mat-card-content class="chart-card-content chart-wrapper-relative">
+            <!-- Loading State Overlay -->
+            <div *ngIf="isLoading" class="ui-loading-overlay">
+              <mat-spinner diameter="38" strokeWidth="3"></mat-spinner>
+              <span class="loading-label">Loading historical discount trends...</span>
+            </div>
+
+            <!-- Empty State -->
+            <div *ngIf="!isLoading && hasNoChartData" class="empty-chart">
+              <mat-icon class="empty-icon">trending_up</mat-icon>
+              <p>No historical discount deals recorded yet.</p>
+            </div>
+
+            <!-- Chart Container (always mounted with accurate dimensions) -->
+            <div
+              #bestDiscountChartContainer
+              class="echarts-container"
+              style="height: 320px; width: 100%;"
+              [style.visibility]="!isLoading && !hasNoChartData ? 'visible' : 'hidden'"
+            ></div>
           </mat-card-content>
         </mat-card>
       </div>
@@ -266,8 +292,14 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
             </mat-form-field>
           </div>
         </mat-card-header>
-        <mat-card-content class="card-table-content">
-          <div class="table-wrapper">
+        <mat-card-content class="card-table-content table-wrapper-relative">
+          <!-- Loading State Overlay -->
+          <div *ngIf="isLoading" class="ui-loading-overlay">
+            <mat-spinner diameter="36" strokeWidth="3"></mat-spinner>
+            <span class="loading-label">Loading live ranked gift card deals...</span>
+          </div>
+
+          <div class="table-wrapper" [class.table-loading-dimmed]="isLoading">
             <table mat-table [dataSource]="filteredDeals" matSort (matSortChange)="sortDeals($event)" class="data-table deals-table">
               <ng-container matColumnDef="rank">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-rank">Rank</th>
@@ -725,9 +757,39 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
     @Inject(PLATFORM_ID) private platformId: object,
   ) {}
 
+  get isLoading(): boolean {
+    return this.apiService.isLoading() || !this.apiService.dashboardData();
+  }
+
+  get hasNoChartData(): boolean {
+    const data = this.apiService.dashboardData();
+    if (!data) return true;
+    const history = data.history || [];
+    const statuses = data.statuses || [];
+    const hasHistoryDeal = history.some((h) => h.bestDeal || (h.totalListings && h.totalListings > 0));
+    const hasStatusDeal = statuses.some((s) => s.bestDeal || s.bestEffectiveDeal || (s.rankedDeals && s.rankedDeals.length > 0));
+    return !hasHistoryDeal && !hasStatusDeal;
+  }
+
+  @HostListener('window:resize')
+  onResize() {
+    this.triggerChartResize(this.chartInstance);
+  }
+
+  private triggerChartResize(chart?: echarts.ECharts): void {
+    if (!chart || !isPlatformBrowser(this.platformId)) return;
+    chart.resize();
+    requestAnimationFrame(() => {
+      chart.resize();
+      setTimeout(() => chart.resize(), 60);
+      setTimeout(() => chart.resize(), 250);
+    });
+  }
+
   ngAfterViewInit() {
     if (isPlatformBrowser(this.platformId)) {
-      setTimeout(() => this.renderBestDiscountChart(), 50);
+      this.renderBestDiscountChart();
+      this.triggerChartResize(this.chartInstance);
     }
   }
 
@@ -741,6 +803,9 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
     if (data !== this.lastDataRef) {
       this.lastDataRef = data;
       this.syncData();
+      if (isPlatformBrowser(this.platformId)) {
+        setTimeout(() => this.renderBestDiscountChart(), 0);
+      }
     }
   }
 
@@ -778,7 +843,7 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
     this.applyDealsFilter();
 
     if (isPlatformBrowser(this.platformId)) {
-      this.renderBestDiscountChart();
+      setTimeout(() => this.renderBestDiscountChart(), 0);
     }
   }
 
@@ -1061,13 +1126,18 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    const container = this.bestDiscountChartContainerRef.nativeElement;
     if (!this.chartInstance) {
-      this.chartInstance = echarts.init(this.bestDiscountChartContainerRef.nativeElement);
+      this.chartInstance = echarts.init(container);
       if (typeof ResizeObserver !== 'undefined') {
-        this.resizeObserver = new ResizeObserver(() => {
-          this.chartInstance?.resize();
+        this.resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+              this.chartInstance?.resize();
+            }
+          }
         });
-        this.resizeObserver.observe(this.bestDiscountChartContainerRef.nativeElement);
+        this.resizeObserver.observe(container);
       }
     }
 
@@ -1236,7 +1306,7 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
     };
 
     this.chartInstance.setOption(option, true);
-    this.chartInstance.resize();
+    this.triggerChartResize(this.chartInstance);
   }
 }
 

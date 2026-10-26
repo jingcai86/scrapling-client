@@ -9,6 +9,7 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ApiService } from '../../core/services/api.service';
 import { PageFormDialogComponent } from '../../dialogs/page-form-dialog.component';
 import { CronFormDialogComponent } from '../../dialogs/cron-form-dialog.component';
@@ -28,6 +29,7 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
     MatSnackBarModule,
     MatSlideToggleModule,
     MatTooltipModule,
+    MatProgressSpinnerModule,
   ],
   template: `
     <div class="page-container">
@@ -108,8 +110,14 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
             + Add Scraping Page
           </button>
         </mat-card-header>
-        <mat-card-content class="card-table-content">
-          <div class="table-wrapper">
+        <mat-card-content class="card-table-content table-wrapper-relative">
+          <!-- Loading State Overlay -->
+          <div *ngIf="isLoading" class="ui-loading-overlay">
+            <mat-spinner diameter="36" strokeWidth="3"></mat-spinner>
+            <span class="loading-label">Loading target scraping pages...</span>
+          </div>
+
+          <div class="table-wrapper" [class.table-loading-dimmed]="isLoading">
             <table mat-table [dataSource]="sortedPages" matSort (matSortChange)="sortPages($event)" class="data-table">
               <ng-container matColumnDef="categoryName">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Category Name</th>
@@ -312,6 +320,10 @@ export class ScrapingComponent {
     private dialog: MatDialog,
     private snackBar: MatSnackBar,
   ) {}
+
+  get isLoading(): boolean {
+    return this.apiService.isLoading() || !this.apiService.dashboardData();
+  }
 
   ngDoCheck() {
     const pages = this.apiService.dashboardData()?.pages;
