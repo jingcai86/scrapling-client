@@ -22,11 +22,12 @@ scrapling-client/
 │   ├── progress.ts        # Live terminal spinner & elapsed-time progress helper
 │   ├── scheduler.ts       # RandomizedDailyScheduler (base time + random jitter window)
 │   └── index.ts           # Public core exports & TypeScript types
-├── server/                # Web dashboard UI, REST API, page store & scrape runner
-│   ├── index.ts           # HTTP server & API endpoints
-│   ├── pageStore.ts       # Persistent store for configured scraping pages
-│   ├── scrapeRunner.ts    # Live scrape coordinator, DB persistence & email alert trigger
-│   └── ui.ts              # Responsive single-page dashboard UI
+├── server/                # Web dashboard UI, Express REST API, page store & scrape runner
+│   ├── app.ts             # Express app setup, middleware & route mounting
+│   ├── index.ts           # Server bootstrap & CLI entrypoint
+│   ├── routes/            # Modular Express route handlers (dashboard, deals, pages, scrape, config)
+│   ├── services/          # Domain services (pageStore, scrapeRunner, dealSearch)
+│   └── ui/                # Modular dashboard UI components, styles & client scripts
 ├── tests/                 # Unit tests for the core client
 ├── Dockerfile             # Portable Node 20 Alpine container image
 ├── docker-compose.yml     # Docker Compose service with persistent .env and data/ mounts

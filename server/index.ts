@@ -1,98 +1,24 @@
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type express from "express";
 import type pg from "pg";
 import {
-  ENV_SCHEMA,
   RandomizedDailyScheduler,
   createPgPool,
-  deleteDbConfigKey,
   ensureDefaultEnvKeys,
-  filterAlertableDeals,
   getEmailConfigStatus,
   initScraplingConfigOnStartup,
   loadEnv,
-  readAllConfigValues,
-  renderDealAlertEmailTemplate,
-  resolveEnvFilePath,
-  sendDealAlertEmail,
-  updateDbConfigValues,
-  type DealAlertItem,
 } from "../core/index.js";
-import {
-  ensureEnebaSchema,
-  getEnebaAlertThreshold,
-  getEnebaConfig,
-  updateEnebaConfig,
-} from "../eneba/db.js";
-import { PageStore } from "./pageStore.js";
-import { ScrapeRunner, statusesToAlertItems } from "./scrapeRunner.js";
-import { searchDeals, type DealSearchQuery } from "./dealSearch.js";
-import { renderDashboardHtml } from "./ui.js";
-
-const SAMPLE_PREVIEW_DEALS: DealAlertItem[] = [
-  {
-    provider: "eneba",
-    category: "Nintendo eShop Gift Cards",
-    title: "Nintendo eShop Card 70 USD Key UNITED STATES",
-    url: "https://www.eneba.com/us/nintendo-nintendo-eshop-card-70-usd-key-united-states",
-    region: "United States",
-    sellingPrice: 54.6,
-    originalPrice: 70,
-    faceValue: 70,
-    discountPct: 22,
-    cashbackPct: 5,
-    effectiveDiscountPct: 25.9,
-    effectivePrice: 51.87,
-    savingsAmount: 18.13,
-    lowestSellerName: "GameDealPro",
-    lowestSellerRating: 99.84,
-  },
-  {
-    provider: "eneba",
-    category: "PlayStation (PSN) Gift Cards",
-    title: "PlayStation Network Card 100 USD (USA) PSN Key UNITED STATES",
-    url: "https://www.eneba.com/us/psn-playstation-network-card-psn-100-usd-usa-psn-key-united-states",
-    region: "United States",
-    sellingPrice: 79.0,
-    originalPrice: 100,
-    faceValue: 100,
-    discountPct: 21,
-    cashbackPct: 0,
-    effectiveDiscountPct: 21,
-    effectivePrice: 79.0,
-    savingsAmount: 21.0,
-    lowestSellerName: "KeyVaultUS",
-    lowestSellerRating: 99.52,
-  },
-];
-
-async function readJsonBody(
-  req: http.IncomingMessage,
-): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  const raw = Buffer.concat(chunks).toString("utf8").trim();
-  if (!raw) return {};
-  return JSON.parse(raw) as Record<string, unknown>;
-}
-
-function sendJson(
-  res: http.ServerResponse,
-  statusCode: number,
-  payload: unknown,
-): void {
-  res.writeHead(statusCode, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-  });
-  res.end(JSON.stringify(payload));
-}
+import { ensureEnebaSchema } from "../eneba/db.js";
+import { createApp } from "./app.js";
+import { PageStore } from "./services/pageStore.js";
+import { ScrapeRunner } from "./services/scrapeRunner.js";
 
 export interface ServerInstance {
   server: http.Server;
+  app: express.Express;
   pageStore: PageStore;
   runner: ScrapeRunner;
   scheduler: RandomizedDailyScheduler;
@@ -133,325 +59,15 @@ export async function createDashboardServer(options: {
     return `Scraped ${results.length} page(s) via daily randomized schedule.`;
   });
 
-  const server = http.createServer(async (req, res) => {
-    try {
-      const parsedUrl = new URL(req.url || "/", "http://localhost");
-      const pathname = parsedUrl.pathname;
-      const method = req.method || "GET";
-
-      // 1. Serve Dashboard UI (supports /, /eneba, /scraping, /config routes)
-      if (
-        method === "GET" &&
-        (pathname === "/" ||
-          pathname === "/eneba" ||
-          pathname === "/scraping" ||
-          pathname === "/config")
-      ) {
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderDashboardHtml());
-        return;
-      }
-
-      // 2. GET /api/dashboard
-      if (method === "GET" && pathname === "/api/dashboard") {
-        const pages = pageStore.listPages();
-        const providers = Array.from(new Set(pages.map((p) => p.provider)));
-        const configValues = await readAllConfigValues({
-          pool: options.pool,
-          envPath: options.envPath,
-        });
-        const enebaConfig = await getEnebaConfig({ pool: options.pool });
-        sendJson(res, 200, {
-          pages,
-          providers,
-          statuses: runner.getLatestStatuses(),
-          runner: runner.getState(),
-          scheduler: scheduler.getState(),
-          enebaConfig,
-          env: {
-            schema: ENV_SCHEMA,
-            values: configValues,
-            envFilePath: resolveEnvFilePath(options.envPath),
-          },
-        });
-        return;
-      }
-
-      // 2.2 GET or PUT /api/eneba/config — Manage Eneba-specific settings in scrapling.eneba_config
-      if (pathname === "/api/eneba/config") {
-        if (method === "GET") {
-          const config = await getEnebaConfig({ pool: options.pool });
-          sendJson(res, 200, { config });
-          return;
-        }
-        if (method === "PUT" || method === "POST") {
-          const body = await readJsonBody(req);
-          const rawUpdates = (body.updates ?? body) as Record<
-            string,
-            string | number
-          >;
-          const cleanUpdates: Record<string, string> = {};
-          for (const [k, v] of Object.entries(rawUpdates)) {
-            if (k === "updates") continue;
-            cleanUpdates[k] = String(v ?? "");
-          }
-          const config = await updateEnebaConfig(cleanUpdates, {
-            pool: options.pool,
-          });
-          sendJson(res, 200, { config });
-          return;
-        }
-      }
-
-      // 2.5 GET or POST /api/deals/search (and /api/deals) — Hermes & external deal search API
-      if (
-        (method === "GET" || method === "POST") &&
-        (pathname === "/api/deals/search" || pathname === "/api/deals")
-      ) {
-        const sp = parsedUrl.searchParams;
-        const body = method === "POST" ? await readJsonBody(req) : {};
-
-        const getStr = (key: string): string | undefined => {
-          const fromBody = body[key];
-          if (fromBody !== undefined && fromBody !== null) {
-            return String(fromBody);
-          }
-          const fromQuery = sp.get(key);
-          return fromQuery !== null ? fromQuery : undefined;
-        };
-
-        const bestRaw = getStr("bestOnly") ?? getStr("best");
-        const bestOnly =
-          bestRaw !== undefined
-            ? ["true", "1", "yes"].includes(bestRaw.toLowerCase())
-            : false;
-
-        const minDiscountRaw = getStr("minDiscount");
-        const maxPriceRaw = getStr("maxPrice");
-        const limitRaw = getStr("limit");
-
-        const searchParams: DealSearchQuery = {
-          q: getStr("q"),
-          name: getStr("name"),
-          query: getStr("query"),
-          category: getStr("category"),
-          provider: getStr("provider"),
-          date: getStr("date"),
-          timestamp: getStr("timestamp"),
-          from: getStr("from"),
-          since: getStr("since"),
-          to: getStr("to"),
-          until: getStr("until"),
-          bestOnly,
-          minDiscount:
-            minDiscountRaw !== undefined ? Number(minDiscountRaw) : undefined,
-          maxPrice: maxPriceRaw !== undefined ? Number(maxPriceRaw) : undefined,
-          limit: limitRaw !== undefined ? Number(limitRaw) : undefined,
-        };
-
-        const result = await searchDeals(
-          searchParams,
-          runner.getLatestStatuses(),
-        );
-        sendJson(res, 200, result);
-        return;
-      }
-
-      // 3. POST /api/pages (Add new scraping page)
-      if (method === "POST" && pathname === "/api/pages") {
-        const body = await readJsonBody(req);
-        const page = pageStore.addPage({
-          provider: String(body.provider ?? "eneba"),
-          categoryName: String(body.categoryName ?? ""),
-          url: String(body.url ?? ""),
-          enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
-          withOffers:
-            body.withOffers !== undefined ? Boolean(body.withOffers) : true,
-        });
-        sendJson(res, 201, { page });
-        return;
-      }
-
-      // 4. PATCH / DELETE /api/pages/:id
-      if (pathname.startsWith("/api/pages/")) {
-        const id = decodeURIComponent(pathname.slice("/api/pages/".length));
-        if (method === "PATCH") {
-          const body = await readJsonBody(req);
-          const updated = pageStore.updatePage(id, {
-            categoryName:
-              body.categoryName !== undefined
-                ? String(body.categoryName)
-                : undefined,
-            url: body.url !== undefined ? String(body.url) : undefined,
-            provider:
-              body.provider !== undefined ? String(body.provider) : undefined,
-            enabled:
-              body.enabled !== undefined ? Boolean(body.enabled) : undefined,
-            withOffers:
-              body.withOffers !== undefined
-                ? Boolean(body.withOffers)
-                : undefined,
-          });
-          if (!updated) {
-            sendJson(res, 404, { error: "Page not found" });
-            return;
-          }
-          sendJson(res, 200, { page: updated });
-          return;
-        }
-
-        if (method === "DELETE") {
-          const deleted = pageStore.deletePage(id);
-          sendJson(res, deleted ? 200 : 404, { deleted });
-          return;
-        }
-      }
-
-      // 5. POST /api/scrape (Trigger async scrape run)
-      if (method === "POST" && pathname === "/api/scrape") {
-        if (runner.getState().isScraping) {
-          sendJson(res, 409, { error: "A scrape job is already running." });
-          return;
-        }
-        const body = await readJsonBody(req);
-        const pageId = body.pageId ? String(body.pageId) : undefined;
-        const withOffersOverride =
-          body.withOffers !== undefined ? Boolean(body.withOffers) : undefined;
-
-        void runner
-          .runScrape({ pageId, withOffersOverride })
-          .catch(() => undefined);
-
-        sendJson(res, 202, {
-          started: true,
-          runner: runner.getState(),
-        });
-        return;
-      }
-
-      // 6. PUT /api/env (or /api/config) — Updates `scrapling.config` in PostgreSQL (envOnly keys like PORT/DATABASE_URL are ignored)
-      if (
-        method === "PUT" &&
-        (pathname === "/api/env" || pathname === "/api/config")
-      ) {
-        const body = await readJsonBody(req);
-        const rawUpdates = (body.updates ?? {}) as Record<string, unknown>;
-        const cleanUpdates: Record<string, string> = {};
-        for (const [k, v] of Object.entries(rawUpdates)) {
-          cleanUpdates[k] = String(v ?? "");
-        }
-        const values = await updateDbConfigValues(cleanUpdates, {
-          pool: options.pool,
-          envPath: options.envPath,
-        });
-        if (
-          "CRON_ENABLED" in cleanUpdates ||
-          "CRON_BASE_TIME" in cleanUpdates ||
-          "CRON_JITTER_MINUTES" in cleanUpdates
-        ) {
-          scheduler.reloadFromEnv();
-        }
-        sendJson(res, 200, {
-          values,
-          scheduler: scheduler.getState(),
-        });
-        return;
-      }
-
-      // 7. DELETE /api/env/:key (or /api/config/:key)
-      if (
-        method === "DELETE" &&
-        (pathname.startsWith("/api/env/") ||
-          pathname.startsWith("/api/config/"))
-      ) {
-        const prefix = pathname.startsWith("/api/env/")
-          ? "/api/env/"
-          : "/api/config/";
-        const key = decodeURIComponent(pathname.slice(prefix.length));
-        const values = await deleteDbConfigKey(key, {
-          pool: options.pool,
-          envPath: options.envPath,
-        });
-        sendJson(res, 200, { values });
-        return;
-      }
-
-      // 8. PUT /api/scheduler (Update randomized daily cron config in `scrapling.config` or re-roll offset)
-      if (method === "PUT" && pathname === "/api/scheduler") {
-        const body = await readJsonBody(req);
-        if (body.reroll) {
-          sendJson(res, 200, { scheduler: scheduler.rerollNextRun() });
-          return;
-        }
-        const state = scheduler.updateConfig(
-          {
-            enabled:
-              body.enabled !== undefined ? Boolean(body.enabled) : undefined,
-            baseTime:
-              body.baseTime !== undefined ? String(body.baseTime) : undefined,
-            jitterMinutes:
-              body.jitterMinutes !== undefined
-                ? Number(body.jitterMinutes)
-                : undefined,
-          },
-          false,
-        );
-        await updateDbConfigValues(
-          {
-            CRON_ENABLED: String(state.enabled),
-            CRON_BASE_TIME: state.baseTime,
-            CRON_JITTER_MINUTES: String(state.jitterMinutes),
-          },
-          { pool: options.pool, envPath: options.envPath },
-        );
-        sendJson(res, 200, { scheduler: state });
-        return;
-      }
-
-      // 9. GET /api/email/preview (Preview Resend email template for >= threshold % deals)
-      if (method === "GET" && pathname === "/api/email/preview") {
-        const thresholdPct = await getEnebaAlertThreshold({
-          pool: options.pool,
-        });
-        const liveItems = statusesToAlertItems(runner.getLatestStatuses());
-        const matchingLive = filterAlertableDeals(liveItems, thresholdPct);
-        const dealsForPreview =
-          matchingLive.length > 0 ? matchingLive : SAMPLE_PREVIEW_DEALS;
-
-        const template = renderDealAlertEmailTemplate(dealsForPreview, {
-          thresholdPct,
-        });
-        sendJson(res, 200, {
-          ...template,
-          isSampleData: matchingLive.length === 0,
-        });
-        return;
-      }
-
-      // 10. POST /api/email/test (Send test alert email via Resend)
-      if (method === "POST" && pathname === "/api/email/test") {
-        const thresholdPct = await getEnebaAlertThreshold({
-          pool: options.pool,
-        });
-        const liveItems = statusesToAlertItems(runner.getLatestStatuses());
-        const matchingLive = filterAlertableDeals(liveItems, thresholdPct);
-        const dealsToSend =
-          matchingLive.length > 0 ? matchingLive : SAMPLE_PREVIEW_DEALS;
-
-        const result = await sendDealAlertEmail(dealsToSend, {
-          force: true,
-          thresholdPct,
-        });
-        sendJson(res, 200, result);
-        return;
-      }
-
-      sendJson(res, 404, { error: "Not found" });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      sendJson(res, 500, { error: message });
-    }
+  const app = createApp({
+    pageStore,
+    runner,
+    scheduler,
+    pool: options.pool,
+    envPath: options.envPath,
   });
+
+  const server = http.createServer(app);
 
   const requestedPort =
     options.port ?? (Number(process.env.PORT ?? "80") || 80);
@@ -467,6 +83,7 @@ export async function createDashboardServer(options: {
 
   return {
     server,
+    app,
     pageStore,
     runner,
     scheduler,

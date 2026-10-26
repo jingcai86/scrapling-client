@@ -509,4 +509,48 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
     assert.ok(html.includes('id="scrapeBanner"'));
     assert.ok(html.includes('id="toast"'));
   });
+
+  it("exposes Express application, handles 404s, and serves UI routes across paths", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "scrapling-express-"));
+    const tmpEnvPath = path.join(tmpDir, ".env");
+    fs.writeFileSync(
+      tmpEnvPath,
+      "PORT=80\nDATABASE_URL=postgresql://mock:mock@127.0.0.1:1/postgres\n",
+      "utf8",
+    );
+
+    const { pool } = createInMemoryConfigPool();
+    const app = await createDashboardServer({
+      port: 0,
+      dataDir: path.join(tmpDir, "data"),
+      envPath: tmpEnvPath,
+      pool,
+    });
+
+    try {
+      assert.ok(app.app);
+      const base = `http://127.0.0.1:${app.port}`;
+
+      // Check all UI routes
+      for (const route of ["/", "/eneba", "/scraping", "/config"]) {
+        const res = await fetch(`${base}${route}`);
+        assert.equal(res.status, 200);
+        assert.equal(
+          res.headers.get("content-type"),
+          "text/html; charset=utf-8",
+        );
+        const text = await res.text();
+        assert.ok(text.includes("Scrapling Monitor"));
+      }
+
+      // Check 404 response
+      const notFoundRes = await fetch(`${base}/api/unknown-endpoint`);
+      assert.equal(notFoundRes.status, 404);
+      const notFoundData = await notFoundRes.json();
+      assert.deepEqual(notFoundData, { error: "Not found" });
+    } finally {
+      await app.close();
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
