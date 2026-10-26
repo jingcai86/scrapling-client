@@ -46,10 +46,6 @@ export function renderScrapingTab(): string {
             <div class="kv-val" id="viewCronWindow">—</div>
           </div>
           <div class="kv-box">
-            <div class="kv-label">Rolled Random Offset</div>
-            <div class="kv-val" id="viewCronOffset">—</div>
-          </div>
-          <div class="kv-box">
             <div class="kv-label">Next Scheduled Run</div>
             <div class="kv-val" style="color:#818cf8;" id="viewCronNext">—</div>
           </div>

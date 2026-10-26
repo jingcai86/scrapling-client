@@ -265,14 +265,12 @@ export function renderClientScripts(): string {
           'Base ' + scheduler.baseTime + ' + ' + scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's jitter';
         document.getElementById('viewCronEnabled').innerHTML = '<span class="badge badge-discount">Enabled</span>';
         document.getElementById('viewCronWindow').textContent = scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]';
-        document.getElementById('viewCronOffset').textContent = '+' + scheduler.chosenOffsetMinutes + 'm ' + scheduler.chosenOffsetSeconds + 's';
         document.getElementById('viewCronNext').textContent = cronLabel;
       } else {
         document.getElementById('kpiNextCron').textContent = 'Disabled';
         document.getElementById('kpiCronWindow').textContent = 'Enable in Scraping & Targets tab';
         document.getElementById('viewCronEnabled').innerHTML = '<span class="badge badge-muted">Disabled</span>';
         document.getElementById('viewCronWindow').textContent = scheduler.baseTime + ' + [0..' + scheduler.jitterMinutes + ' mins]';
-        document.getElementById('viewCronOffset').textContent = '—';
         document.getElementById('viewCronNext').textContent = 'Paused';
       }
       document.getElementById('viewCronLast').textContent =

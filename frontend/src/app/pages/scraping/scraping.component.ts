@@ -88,10 +88,6 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
               </div>
             </div>
             <div class="kv-box">
-              <div class="kv-label">Rolled Random Offset</div>
-              <div class="kv-val">+{{ scheduler()?.chosenOffsetMinutes || 0 }} min</div>
-            </div>
-            <div class="kv-box">
               <div class="kv-label">Next Scheduled Run</div>
               <div class="kv-val highlight">{{ formatNextRun(scheduler()?.nextRunAt) }}</div>
             </div>
