@@ -740,6 +740,42 @@ export function renderDashboardHtml(): string {
         </div>
       </div>
 
+      <!-- Eneba Provider Configuration (scrapling.eneba_config) -->
+      <div class="card" style="margin-block-end:1.25rem;">
+        <div class="card-header" style="flex-wrap:wrap;gap:1rem;">
+          <div>
+            <h2 class="card-title" style="display:flex;align-items:center;gap:0.5rem;">
+              <span>⚙️ Eneba Scraper Configuration</span>
+              <span class="badge badge-discount" style="font-size:0.75rem;">scrapling.eneba_config</span>
+            </h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              Configure how many top ranked gift card deals to pull and persist per category (defaults to 10). Stored in PostgreSQL <code>scrapling.eneba_config</code>.
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+            <label for="enebaTopDealsLimitInput" style="font-size:0.85rem;font-weight:600;color:var(--text);">
+              Top Deals to Pull:
+            </label>
+            <input
+              type="number"
+              id="enebaTopDealsLimitInput"
+              min="1"
+              max="50"
+              step="1"
+              value="10"
+              style="width:80px;padding:0.4rem 0.6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:700;text-align:center;"
+              aria-label="Number of top deals to pull per category"
+            />
+            <button type="button" class="btn btn-sm btn-primary" id="btnSaveEnebaConfig">
+              Save Limit
+            </button>
+            <button type="button" class="btn btn-sm" onclick="triggerScrape({})">
+              ▶ Scrape Now
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Eneba Table 1: Category Status, Cashback & Competing Seller Offers (Sortable) -->
       <div class="card">
         <div class="card-header">
@@ -775,11 +811,11 @@ export function renderDashboardHtml(): string {
         </div>
       </div>
 
-      <!-- Eneba Table 2: Eneba Top 10 Ranked Deals Per Category (Sortable) -->
+      <!-- Eneba Table 2: Eneba Top Ranked Deals Per Category (Sortable) -->
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Eneba Top 10 Ranked Gift Card Deals</h2>
+            <h2 class="card-title">Eneba Top <span id="enebaPullLimitBadge">10</span> Ranked Gift Card Deals</h2>
             <div style="font-size:0.8rem;color:var(--text-muted);">
               Includes region, face value baseline, direct discount %, and Eneba cashback %. Click any column header to sort.
             </div>
@@ -1594,7 +1630,15 @@ export function renderDashboardHtml(): string {
         }).join('');
       }
 
-      // Populate Eneba Category Filter & Render Eneba Top 10 Deals Table
+      // Populate Eneba Category Filter & Render Eneba Top Deals Table
+      const pullLimit = parseInt(dashboardData?.enebaConfig?.top_deals_limit || '10', 10) || 10;
+      const limitInput = document.getElementById('enebaTopDealsLimitInput');
+      if (limitInput && document.activeElement !== limitInput) {
+        limitInput.value = pullLimit;
+      }
+      const badge = document.getElementById('enebaPullLimitBadge');
+      if (badge) badge.textContent = pullLimit;
+
       const catSelect = document.getElementById('enebaCategoryFilter');
       const currentCat = catSelect.value;
       const categories = statuses.map((s) => s.category);
@@ -1609,7 +1653,7 @@ export function renderDashboardHtml(): string {
 
       const flatDeals = [];
       filteredStatuses.forEach((st) => {
-        (st.rankedDeals || []).slice(0, 10).forEach((deal, idx) => {
+        (st.rankedDeals || []).slice(0, pullLimit).forEach((deal, idx) => {
           const rank = idx + 1;
           if (searchQ) {
             const hay = (deal.title + ' ' + st.category + ' ' + deal.region).toLowerCase();
@@ -1808,9 +1852,31 @@ export function renderDashboardHtml(): string {
       }).join('');
     }
 
-    // Filter listeners
+    // Filter listeners & Eneba configuration
     document.getElementById('enebaCategoryFilter').addEventListener('change', () => renderAll());
     document.getElementById('enebaSearchInput').addEventListener('input', () => renderAll());
+    document.getElementById('btnSaveEnebaConfig').addEventListener('click', async () => {
+      const val = parseInt(document.getElementById('enebaTopDealsLimitInput')?.value || '10', 10);
+      if (!val || val < 1 || val > 100) {
+        showToast('Please enter a valid pull limit between 1 and 100.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/eneba/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates: { top_deals_limit: String(val) } }),
+        });
+        const data = await res.json();
+        if (dashboardData) {
+          dashboardData.enebaConfig = data.config;
+        }
+        showToast('Eneba pull limit updated to ' + val + ' in scrapling.eneba_config!');
+        renderAll();
+      } catch (err) {
+        showToast('Failed to update Eneba config: ' + (err.message || err));
+      }
+    });
 
     // Competing seller offers modal (with sortable columns)
     window.openSellerOffers = (statusIdx) => {

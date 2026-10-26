@@ -15,8 +15,10 @@ import { createDashboardServer } from "./index.js";
 function createInMemoryConfigPool(): {
   pool: pg.Pool;
   configRows: Map<string, { key: string; value: string }>;
+  enebaConfigRows: Map<string, { key: string; value: string }>;
 } {
   const configRows = new Map<string, { key: string; value: string }>();
+  const enebaConfigRows = new Map<string, { key: string; value: string }>();
 
   const pool = {
     query: async (sql: string, params: unknown[] = []) => {
@@ -75,12 +77,54 @@ function createInMemoryConfigPool(): {
         return { rows: [], rowCount: 1 };
       }
 
+      // Eneba configuration table queries
+      if (
+        normalized.startsWith("INSERT INTO scrapling.eneba_config") &&
+        normalized.includes("ON CONFLICT (key) DO NOTHING")
+      ) {
+        const key = String(params[0] ?? "top_deals_limit");
+        const value = String(params[1] ?? "10");
+        if (!enebaConfigRows.has(key)) {
+          enebaConfigRows.set(key, { key, value });
+        }
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (
+        normalized.startsWith("INSERT INTO scrapling.eneba_config") &&
+        normalized.includes("ON CONFLICT (key) DO UPDATE")
+      ) {
+        const key = String(params[0] ?? "");
+        const value = String(params[1] ?? "");
+        if (key) {
+          enebaConfigRows.set(key, { key, value });
+        }
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (
+        normalized.startsWith(
+          "SELECT key, value FROM scrapling.eneba_config ORDER BY key ASC",
+        )
+      ) {
+        if (!enebaConfigRows.has("top_deals_limit")) {
+          enebaConfigRows.set("top_deals_limit", {
+            key: "top_deals_limit",
+            value: "10",
+          });
+        }
+        const rows = Array.from(enebaConfigRows.values()).sort((a, b) =>
+          a.key.localeCompare(b.key),
+        );
+        return { rows, rowCount: rows.length };
+      }
+
       return { rows: [], rowCount: 0 };
     },
     end: async () => undefined,
   } as unknown as pg.Pool;
 
-  return { pool, configRows };
+  return { pool, configRows, enebaConfigRows };
 }
 
 describe("Server, Randomized Cron, Email Template & Page Store API", () => {
@@ -202,7 +246,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
     const originalDbUrl = process.env.DATABASE_URL;
     delete process.env.DATABASE_URL;
 
-    const { pool, configRows } = createInMemoryConfigPool();
+    const { pool, configRows, enebaConfigRows } = createInMemoryConfigPool();
 
     const app = await createDashboardServer({
       port: 0,
@@ -232,12 +276,14 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       const dash = (await dashRes.json()) as {
         pages: Array<{ id: string; categoryName: string }>;
         scheduler: { baseTime: string; jitterMinutes: number };
+        enebaConfig?: { top_deals_limit: string };
         env: { values: Record<string, string> };
       };
       assert.equal(dash.pages.length, 5); // PlayStation, Nintendo, Android, Amazon, Apple
       assert.equal(dash.scheduler.baseTime, "19:00");
       assert.equal(dash.scheduler.jitterMinutes, 60);
       assert.equal(dash.env.values.RESEND_API_KEY, "");
+      assert.equal(dash.enebaConfig?.top_deals_limit, "10");
 
       // 2. POST /api/pages (Add new page)
       const addRes = await fetch(`${baseUrl}/api/pages`, {
@@ -299,6 +345,26 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       assert.equal(prevRes.status, 200);
       const prev = (await prevRes.json()) as { html: string; subject: string };
       assert.match(prev.html, /Scrapling Monitor Alert/);
+
+      // 5.5 GET /api/eneba/config & PUT /api/eneba/config (scrapling.eneba_config)
+      const enebaCfgRes = await fetch(`${baseUrl}/api/eneba/config`);
+      assert.equal(enebaCfgRes.status, 200);
+      const enebaCfg = (await enebaCfgRes.json()) as {
+        config: Record<string, string>;
+      };
+      assert.equal(enebaCfg.config.top_deals_limit, "10");
+
+      const updateEnebaRes = await fetch(`${baseUrl}/api/eneba/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: { top_deals_limit: "25" } }),
+      });
+      assert.equal(updateEnebaRes.status, 200);
+      const enebaUpdated = (await updateEnebaRes.json()) as {
+        config: Record<string, string>;
+      };
+      assert.equal(enebaUpdated.config.top_deals_limit, "25");
+      assert.equal(enebaConfigRows.get("top_deals_limit")?.value, "25");
 
       // 6. Seed cached statuses (including a yesterday snapshot and today snapshot) and test /api/deals/search for Hermes
       const yesterdayDate = new Date();

@@ -19,7 +19,11 @@ import {
   updateDbConfigValues,
   type DealAlertItem,
 } from "../core/index.js";
-import { ensureEnebaSchema } from "../eneba/db.js";
+import {
+  ensureEnebaSchema,
+  getEnebaConfig,
+  updateEnebaConfig,
+} from "../eneba/db.js";
 import { PageStore } from "./pageStore.js";
 import { ScrapeRunner, statusesToAlertItems } from "./scrapeRunner.js";
 import { searchDeals, type DealSearchQuery } from "./dealSearch.js";
@@ -155,12 +159,14 @@ export async function createDashboardServer(options: {
           pool: options.pool,
           envPath: options.envPath,
         });
+        const enebaConfig = await getEnebaConfig({ pool: options.pool });
         sendJson(res, 200, {
           pages,
           providers,
           statuses: runner.getLatestStatuses(),
           runner: runner.getState(),
           scheduler: scheduler.getState(),
+          enebaConfig,
           env: {
             schema: ENV_SCHEMA,
             values: configValues,
@@ -168,6 +174,32 @@ export async function createDashboardServer(options: {
           },
         });
         return;
+      }
+
+      // 2.2 GET or PUT /api/eneba/config — Manage Eneba-specific settings in scrapling.eneba_config
+      if (pathname === "/api/eneba/config") {
+        if (method === "GET") {
+          const config = await getEnebaConfig({ pool: options.pool });
+          sendJson(res, 200, { config });
+          return;
+        }
+        if (method === "PUT" || method === "POST") {
+          const body = await readJsonBody(req);
+          const rawUpdates = (body.updates ?? body) as Record<
+            string,
+            string | number
+          >;
+          const cleanUpdates: Record<string, string> = {};
+          for (const [k, v] of Object.entries(rawUpdates)) {
+            if (k === "updates") continue;
+            cleanUpdates[k] = String(v ?? "");
+          }
+          const config = await updateEnebaConfig(cleanUpdates, {
+            pool: options.pool,
+          });
+          sendJson(res, 200, { config });
+          return;
+        }
       }
 
       // 2.5 GET or POST /api/deals/search (and /api/deals) — Hermes & external deal search API

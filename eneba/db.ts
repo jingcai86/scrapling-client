@@ -42,13 +42,13 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_scrape_runs (
   max_effective_discount_pct NUMERIC(6, 2) NOT NULL
 );
 
--- 3. Top 10 ranked deals (rank 1-10) per page scrape
+-- 3. Top ranked deals (rank 1..N) per page scrape
 CREATE TABLE IF NOT EXISTS scrapling.eneba_top_deals (
   id BIGSERIAL PRIMARY KEY,
   scrape_run_id BIGINT NOT NULL REFERENCES scrapling.eneba_scrape_runs(id) ON DELETE CASCADE,
   product_id BIGINT NOT NULL REFERENCES scrapling.eneba_products(id) ON DELETE CASCADE,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  rank SMALLINT NOT NULL CHECK (rank BETWEEN 1 AND 10),
+  rank SMALLINT NOT NULL CHECK (rank >= 1),
   category TEXT NOT NULL,
   title TEXT NOT NULL,
   url TEXT NOT NULL,
@@ -94,6 +94,18 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_product_offers (
   is_featured_offer BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+-- 6. Eneba-specific configuration table (e.g., how many top deals to pull per category)
+CREATE TABLE IF NOT EXISTS scrapling.eneba_config (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO scrapling.eneba_config (key, value, description)
+VALUES ('top_deals_limit', '10', 'Number of top ranked deals to pull and persist per Eneba category')
+ON CONFLICT (key) DO NOTHING;
+
 CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_scrape_runs_scraped_at
   ON scrapling.eneba_scrape_runs (scraped_at DESC);
 
@@ -109,9 +121,17 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_top_deals_product_time
 CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_product_offers_product_time
   ON scrapling.eneba_product_offers (product_id, scraped_at DESC);
 
--- Automatically migrate legacy eneba.* tables into scrapling.eneba_* if present and target is empty
+-- Automatically migrate legacy eneba.* tables into scrapling.eneba_* if present and target is empty,
+-- and ensure the rank check constraint allows arbitrary limits (>= 1).
 DO $$
 BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'scrapling.eneba_top_deals'::regclass
+      AND conname = 'eneba_top_deals_rank_check'
+  ) THEN
+    ALTER TABLE scrapling.eneba_top_deals DROP CONSTRAINT eneba_top_deals_rank_check;
+  END IF;
   IF to_regclass('eneba.products') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_products LIMIT 1) THEN
     INSERT INTO scrapling.eneba_products (id, slug, url, category, title, region, face_value, face_value_currency, first_seen_at, last_seen_at)
     SELECT id, slug, url, category, title, region, face_value, face_value_currency, first_seen_at, last_seen_at
@@ -195,9 +215,91 @@ export async function ensureEnebaSchema(pool: pg.Pool): Promise<void> {
   await pool.query(INIT_ENEBA_SCHEMA_SQL);
 }
 
+export interface EnebaConfigOptions {
+  pool?: pg.Pool;
+}
+
+/**
+ * Reads all Eneba configuration key-value pairs from `scrapling.eneba_config`.
+ */
+export async function getEnebaConfig(
+  options: EnebaConfigOptions = {},
+): Promise<Record<string, string>> {
+  const ownPool = !options.pool;
+  let pool: pg.Pool | null = options.pool ?? null;
+  try {
+    if (!pool) {
+      if (!process.env.DATABASE_URL?.trim()) {
+        return { top_deals_limit: "10" };
+      }
+      pool = createPgPool();
+    }
+    await ensureEnebaSchema(pool);
+    const res = await pool.query<{ key: string; value: string }>(
+      `SELECT key, value FROM scrapling.eneba_config ORDER BY key ASC`,
+    );
+    const config: Record<string, string> = { top_deals_limit: "10" };
+    for (const row of res.rows) {
+      config[row.key] = row.value;
+    }
+    return config;
+  } catch {
+    return { top_deals_limit: "10" };
+  } finally {
+    if (ownPool && pool) {
+      await pool.end().catch(() => {});
+    }
+  }
+}
+
+/**
+ * Returns the configured number of top deals to pull per category (defaults to 10).
+ */
+export async function getEnebaTopDealsLimit(
+  options: EnebaConfigOptions = {},
+): Promise<number> {
+  const cfg = await getEnebaConfig(options);
+  const parsed = parseInt(cfg.top_deals_limit || "10", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+}
+
+/**
+ * Updates key-value settings in `scrapling.eneba_config`.
+ */
+export async function updateEnebaConfig(
+  updates: Record<string, string | number>,
+  options: EnebaConfigOptions = {},
+): Promise<Record<string, string>> {
+  const ownPool = !options.pool;
+  const pool = options.pool ?? createPgPool();
+  try {
+    await ensureEnebaSchema(pool);
+    for (const [rawKey, rawVal] of Object.entries(updates)) {
+      const key = rawKey.trim();
+      if (!key) continue;
+      const strVal = String(rawVal ?? "").trim();
+      await pool.query(
+        `
+        INSERT INTO scrapling.eneba_config (key, value, description, updated_at)
+        VALUES ($1, $2, 'Eneba configuration setting', NOW())
+        ON CONFLICT (key) DO UPDATE SET
+          value = EXCLUDED.value,
+          updated_at = NOW()
+        `,
+        [key, strVal],
+      );
+    }
+    return await getEnebaConfig({ pool });
+  } finally {
+    if (ownPool) {
+      await pool.end();
+    }
+  }
+}
+
 /**
  * Saves page scrape run metadata (`scrapling.eneba_scrape_runs`), upserts unique products (`scrapling.eneba_products`),
- * and inserts the top 10 ranked deals (`rank` 1..10) into `scrapling.eneba_top_deals`.
+ * and inserts the top ranked deals (`rank` 1..N) into `scrapling.eneba_top_deals`.
  */
 export async function savePageDealsToDb(
   statuses: PageDealStatus | PageDealStatus[],
@@ -207,7 +309,7 @@ export async function savePageDealsToDb(
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
   const batchId = options.batchId ?? crypto.randomUUID();
-  const maxRank = Math.min(10, Math.max(1, options.maxRank ?? 10));
+  const maxRank = Math.min(100, Math.max(1, options.maxRank ?? 10));
   const batchTimestamp =
     options.scrapedAt instanceof Date
       ? options.scrapedAt.toISOString()
@@ -521,6 +623,7 @@ export async function tryPersistScrapeResult(
     noDb?: boolean;
     maxRank?: number;
     showProgress?: boolean;
+    pool?: pg.Pool;
   } = {},
 ): Promise<DbPersistenceStatus> {
   const statusList = Array.isArray(statuses) ? statuses : [statuses];
@@ -541,12 +644,17 @@ export async function tryPersistScrapeResult(
     `[PostgreSQL] Saving top deals & seller offers to schema "scrapling" (eneba_* tables)...`,
   );
 
-  let pool: pg.Pool | null = null;
+  let pool: pg.Pool | null = options.pool ?? null;
+  const ownPool = !options.pool;
   try {
-    pool = createPgPool();
+    if (!pool) {
+      pool = createPgPool();
+    }
+    const maxRank =
+      options.maxRank ?? (await getEnebaTopDealsLimit({ pool }));
     const savedDeals = await savePageDealsToDb(statusList, {
       pool,
-      maxRank: options.maxRank ?? 10,
+      maxRank,
     });
 
     let totalSellers = 0;

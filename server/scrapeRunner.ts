@@ -8,6 +8,7 @@ import {
 import { EnebaGiftCardScraper } from "../eneba/baseScraper.js";
 import {
   fetchLatestEnebaStatusesFromDb,
+  getEnebaTopDealsLimit,
   tryPersistScrapeResult,
   type DbPersistenceStatus,
 } from "../eneba/db.js";
@@ -220,8 +221,9 @@ export class ScrapeRunner {
 
       // Persist to PostgreSQL (fault-tolerant)
       this.currentStep = `Saving ${scrapedResults.length} page run(s) to PostgreSQL (scrapling.eneba_* tables)...`;
+      const enebaLimit = await getEnebaTopDealsLimit().catch(() => 10);
       const dbStatus = await tryPersistScrapeResult(scrapedResults, {
-        maxRank: 10,
+        maxRank: enebaLimit,
         showProgress: true,
       });
       this.lastDbStatus = dbStatus;
