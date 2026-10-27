@@ -12,6 +12,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTabsModule } from '@angular/material/tabs';
 import { ApiService } from '../../core/services/api.service';
 import { PageFormDialogComponent } from '../../dialogs/page-form-dialog.component';
 import { CronFormDialogComponent } from '../../dialogs/cron-form-dialog.component';
@@ -34,6 +35,7 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
     MatTooltipModule,
     MatProgressSpinnerModule,
     MatSelectModule,
+    MatTabsModule,
   ],
   template: `
     <div class="page-container">
@@ -135,14 +137,42 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
       <!-- 3. Target Scraping Pages Table -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="card-header-flex">
-          <mat-card-title>Target Scraping Pages</mat-card-title>
-          <mat-card-subtitle>
-            Click any column header to sort. Manage store URLs and configure which schedule each page follows.
-          </mat-card-subtitle>
+          <div>
+            <mat-card-title>Target Scraping Pages</mat-card-title>
+            <mat-card-subtitle>
+              Click any column header to sort. Manage store URLs and configure which schedule each page follows.
+            </mat-card-subtitle>
+          </div>
           <button mat-flat-button color="primary" (click)="openAddPageDialog()">
-            + Add Scraping Page
+            + Add Scraping Target
           </button>
         </mat-card-header>
+
+        <!-- Provider Specific Tabs -->
+        <div class="provider-tabs-wrapper">
+          <mat-tab-group
+            [selectedIndex]="selectedTabIndex"
+            (selectedIndexChange)="onTabChange($event)"
+            animationDuration="150ms"
+            class="provider-tab-group"
+          >
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">layers</mat-icon>
+                <span>All Providers</span>
+                <span class="tab-badge">{{ allPagesCount }}</span>
+              </ng-template>
+            </mat-tab>
+            <mat-tab *ngFor="let p of providerList">
+              <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">storefront</mat-icon>
+                <span>{{ getProviderDisplayName(p) }}</span>
+                <span class="tab-badge">{{ getProviderPageCount(p) }}</span>
+              </ng-template>
+            </mat-tab>
+          </mat-tab-group>
+        </div>
+
         <mat-card-content class="card-table-content table-wrapper-relative">
           <!-- Loading State Overlay -->
           <div *ngIf="isLoading" class="ui-loading-overlay">
@@ -150,7 +180,16 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
             <span class="loading-label">Loading target scraping pages...</span>
           </div>
 
-          <div class="table-wrapper" [class.table-loading-dimmed]="isLoading">
+          <!-- Empty State for Tab -->
+          <div *ngIf="!isLoading && sortedPages.length === 0" class="empty-tab-state">
+            <mat-icon class="empty-tab-icon">search_off</mat-icon>
+            <p>No scraping targets configured for {{ selectedProvider !== 'all' ? getProviderDisplayName(selectedProvider) : 'this view' }}.</p>
+            <button mat-stroked-button color="primary" (click)="openAddPageDialog()">
+              + Add {{ selectedProvider !== 'all' ? getProviderDisplayName(selectedProvider) : '' }} Target
+            </button>
+          </div>
+
+          <div class="table-wrapper" [class.table-loading-dimmed]="isLoading" *ngIf="sortedPages.length > 0 || isLoading">
             <table mat-table [dataSource]="sortedPages" matSort (matSortChange)="sortPages($event)" class="data-table">
               <ng-container matColumnDef="categoryName">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Target Name / Product</th>
@@ -453,11 +492,70 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
       align-items: center;
       gap: 0.25rem;
     }
+    .provider-tabs-wrapper {
+      padding: 0 1.25rem;
+      border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.08));
+    }
+    .provider-tab-group {
+      ::ng-deep .mat-mdc-tab-header {
+        border-bottom: none !important;
+      }
+      ::ng-deep .mat-mdc-tab {
+        opacity: 0.8;
+        &.mdc-tab--active {
+          opacity: 1;
+        }
+      }
+    }
+    .tab-icon {
+      font-size: 1.15rem;
+      width: 1.15rem;
+      height: 1.15rem;
+      margin-right: 0.4rem;
+    }
+    .tab-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 0.1rem 0.45rem;
+      border-radius: 9999px;
+      margin-left: 0.5rem;
+      background: var(--mat-sys-surface-container-highest, rgba(0, 0, 0, 0.08));
+      color: var(--mat-sys-on-surface);
+      line-height: 1.2;
+    }
+    .empty-tab-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2.75rem 1rem;
+      text-align: center;
+      color: var(--mat-sys-outline);
+      gap: 0.75rem;
+
+      .empty-tab-icon {
+        font-size: 2.6rem;
+        width: 2.6rem;
+        height: 2.6rem;
+        opacity: 0.6;
+      }
+      p {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+    }
   `],
 })
 export class ScrapingComponent {
   displayedColumns: string[] = ['categoryName', 'provider', 'url', 'scheduleId', 'enabled', 'actions'];
   sortedPages: ScrapePageConfig[] = [];
+  selectedTabIndex = 0;
+  selectedProvider = 'all';
+  private currentSort?: Sort;
   private lastPagesRef?: ScrapePageConfig[];
 
   constructor(
@@ -471,13 +569,78 @@ export class ScrapingComponent {
     return this.apiService.isLoading() || !this.apiService.dashboardData();
   }
 
+  get providerList(): string[] {
+    const data = this.apiService.dashboardData();
+    const dashProviders = data?.providers || [];
+    const pages = data?.pages || [];
+    const fromPages = pages.map((p) => p.provider).filter(Boolean);
+    const set = new Set<string>(['eneba', 'g2a', ...dashProviders, ...fromPages]);
+    return Array.from(set);
+  }
+
+  get allPagesCount(): number {
+    return this.apiService.dashboardData()?.pages?.length || 0;
+  }
+
+  getProviderPageCount(provider: string): number {
+    const pages = this.apiService.dashboardData()?.pages || [];
+    return pages.filter((p) => (p.provider || '').toLowerCase() === provider.toLowerCase()).length;
+  }
+
+  getProviderDisplayName(provider?: string | null): string {
+    if (!provider) return 'Provider';
+    const lower = provider.toLowerCase().trim();
+    if (lower === 'g2a') return 'G2A';
+    if (lower === 'eneba') return 'Eneba';
+    return provider.charAt(0).toUpperCase() + provider.slice(1);
+  }
+
+  onTabChange(index: number) {
+    this.selectedTabIndex = index;
+    if (index === 0) {
+      this.selectedProvider = 'all';
+    } else {
+      const providers = this.providerList;
+      this.selectedProvider = providers[index - 1] || 'all';
+    }
+    this.applyPagesFilterAndSort();
+  }
+
   ngDoCheck() {
     const pages = this.apiService.dashboardData()?.pages;
     if (pages !== this.lastPagesRef) {
       this.lastPagesRef = pages;
-      this.sortedPages = pages ? [...pages] : [];
+      this.applyPagesFilterAndSort();
       this.cdr.markForCheck();
     }
+  }
+
+  applyPagesFilterAndSort() {
+    const pages = this.apiService.dashboardData()?.pages || [];
+    let filtered = pages;
+    if (this.selectedProvider !== 'all') {
+      filtered = pages.filter(
+        (p) => (p.provider || '').toLowerCase() === this.selectedProvider.toLowerCase(),
+      );
+    }
+
+    const sort = this.currentSort;
+    if (!sort || !sort.active || sort.direction === '') {
+      this.sortedPages = filtered;
+    } else {
+      const isAsc = sort.direction === 'asc';
+      this.sortedPages = [...filtered].sort((a, b) => {
+        switch (sort.active) {
+          case 'categoryName': return compare(a.categoryName || a.name || '', b.categoryName || b.name || '', isAsc);
+          case 'provider': return compare(a.provider, b.provider, isAsc);
+          case 'url': return compare(a.url, b.url, isAsc);
+          case 'scheduleId': return compare(a.scheduleId || 'default', b.scheduleId || 'default', isAsc);
+          case 'enabled': return compare(String(a.enabled), String(b.enabled), isAsc);
+          default: return 0;
+        }
+      });
+    }
+    this.cdr.markForCheck();
   }
 
   isScraping(): boolean {
@@ -610,15 +773,16 @@ export class ScrapingComponent {
   }
 
   openAddPageDialog() {
+    const defaultProvider = this.selectedProvider !== 'all' ? this.selectedProvider : undefined;
     const dialogRef = this.dialog.open(PageFormDialogComponent, {
-      data: {},
+      data: { defaultProvider },
       width: '520px',
     });
 
     dialogRef.afterClosed().subscribe((result) => {
       if (result) {
         this.apiService.addPage(result).subscribe(() => {
-          this.snackBar.open('Page added successfully!', 'OK', { duration: 3000 });
+          this.snackBar.open('Scraping target added successfully!', 'OK', { duration: 3000 });
         });
       }
     });
@@ -633,7 +797,7 @@ export class ScrapingComponent {
     dialogRef.afterClosed().subscribe((result) => {
       if (result) {
         this.apiService.updatePage(page.id, result).subscribe(() => {
-          this.snackBar.open('Page updated successfully!', 'OK', { duration: 3000 });
+          this.snackBar.open('Scraping target updated successfully!', 'OK', { duration: 3000 });
         });
       }
     });
@@ -644,31 +808,16 @@ export class ScrapingComponent {
   }
 
   deletePage(page: ScrapePageConfig) {
-    if (confirm(`Are you sure you want to delete ${page.categoryName}?`)) {
+    if (confirm(`Are you sure you want to delete ${page.categoryName || page.name}?`)) {
       this.apiService.deletePage(page.id).subscribe(() => {
-        this.snackBar.open('Page deleted successfully!', 'OK', { duration: 3000 });
+        this.snackBar.open('Scraping target deleted successfully!', 'OK', { duration: 3000 });
       });
     }
   }
 
   sortPages(sort: Sort) {
-    const data = [...(this.apiService.dashboardData()?.pages || [])];
-    if (!sort.active || sort.direction === '') {
-      this.sortedPages = data;
-      return;
-    }
-
-    this.sortedPages = data.sort((a, b) => {
-      const isAsc = sort.direction === 'asc';
-      switch (sort.active) {
-        case 'categoryName': return compare(a.categoryName || '', b.categoryName || '', isAsc);
-        case 'provider': return compare(a.provider, b.provider, isAsc);
-        case 'url': return compare(a.url, b.url, isAsc);
-        case 'scheduleId': return compare(a.scheduleId || 'default', b.scheduleId || 'default', isAsc);
-        case 'enabled': return compare(String(a.enabled), String(b.enabled), isAsc);
-        default: return 0;
-      }
-    });
+    this.currentSort = sort;
+    this.applyPagesFilterAndSort();
   }
 }
 

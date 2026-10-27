@@ -28,18 +28,22 @@ import type { ScrapePageConfig, CatalogProduct } from '../core/models/dashboard.
     <form (ngSubmit)="save()" #pageForm="ngForm">
       <div mat-dialog-content class="form-content">
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-          <mat-label>Catalog Product</mat-label>
-          <mat-select [(ngModel)]="productId" name="productId" (selectionChange)="onProductSelected($event.value)">
-            <mat-option [value]="null">-- Select a catalog product --</mat-option>
-            <mat-option *ngFor="let prod of products" [value]="prod.id">
-              [{{ prod.slug }}] {{ prod.title }} ({{ prod.provider }})
+          <mat-label>Provider</mat-label>
+          <mat-select [(ngModel)]="provider" name="provider" required (selectionChange)="onProviderChanged($event.value)">
+            <mat-option *ngFor="let p of availableProviders" [value]="p">
+              {{ getProviderDisplayName(p) }}
             </mat-option>
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-          <mat-label>Provider</mat-label>
-          <input matInput [(ngModel)]="provider" name="provider" required placeholder="eneba" />
+          <mat-label>Catalog Product (Optional)</mat-label>
+          <mat-select [(ngModel)]="productId" name="productId" (selectionChange)="onProductSelected($event.value)">
+            <mat-option [value]="null">-- Select a catalog product --</mat-option>
+            <mat-option *ngFor="let prod of filteredProducts" [value]="prod.id">
+              [{{ prod.slug }}] {{ prod.title }} ({{ getProviderDisplayName(prod.provider) }})
+            </mat-option>
+          </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
@@ -131,33 +135,80 @@ export class PageFormDialogComponent implements OnInit {
   url = '';
   enabled = true;
   products: CatalogProduct[] = [];
+  availableProviders: string[] = ['eneba', 'g2a'];
 
   constructor(
     public dialogRef: MatDialogRef<PageFormDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: { page?: ScrapePageConfig },
+    @Inject(MAT_DIALOG_DATA) public data: { page?: ScrapePageConfig; defaultProvider?: string },
     private apiService: ApiService,
   ) {
     if (data.page) {
       this.productId = data.page.productId ?? null;
       this.productSlug = data.page.productSlug ?? '';
       this.productTitle = data.page.productTitle ?? '';
-      this.provider = data.page.provider;
+      this.provider = data.page.provider || 'eneba';
       this.categoryName = data.page.categoryName || data.page.name || '';
       this.url = data.page.url;
       this.enabled = data.page.enabled;
+    } else if (data.defaultProvider) {
+      this.provider = data.defaultProvider;
     }
   }
 
+  get filteredProducts(): CatalogProduct[] {
+    if (!this.provider) return this.products;
+    const matching = this.products.filter(
+      (p) => (p.provider || '').toLowerCase() === this.provider.toLowerCase(),
+    );
+    return matching.length > 0 ? matching : this.products;
+  }
+
+  getProviderDisplayName(provider?: string | null): string {
+    if (!provider) return 'Provider';
+    const lower = provider.toLowerCase().trim();
+    if (lower === 'g2a') return 'G2A';
+    if (lower === 'eneba') return 'Eneba';
+    return provider.charAt(0).toUpperCase() + provider.slice(1);
+  }
+
   ngOnInit(): void {
+    const dashProviders = this.apiService.dashboardData()?.providers || [];
+    const pages = this.apiService.dashboardData()?.pages || [];
+    const fromPages = pages.map((p) => p.provider).filter(Boolean);
+    const combined = new Set<string>(['eneba', 'g2a', ...dashProviders, ...fromPages]);
+    if (this.provider) combined.add(this.provider);
+
     this.apiService.getProducts().subscribe({
       next: (res) => {
         this.products = res.products || [];
+        for (const prod of this.products) {
+          if (prod.provider) combined.add(prod.provider);
+        }
+        this.availableProviders = Array.from(combined);
       },
     });
+    this.availableProviders = Array.from(combined);
+  }
+
+  onProviderChanged(newProvider: string): void {
+    this.provider = newProvider;
+    if (this.productId) {
+      const found = this.products.find((p) => p.id === this.productId);
+      if (found && (found.provider || '').toLowerCase() !== newProvider.toLowerCase()) {
+        this.productId = null;
+        this.productSlug = '';
+        this.productTitle = '';
+      }
+    }
   }
 
   onProductSelected(selectedId: string | null): void {
-    if (!selectedId) return;
+    if (!selectedId) {
+      this.productId = null;
+      this.productSlug = '';
+      this.productTitle = '';
+      return;
+    }
     const found = this.products.find((p) => p.id === selectedId);
     if (found) {
       this.productId = found.id;
@@ -168,6 +219,9 @@ export class PageFormDialogComponent implements OnInit {
       }
       if (found.provider) {
         this.provider = found.provider;
+        if (!this.availableProviders.includes(found.provider)) {
+          this.availableProviders.push(found.provider);
+        }
       }
       if (found.url) {
         this.url = found.url;
