@@ -5,6 +5,7 @@ import type express from "express";
 import type pg from "pg";
 import {
   RandomizedDailyScheduler,
+  MultiSchedulerManager,
   createPgPool,
   ensureDefaultEnvKeys,
   getEmailConfigStatus,
@@ -22,6 +23,7 @@ export interface ServerInstance {
   pageStore: PageStore;
   runner: ScrapeRunner;
   scheduler: RandomizedDailyScheduler;
+  schedulerManager: MultiSchedulerManager;
   port: number;
   close: () => Promise<void>;
 }
@@ -54,25 +56,40 @@ export async function createDashboardServer(options: {
   const runner = new ScrapeRunner(pageStore);
   await runner.hydrateFromDatabase();
 
-  const scheduler = new RandomizedDailyScheduler(
-    async () => {
-      const results = await runner.runScrape();
-      return `Scraped ${results.length} page(s) via daily randomized schedule.`;
+  const initialSchedules = pageStore.listSchedules();
+  const schedulerManager = new MultiSchedulerManager(
+    async (sId: string) => {
+      const results = await runner.runScrape({ scheduleId: sId });
+      return `Scraped ${results.length} page(s) via schedule "${sId}".`;
     },
     {
+      initialSchedules,
       getLastScrapeTime: () => runner.getLatestScrapeTime(),
     },
   );
 
+  const defaultScheduler =
+    schedulerManager.getScheduler("default") ||
+    new RandomizedDailyScheduler(
+      async () => {
+        const results = await runner.runScrape();
+        return `Scraped ${results.length} page(s) via daily randomized schedule.`;
+      },
+      {
+        getLastScrapeTime: () => runner.getLatestScrapeTime(),
+      },
+    );
+
   // When any scrape completes (manual button, batch, or cron), advance schedule to next day
   runner.onScrapeComplete(() => {
-    scheduler.recordRunCompleted(new Date());
+    schedulerManager.recordRunCompleted(undefined, new Date());
   });
 
   const app = createApp({
     pageStore,
     runner,
-    scheduler,
+    scheduler: defaultScheduler,
+    schedulerManager,
     pool: options.pool,
     envPath: options.envPath,
   });
@@ -96,10 +113,12 @@ export async function createDashboardServer(options: {
     app,
     pageStore,
     runner,
-    scheduler,
+    scheduler: defaultScheduler,
+    schedulerManager,
     port: actualPort,
     close: async () => {
-      scheduler.stop();
+      schedulerManager.stopAll();
+      defaultScheduler.stop();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };

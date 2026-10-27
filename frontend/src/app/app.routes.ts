@@ -7,8 +7,9 @@ import { ConfigComponent } from './pages/config/config.component';
 export const routes: Routes = [
   { path: '', component: HomeComponent, pathMatch: 'full' },
   { path: 'eneba', component: EnebaComponent },
-  { path: 'scheduler', component: ScrapingComponent },
-  { path: 'scraping', redirectTo: 'scheduler' },
+  { path: 'schedulers', component: ScrapingComponent },
+  { path: 'scheduler', redirectTo: 'schedulers' },
+  { path: 'scraping', redirectTo: 'schedulers' },
   { path: 'config', component: ConfigComponent },
   { path: '**', redirectTo: '' },
 ];

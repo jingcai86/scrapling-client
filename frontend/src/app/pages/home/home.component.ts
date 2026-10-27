@@ -218,7 +218,7 @@ interface ProviderRow {
             Overview of configured store providers and scraping history. Click a provider row to view detailed deals and category metrics.
           </mat-card-subtitle>
           <div class="table-actions">
-            <a mat-stroked-button routerLink="/scheduler" class="action-btn">
+            <a mat-stroked-button routerLink="/schedulers" class="action-btn">
               <mat-icon>schedule</mat-icon>
               <span>Job Scheduler &amp; Targets</span>
             </a>

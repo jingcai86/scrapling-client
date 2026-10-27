@@ -21,6 +21,16 @@ export interface ScrapePageConfig {
   enabled: boolean;
   withOffers: boolean;
   createdAt: string;
+  scheduleId?: string;
+}
+
+export interface ScheduleConfigItem {
+  id: string;
+  name: string;
+  enabled: boolean;
+  baseTime: string; // e.g. "19:00"
+  jitterMinutes: number; // e.g. 60
+  createdAt?: string;
 }
 
 export interface ScrapeHistoryItem {
@@ -42,6 +52,17 @@ export interface ScrapeHistoryItem {
   };
 }
 
+export const DEFAULT_SCHEDULES: ScheduleConfigItem[] = [
+  {
+    id: "default",
+    name: "Primary Daily Schedule",
+    enabled: true,
+    baseTime: "19:00",
+    jitterMinutes: 60,
+    createdAt: "2026-10-25T00:00:00.000Z",
+  },
+];
+
 export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   {
     id: "eneba-psn",
@@ -51,6 +72,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     enabled: true,
     withOffers: true,
     createdAt: "2026-10-25T00:00:00.000Z",
+    scheduleId: "default",
   },
   {
     id: "eneba-nintendo",
@@ -60,6 +82,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     enabled: true,
     withOffers: true,
     createdAt: "2026-10-25T00:00:00.000Z",
+    scheduleId: "default",
   },
   {
     id: "eneba-android",
@@ -69,6 +92,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     enabled: true,
     withOffers: true,
     createdAt: "2026-10-25T00:00:00.000Z",
+    scheduleId: "default",
   },
   {
     id: "eneba-amazon",
@@ -78,6 +102,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     enabled: true,
     withOffers: true,
     createdAt: "2026-10-25T00:00:00.000Z",
+    scheduleId: "default",
   },
   {
     id: "eneba-apple",
@@ -87,17 +112,20 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     enabled: true,
     withOffers: true,
     createdAt: "2026-10-25T00:00:00.000Z",
+    scheduleId: "default",
   },
 ];
 
 export class PageStore {
   private readonly pagesFilePath: string;
+  private readonly schedulesFilePath: string;
   private readonly resultsFilePath: string;
   private readonly historyFilePath: string;
 
   constructor(dataDir: string = DEFAULT_DATA_DIR) {
     fs.mkdirSync(dataDir, { recursive: true });
     this.pagesFilePath = path.join(dataDir, "scrape-pages.json");
+    this.schedulesFilePath = path.join(dataDir, "schedules.json");
     this.resultsFilePath = path.join(dataDir, "latest-results.json");
     this.historyFilePath = path.join(dataDir, "scrape-history.json");
   }
@@ -115,7 +143,10 @@ export class PageStore {
       const raw = fs.readFileSync(this.pagesFilePath, "utf8");
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed;
+        return parsed.map((p) => ({
+          ...p,
+          scheduleId: p.scheduleId || "default",
+        }));
       }
     } catch {
       // Fallback to defaults if corrupted
@@ -133,6 +164,129 @@ export class PageStore {
     );
   }
 
+  listSchedules(): ScheduleConfigItem[] {
+    if (!fs.existsSync(this.schedulesFilePath)) {
+      this.saveSchedules(DEFAULT_SCHEDULES);
+      return [...DEFAULT_SCHEDULES];
+    }
+    try {
+      const raw = fs.readFileSync(this.schedulesFilePath, "utf8");
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        if (!parsed.some((s) => s.id === "default")) {
+          parsed.unshift(DEFAULT_SCHEDULES[0]);
+        }
+        return parsed;
+      }
+    } catch {
+      // Fallback
+    }
+    this.saveSchedules(DEFAULT_SCHEDULES);
+    return [...DEFAULT_SCHEDULES];
+  }
+
+  saveSchedules(schedules: ScheduleConfigItem[]): void {
+    fs.mkdirSync(path.dirname(this.schedulesFilePath), { recursive: true });
+    fs.writeFileSync(
+      this.schedulesFilePath,
+      JSON.stringify(schedules, null, 2) + "\n",
+      "utf8",
+    );
+  }
+
+  getSchedule(id: string): ScheduleConfigItem | undefined {
+    return this.listSchedules().find((s) => s.id === id);
+  }
+
+  addSchedule(input: {
+    name: string;
+    baseTime: string;
+    jitterMinutes: number;
+    enabled?: boolean;
+  }): ScheduleConfigItem {
+    const list = this.listSchedules();
+    const id = `sched-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
+    const item: ScheduleConfigItem = {
+      id,
+      name: input.name?.trim() || "Custom Schedule",
+      baseTime: input.baseTime?.trim() || "19:00",
+      jitterMinutes: Math.max(0, Math.min(720, Number(input.jitterMinutes) || 0)),
+      enabled: input.enabled !== undefined ? Boolean(input.enabled) : true,
+      createdAt: new Date().toISOString(),
+    };
+    list.push(item);
+    this.saveSchedules(list);
+    return item;
+  }
+
+  updateSchedule(
+    id: string,
+    patch: Partial<Omit<ScheduleConfigItem, "id" | "createdAt">>,
+  ): ScheduleConfigItem | null {
+    const list = this.listSchedules();
+    const idx = list.findIndex((s) => s.id === id);
+    if (idx === -1) return null;
+
+    const current = list[idx];
+    const updated: ScheduleConfigItem = {
+      ...current,
+      name: patch.name !== undefined && patch.name.trim() ? patch.name.trim() : current.name,
+      baseTime: patch.baseTime !== undefined ? patch.baseTime.trim() : current.baseTime,
+      jitterMinutes:
+        patch.jitterMinutes !== undefined
+          ? Math.max(0, Math.min(720, Number(patch.jitterMinutes) || 0))
+          : current.jitterMinutes,
+      enabled: patch.enabled !== undefined ? Boolean(patch.enabled) : current.enabled,
+    };
+    list[idx] = updated;
+    this.saveSchedules(list);
+    return updated;
+  }
+
+  deleteSchedule(id: string): boolean {
+    if (id === "default") return false; // Default cannot be deleted
+    const list = this.listSchedules();
+    const filtered = list.filter((s) => s.id !== id);
+    if (filtered.length === list.length) return false;
+
+    this.saveSchedules(filtered);
+
+    // Reassign any pages that used this schedule back to 'default'
+    const pages = this.listPages();
+    let pagesChanged = false;
+    for (const p of pages) {
+      if (p.scheduleId === id) {
+        p.scheduleId = "default";
+        pagesChanged = true;
+      }
+    }
+    if (pagesChanged) {
+      this.savePages(pages);
+    }
+    return true;
+  }
+
+  assignPageSchedule(pageId: string, scheduleId: string): ScrapePageConfig | null {
+    const pages = this.listPages();
+    const page = pages.find((p) => p.id === pageId);
+    if (!page) return null;
+
+    page.scheduleId = scheduleId?.trim() || "default";
+    this.savePages(pages);
+    return page;
+  }
+
+  getAssignedPagesMap(): Record<string, string[]> {
+    const map: Record<string, string[]> = {};
+    const pages = this.listPages();
+    for (const p of pages) {
+      const sId = p.scheduleId || "default";
+      if (!map[sId]) map[sId] = [];
+      map[sId].push(p.id);
+    }
+    return map;
+  }
+
   /**
    * Adds a new scraping page to the store.
    */
@@ -142,6 +296,7 @@ export class PageStore {
     url: string;
     enabled?: boolean;
     withOffers?: boolean;
+    scheduleId?: string;
   }): ScrapePageConfig {
     const pages = this.listPages();
     const provider = (input.provider || "eneba").trim().toLowerCase();
@@ -173,6 +328,7 @@ export class PageStore {
       enabled: input.enabled ?? true,
       withOffers: input.withOffers ?? true,
       createdAt: new Date().toISOString(),
+      scheduleId: input.scheduleId?.trim() || "default",
     };
 
     pages.push(newPage);
@@ -188,7 +344,7 @@ export class PageStore {
     patch: Partial<
       Pick<
         ScrapePageConfig,
-        "categoryName" | "url" | "provider" | "enabled" | "withOffers"
+        "categoryName" | "url" | "provider" | "enabled" | "withOffers" | "scheduleId"
       >
     >,
   ): ScrapePageConfig | null {
@@ -217,6 +373,10 @@ export class PageStore {
         patch.withOffers !== undefined
           ? Boolean(patch.withOffers)
           : current.withOffers,
+      scheduleId:
+        patch.scheduleId !== undefined
+          ? patch.scheduleId.trim() || "default"
+          : current.scheduleId || "default",
     };
 
     pages[idx] = updated;

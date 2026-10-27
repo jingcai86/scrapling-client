@@ -1,6 +1,7 @@
 import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, Inject, PLATFORM_ID, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatSortModule, Sort } from '@angular/material/sort';
@@ -9,6 +10,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -18,7 +21,7 @@ import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { SellerOffersDialogComponent } from '../../dialogs/seller-offers-dialog.component';
 import { EnebaConfigDialogComponent } from '../../dialogs/eneba-config-dialog.component';
-import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from '../../core/models/dashboard.model';
+import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, ScrapePageConfig, SchedulerState } from '../../core/models/dashboard.model';
 
 @Component({
   selector: 'app-eneba',
@@ -26,6 +29,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
   imports: [
     CommonModule,
     FormsModule,
+    RouterModule,
     MatCardModule,
     MatTableModule,
     MatSortModule,
@@ -34,6 +38,8 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    MatMenuModule,
+    MatDividerModule,
     MatDialogModule,
     MatSnackBarModule,
     MatTooltipModule,
@@ -151,10 +157,18 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
         <!-- Category Summary Table -->
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
-            <mat-card-title>Eneba Gift Card Categories — Status &amp; Seller Offers</mat-card-title>
-            <mat-card-subtitle>
-              Category metrics &amp; best discounts. Click any row to view third-party merchant offers; hover for scrape history.
-            </mat-card-subtitle>
+            <div class="table-header-titles">
+              <mat-card-title>Eneba Gift Card Categories — Status &amp; Seller Offers</mat-card-title>
+              <mat-card-subtitle>
+                Category metrics &amp; best discounts. Click row for seller offers; hover for scrape history.
+              </mat-card-subtitle>
+            </div>
+            <div class="table-actions">
+              <a mat-stroked-button routerLink="/schedulers" class="action-btn" matTooltip="Configure all schedules and assigned targets">
+                <mat-icon>schedule</mat-icon>
+                <span>Schedulers</span>
+              </a>
+            </div>
           </mat-card-header>
           <mat-card-content class="card-table-content table-wrapper-relative">
             <!-- Loading State Overlay -->
@@ -170,6 +184,25 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
                   <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-cat">Category</th>
                   <td mat-cell *matCellDef="let s" class="col-cat">
                     <span class="cat-title">{{ s.category }}</span>
+                  </td>
+                </ng-container>
+
+                <!-- Schedule Column -->
+                <ng-container matColumnDef="schedule">
+                  <th mat-header-cell *matHeaderCellDef class="col-sched">Schedule</th>
+                  <td mat-cell *matCellDef="let s" class="col-sched" (click)="$event.stopPropagation()">
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      class="schedule-trigger-btn"
+                      [matMenuTriggerFor]="scheduleMenu"
+                      [matMenuTriggerData]="{ category: s.category }"
+                      matTooltip="Click to change scraping schedule for {{ s.category }}"
+                    >
+                      <mat-icon class="schedule-btn-icon">alarm</mat-icon>
+                      <span class="schedule-btn-label">{{ getScheduleNameForCategory(s.category) }}</span>
+                      <mat-icon class="schedule-chevron-icon">arrow_drop_down</mat-icon>
+                    </button>
                   </td>
                 </ng-container>
 
@@ -207,6 +240,36 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
                 ></tr>
               </table>
             </div>
+
+            <!-- Schedule Selection MatMenu -->
+            <mat-menu #scheduleMenu="matMenu" class="schedule-selection-menu">
+              <ng-template matMenuContent let-category="category">
+                <div class="menu-sched-header">
+                  <span class="menu-sched-eyebrow">Scraping Schedule</span>
+                  <span class="menu-sched-cat">{{ category }}</span>
+                </div>
+                <mat-divider></mat-divider>
+                <button
+                  mat-menu-item
+                  *ngFor="let sch of schedulersList"
+                  (click)="assignCategorySchedule(category, sch.id || 'default')"
+                  [class.active-schedule-item]="isScheduleAssigned(category, sch.id || 'default')"
+                >
+                  <mat-icon [color]="isScheduleAssigned(category, sch.id || 'default') ? 'primary' : ''">
+                    {{ isScheduleAssigned(category, sch.id || 'default') ? 'check_circle' : 'schedule' }}
+                  </mat-icon>
+                  <div class="menu-schedule-text">
+                    <span class="menu-schedule-name">{{ sch.name || sch.id || 'default' }}</span>
+                    <span class="menu-schedule-time">{{ sch.baseTime }} (+0..{{ sch.jitterMinutes }}m)</span>
+                  </div>
+                </button>
+                <mat-divider></mat-divider>
+                <a mat-menu-item routerLink="/schedulers">
+                  <mat-icon>tune</mat-icon>
+                  <span>Manage Schedulers &rarr;</span>
+                </a>
+              </ng-template>
+            </mat-menu>
 
             <!-- Rich Category Diagnostics Hover Card / Floating Tooltip -->
             <div
@@ -489,19 +552,106 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem } from 
       min-width: 920px !important;
     }
     .col-cat {
-      width: 42% !important;
-      min-width: 100px !important;
+      width: 32% !important;
+      min-width: 110px !important;
+      white-space: nowrap !important;
+    }
+    .col-sched {
+      width: 28% !important;
+      min-width: 135px !important;
       white-space: nowrap !important;
     }
     .col-avg {
-      width: 29% !important;
-      min-width: 80px !important;
+      width: 20% !important;
+      min-width: 75px !important;
       white-space: nowrap !important;
     }
     .col-best-deal {
-      width: 29% !important;
-      min-width: 80px !important;
+      width: 20% !important;
+      min-width: 75px !important;
       white-space: nowrap !important;
+    }
+    .schedule-trigger-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.35rem !important;
+      padding: 0.2rem 0.55rem !important;
+      height: 28px !important;
+      line-height: 28px !important;
+      font-size: 0.78rem !important;
+      font-weight: 600 !important;
+      border-radius: 6px !important;
+      background: var(--mat-sys-surface-container-high, rgba(99, 102, 241, 0.08)) !important;
+      border: 1px solid var(--mat-sys-outline-variant, rgba(99, 102, 241, 0.2)) !important;
+      color: var(--mat-sys-on-surface) !important;
+      cursor: pointer !important;
+      transition: all 0.15s ease !important;
+
+      &:hover {
+        background: rgba(99, 102, 241, 0.16) !important;
+        border-color: var(--mat-sys-primary) !important;
+      }
+
+      .schedule-btn-icon {
+        font-size: 14px !important;
+        width: 14px !important;
+        height: 14px !important;
+        line-height: 14px !important;
+        color: var(--mat-sys-primary) !important;
+      }
+
+      .schedule-btn-label {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: 120px !important;
+      }
+
+      .schedule-chevron-icon {
+        font-size: 16px !important;
+        width: 16px !important;
+        height: 16px !important;
+        line-height: 16px !important;
+        color: var(--mat-sys-on-surface-variant) !important;
+        margin-left: -2px !important;
+      }
+    }
+    .menu-sched-header {
+      padding: 0.5rem 1rem 0.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+
+      .menu-sched-eyebrow {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--mat-sys-on-surface-variant);
+        font-weight: 600;
+      }
+      .menu-sched-cat {
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: var(--mat-sys-on-surface);
+      }
+    }
+    .menu-schedule-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.25;
+
+      .menu-schedule-name {
+        font-weight: 600;
+        font-size: 0.84rem;
+      }
+
+      .menu-schedule-time {
+        font-size: 0.72rem;
+        color: var(--mat-sys-on-surface-variant);
+      }
+    }
+    .active-schedule-item {
+      background: rgba(99, 102, 241, 0.12) !important;
     }
     .badge-discount-peak {
       background: rgba(16, 185, 129, 0.16);
@@ -880,6 +1030,7 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
 
   categoryColumns: string[] = [
     'category',
+    'schedule',
     'averageDiscountPctAllInStock',
     'bestDiscountSeen',
   ];
@@ -1127,13 +1278,87 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
     return lines.join('\n');
   }
 
+  get schedulersList(): SchedulerState[] {
+    const data = this.apiService.dashboardData();
+    if (data?.schedulers && data.schedulers.length > 0) {
+      return data.schedulers;
+    }
+    if (data?.scheduler) {
+      return [data.scheduler];
+    }
+    return [];
+  }
+
+  get enebaPages(): ScrapePageConfig[] {
+    const pages = this.apiService.dashboardData()?.pages || [];
+    return pages.filter(
+      (p) => p.provider === 'eneba' || p.id.startsWith('eneba-') || p.categoryName
+    );
+  }
+
+  getPageForCategory(category: string): ScrapePageConfig | undefined {
+    const pages = this.enebaPages;
+    return (
+      pages.find((p) => p.categoryName === category) ||
+      pages.find((p) => p.id === category) ||
+      pages.find((p) => category.toLowerCase().includes(p.categoryName.toLowerCase())) ||
+      pages.find((p) => p.categoryName.toLowerCase().includes(category.toLowerCase()))
+    );
+  }
+
+  getScheduleForCategory(category: string): SchedulerState | undefined {
+    const page = this.getPageForCategory(category);
+    const schedId = page?.scheduleId || 'default';
+    return this.schedulersList.find((s) => s.id === schedId);
+  }
+
+  getScheduleNameForCategory(category: string): string {
+    const sched = this.getScheduleForCategory(category);
+    return sched?.name || sched?.id || 'Default Daily';
+  }
+
+  isScheduleAssigned(category: string, scheduleId: string): boolean {
+    const page = this.getPageForCategory(category);
+    return (page?.scheduleId || 'default') === scheduleId;
+  }
+
+  getScheduleNameById(id: string): string {
+    const sched = this.schedulersList.find((s) => s.id === id);
+    return sched?.name || id;
+  }
+
+  assignCategorySchedule(category: string, scheduleId: string): void {
+    const page = this.getPageForCategory(category);
+    if (!page) {
+      this.snackBar.open(`Could not find configured page for ${category}`, 'Dismiss', { duration: 3000 });
+      return;
+    }
+    if (page.scheduleId === scheduleId) {
+      return;
+    }
+    this.apiService.assignPageSchedule(page.id, scheduleId).subscribe({
+      next: () => {
+        this.snackBar.open(
+          `Reassigned ${category} to schedule "${this.getScheduleNameById(scheduleId)}"`,
+          'OK',
+          { duration: 3000 }
+        );
+      },
+      error: (err) => {
+        this.snackBar.open(`Failed to reassign schedule: ${err.message}`, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   openEnebaConfigModal() {
     const dialogRef = this.dialog.open(EnebaConfigDialogComponent, {
       data: {
         topDealsLimit: this.topDealsLimit,
         alertThresholdPct: this.alertThresholdPct,
+        pages: this.enebaPages,
+        schedulers: this.schedulersList,
       },
-      width: '520px',
+      width: '560px',
       maxWidth: '94vw',
     });
 
@@ -1142,6 +1367,15 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
         this.topDealsLimit = res.topDealsLimit;
         this.alertThresholdPct = res.alertThresholdPct;
         this.saveEnebaConfig();
+
+        if (res.pageSchedules) {
+          for (const [pageId, schedId] of Object.entries(res.pageSchedules)) {
+            const page = this.enebaPages.find((p) => p.id === pageId);
+            if (page && (page.scheduleId || 'default') !== schedId) {
+              this.apiService.assignPageSchedule(pageId, schedId as string).subscribe();
+            }
+          }
+        }
       }
     });
   }

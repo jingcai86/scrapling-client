@@ -21,30 +21,36 @@ import type { SchedulerState } from '../core/models/dashboard.model';
     MatButtonModule,
   ],
   template: `
-    <h2 mat-dialog-title>Edit Daily Randomized Cron Schedule</h2>
+    <h2 mat-dialog-title>{{ data.isNew ? 'Create New Scraping Schedule' : 'Edit Scraping Schedule' }}</h2>
     <form (ngSubmit)="save()">
       <div mat-dialog-content class="form-content">
+        <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
+          <mat-label>Schedule Name</mat-label>
+          <input matInput [(ngModel)]="name" name="name" placeholder="e.g. Evening Priority Run, Nightly Scan" required />
+          <mat-hint>Friendly label to identify this scraping schedule</mat-hint>
+        </mat-form-field>
+
         <mat-checkbox [(ngModel)]="enabled" name="enabled">
-          Enable Daily Randomized Cron Job (<code>CRON_ENABLED</code>)
+          Enable this automated schedule
         </mat-checkbox>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-          <mat-label>Daily Window Start Time (<code>CRON_BASE_TIME</code>)</mat-label>
+          <mat-label>Daily Window Start Time (Base Time)</mat-label>
           <input matInput type="time" [(ngModel)]="baseTime" name="baseTime" required />
-          <mat-hint>24-hour time when random window opens (e.g. 19:00 = 7:00 PM)</mat-hint>
+          <mat-hint>24-hour time when the randomized window begins (e.g. 19:00 = 7:00 PM)</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-          <mat-label>Random Jitter Window in Minutes (<code>CRON_JITTER_MINUTES</code>)</mat-label>
+          <mat-label>Random Jitter Window (Minutes)</mat-label>
           <input matInput type="number" [(ngModel)]="jitterMinutes" name="jitterMinutes" min="0" max="720" required />
-          <mat-hint>Random delay (0–720 mins) added to start time daily (default: 60)</mat-hint>
+          <mat-hint>Random delay (0–720 mins) added to start time daily to prevent anti-bot detection</mat-hint>
         </mat-form-field>
       </div>
 
       <div mat-dialog-actions align="end">
         <button mat-button type="button" mat-dialog-close>Cancel</button>
         <button mat-flat-button color="primary" type="submit">
-          Save Schedule
+          {{ data.isNew ? 'Create Schedule' : 'Save Changes' }}
         </button>
       </div>
     </form>
@@ -53,8 +59,8 @@ import type { SchedulerState } from '../core/models/dashboard.model';
     .form-content {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
-      min-width: 450px;
+      gap: 1.15rem;
+      min-width: 460px;
     }
     .full-width {
       width: 100%;
@@ -99,23 +105,29 @@ import type { SchedulerState } from '../core/models/dashboard.model';
   `],
 })
 export class CronFormDialogComponent {
+  name = 'Custom Schedule';
   enabled = true;
   baseTime = '19:00';
   jitterMinutes = 60;
 
   constructor(
     public dialogRef: MatDialogRef<CronFormDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: { scheduler?: SchedulerState },
+    @Inject(MAT_DIALOG_DATA)
+    public data: { scheduler?: SchedulerState; isNew?: boolean },
   ) {
     if (data.scheduler) {
-      this.enabled = data.scheduler.enabled;
-      this.baseTime = data.scheduler.baseTime;
-      this.jitterMinutes = data.scheduler.jitterMinutes;
+      this.name = data.scheduler.name || (data.isNew ? 'Custom Schedule' : 'Primary Schedule');
+      this.enabled = data.scheduler.enabled ?? true;
+      this.baseTime = data.scheduler.baseTime || '19:00';
+      this.jitterMinutes = data.scheduler.jitterMinutes ?? 60;
+    } else if (data.isNew) {
+      this.name = 'New Schedule';
     }
   }
 
   save() {
     this.dialogRef.close({
+      name: this.name.trim() || 'Schedule',
       enabled: this.enabled,
       baseTime: this.baseTime,
       jitterMinutes: this.jitterMinutes,

@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatSortModule, Sort } from '@angular/material/sort';
@@ -10,16 +11,18 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { ApiService } from '../../core/services/api.service';
 import { PageFormDialogComponent } from '../../dialogs/page-form-dialog.component';
 import { CronFormDialogComponent } from '../../dialogs/cron-form-dialog.component';
-import type { ScrapePageConfig } from '../../core/models/dashboard.model';
+import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboard.model';
 
 @Component({
   selector: 'app-scraping',
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     MatCardModule,
     MatTableModule,
     MatSortModule,
@@ -30,6 +33,7 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
     MatSlideToggleModule,
     MatTooltipModule,
     MatProgressSpinnerModule,
+    MatSelectModule,
   ],
   template: `
     <div class="page-container">
@@ -57,43 +61,75 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
         </mat-card-content>
       </mat-card>
 
-      <!-- 2. Randomized Daily Cron Schedule Card -->
+      <!-- 2. Schedulers Section (Array of Independent Schedules) -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="card-header-flex">
-          <mat-card-title>Daily Randomized Cron Schedule</mat-card-title>
+          <mat-card-title>Scraping Schedulers &amp; Daily Automation</mat-card-title>
           <mat-card-subtitle>
-            Runs daily at <code>CRON_BASE_TIME</code> plus a random delay (0 to <code>CRON_JITTER_MINUTES</code>).
+            Manage multiple independent daily randomized cron schedules. Each scraping page can follow its own schedule.
           </mat-card-subtitle>
           <div class="action-buttons">
-            <button mat-stroked-button (click)="rerollCron()">
-              🎲 Re-Roll Random Time
-            </button>
-            <button mat-flat-button color="primary" (click)="openCronDialog()">
-              ✎ Edit Schedule
+            <button mat-flat-button color="primary" (click)="openCreateScheduleDialog()">
+              + Create Schedule
             </button>
           </div>
         </mat-card-header>
         <mat-card-content>
-          <div class="kv-grid">
-            <div class="kv-box">
-              <div class="kv-label">Scheduler Status</div>
-              <div class="kv-val" [class.enabled]="scheduler()?.enabled">
-                {{ scheduler()?.enabled ? 'Active (Enabled)' : 'Disabled' }}
+          <div class="schedules-grid">
+            <div *ngFor="let s of schedulers(); trackBy: trackBySchedId" class="schedule-card">
+              <div class="schedule-card-header">
+                <div class="schedule-meta">
+                  <strong class="schedule-name">{{ s.name || 'Schedule ' + s.id }}</strong>
+                  <span class="badge" [class.badge-active]="s.enabled" [class.badge-muted]="!s.enabled">
+                    {{ s.enabled ? 'Active' : 'Disabled' }}
+                  </span>
+                  <span *ngIf="s.id === 'default'" class="default-pill">Default</span>
+                </div>
+                <div class="schedule-actions">
+                  <button mat-icon-button (click)="rerollSchedule(s)" matTooltip="Re-roll randomized time" aria-label="Re-roll time">
+                    <mat-icon>casino</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="openEditScheduleDialog(s)" matTooltip="Edit schedule" aria-label="Edit schedule">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button color="primary" (click)="runSchedule(s)" [disabled]="isScraping()" matTooltip="Run assigned pages now" aria-label="Run now">
+                    <mat-icon>play_arrow</mat-icon>
+                  </button>
+                  <button *ngIf="s.id !== 'default'" mat-icon-button color="warn" (click)="deleteSchedule(s)" matTooltip="Delete schedule" aria-label="Delete schedule">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
               </div>
-            </div>
-            <div class="kv-box">
-              <div class="kv-label">Daily Window</div>
-              <div class="kv-val">
-                {{ scheduler()?.baseTime || '19:00' }} + 0..{{ scheduler()?.jitterMinutes || 60 }}m
+
+              <div class="schedule-telemetry">
+                <div class="telemetry-box">
+                  <span class="telemetry-label">Daily Window:</span>
+                  <span class="telemetry-val">{{ s.baseTime || '19:00' }} + 0..{{ s.jitterMinutes || 60 }}m</span>
+                </div>
+                <div class="telemetry-box">
+                  <span class="telemetry-label">Next Run:</span>
+                  <span class="telemetry-val highlight">{{ formatNextRun(s.nextRunAt) }}</span>
+                </div>
+                <div class="telemetry-box">
+                  <span class="telemetry-label">Last Run:</span>
+                  <span class="telemetry-val">{{ formatNextRun(s.lastRunAt) }}</span>
+                </div>
               </div>
-            </div>
-            <div class="kv-box">
-              <div class="kv-label">Next Scheduled Run</div>
-              <div class="kv-val highlight">{{ formatNextRun(scheduler()?.nextRunAt) }}</div>
-            </div>
-            <div class="kv-box">
-              <div class="kv-label">Last Scheduled Run</div>
-              <div class="kv-val">{{ formatNextRun(scheduler()?.lastRunAt) }}</div>
+
+              <!-- Assigned Target Pages for this Schedule -->
+              <div class="assigned-pages-box">
+                <div class="assigned-title-row">
+                  <span class="assigned-label">Assigned Pages ({{ getPagesForSchedule(s.id).length }}):</span>
+                </div>
+                <div class="page-chips-wrap">
+                  <span *ngFor="let p of getPagesForSchedule(s.id)" class="page-chip">
+                    {{ p.categoryName }}
+                  </span>
+                  <span *ngIf="getPagesForSchedule(s.id).length === 0" class="no-pages-hint">
+                    No pages assigned. Runs will be skipped until assigned.
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </mat-card-content>
@@ -104,7 +140,7 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
         <mat-card-header class="card-header-flex">
           <mat-card-title>Target Scraping Pages</mat-card-title>
           <mat-card-subtitle>
-            Click any column header to sort. Manage store URLs across providers or trigger a single-page scrape.
+            Click any column header to sort. Manage store URLs and configure which schedule each page follows.
           </mat-card-subtitle>
           <button mat-flat-button color="primary" (click)="openAddPageDialog()">
             + Add Scraping Page
@@ -139,6 +175,24 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
                   <a [href]="page.url" target="_blank" rel="noopener" class="store-link" [title]="page.url">
                     <span class="url-text">{{ page.url }}</span> ↗
                   </a>
+                </td>
+              </ng-container>
+
+              <!-- Schedule Assignment Column -->
+              <ng-container matColumnDef="scheduleId">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Assigned Schedule</th>
+                <td mat-cell *matCellDef="let page" class="schedule-cell">
+                  <mat-form-field appearance="outline" class="table-schedule-field" subscriptSizing="dynamic">
+                    <mat-select
+                      [value]="page.scheduleId || 'default'"
+                      (selectionChange)="onPageScheduleChange(page, $event.value)"
+                      aria-label="Assign schedule"
+                    >
+                      <mat-option *ngFor="let s of schedulers()" [value]="s.id">
+                        {{ s.name || s.id }} ({{ s.baseTime }})
+                      </mat-option>
+                    </mat-select>
+                  </mat-form-field>
                 </td>
               </ng-container>
 
@@ -239,32 +293,126 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
     .muted {
       color: #64748b;
     }
-    .kv-grid {
+    .schedules-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1rem;
       margin-top: 0.75rem;
     }
-    .kv-box {
+    .schedule-card {
       background: var(--mat-sys-surface-container-high);
-      padding: 0.75rem 1rem;
+      border: 1px solid var(--mat-sys-outline-variant);
+      border-radius: 10px;
+      padding: 1rem 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    .schedule-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .schedule-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .schedule-name {
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: var(--mat-sys-on-surface);
+    }
+    .schedule-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.15rem;
+    }
+    .badge-active {
+      background: rgba(16, 185, 129, 0.15) !important;
+      color: #10b981 !important;
+      border: 1px solid rgba(16, 185, 129, 0.3) !important;
+      font-weight: 700;
+      font-size: 0.72rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 9999px;
+    }
+    .badge-muted {
+      background: rgba(148, 163, 184, 0.15) !important;
+      color: #94a3b8 !important;
+      border: 1px solid rgba(148, 163, 184, 0.3) !important;
+      font-weight: 700;
+      font-size: 0.72rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 9999px;
+    }
+    .default-pill {
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .schedule-telemetry {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      background: var(--mat-sys-surface-container);
+      padding: 0.65rem 0.85rem;
       border-radius: 8px;
       border: 1px solid var(--mat-sys-outline-variant);
     }
-    .kv-label {
-      font-size: 0.75rem;
-      color: var(--mat-sys-on-surface-variant);
-      margin-bottom: 0.25rem;
+    .telemetry-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.84rem;
     }
-    .kv-val {
-      font-size: 0.95rem;
+    .telemetry-label {
+      color: var(--mat-sys-on-surface-variant);
+      font-weight: 500;
+    }
+    .telemetry-val {
       font-weight: 700;
-      &.enabled {
-        color: #10b981;
-      }
+      color: var(--mat-sys-on-surface);
       &.highlight {
         color: var(--mat-sys-primary);
       }
+    }
+    .assigned-pages-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .assigned-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface-variant);
+    }
+    .page-chips-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .page-chip {
+      background: var(--mat-sys-surface-container-highest);
+      color: var(--mat-sys-on-surface);
+      border: 1px solid var(--mat-sys-outline-variant);
+      padding: 0.2rem 0.55rem;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-weight: 600;
+    }
+    .no-pages-hint {
+      font-size: 0.78rem;
+      color: var(--mat-sys-outline);
+      font-style: italic;
     }
     .card-table-content {
       padding: 0 1.25rem 1.25rem !important;
@@ -279,7 +427,7 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
       color: var(--mat-sys-on-surface);
     }
     .url-cell {
-      max-width: 320px;
+      max-width: 240px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -299,6 +447,16 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .schedule-cell {
+      min-width: 170px;
+    }
+    .table-schedule-field {
+      width: 100%;
+      font-size: 0.82rem;
+    }
+    ::ng-deep .table-schedule-field .mat-mdc-text-field-wrapper {
+      padding: 0 0.5rem !important;
+    }
     .col-actions {
       width: 120px !important;
       text-align: right;
@@ -311,7 +469,7 @@ import type { ScrapePageConfig } from '../../core/models/dashboard.model';
   `],
 })
 export class ScrapingComponent {
-  displayedColumns: string[] = ['categoryName', 'provider', 'url', 'withOffers', 'enabled', 'actions'];
+  displayedColumns: string[] = ['categoryName', 'provider', 'url', 'scheduleId', 'withOffers', 'enabled', 'actions'];
   sortedPages: ScrapePageConfig[] = [];
   private lastPagesRef?: ScrapePageConfig[];
 
@@ -341,8 +499,25 @@ export class ScrapingComponent {
     return this.apiService.dashboardData()?.runner?.recentLogs || [];
   }
 
-  scheduler() {
-    return this.apiService.dashboardData()?.scheduler;
+  schedulers(): SchedulerState[] {
+    const data = this.apiService.dashboardData();
+    if (data?.schedulers && data.schedulers.length > 0) {
+      return data.schedulers;
+    }
+    if (data?.scheduler) {
+      return [data.scheduler];
+    }
+    return [];
+  }
+
+  getPagesForSchedule(scheduleId?: string): ScrapePageConfig[] {
+    const targetId = scheduleId || 'default';
+    const pages = this.apiService.dashboardData()?.pages || [];
+    return pages.filter((p) => (p.scheduleId || 'default') === targetId);
+  }
+
+  trackBySchedId(_index: number, item: SchedulerState): string {
+    return item.id || 'default';
   }
 
   formatNextRun(dateStr?: string | null): string {
@@ -360,10 +535,10 @@ export class ScrapingComponent {
     const dateStrFormatted = nextDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 
     if (isTomorrow) {
-      return `Tomorrow (${dateStrFormatted}), ${timeStr}`;
+      return `Tomorrow, ${timeStr}`;
     }
     if (isToday) {
-      return `Today (${dateStrFormatted}), ${timeStr}`;
+      return `Today, ${timeStr}`;
     }
     return `${dateStrFormatted}, ${timeStr}`;
   }
@@ -380,24 +555,68 @@ export class ScrapingComponent {
     });
   }
 
-  rerollCron() {
-    this.apiService.rerollScheduler().subscribe(() => {
-      this.snackBar.open('Re-rolled daily randomized cron time!', 'OK', { duration: 3000 });
+  runSchedule(s: SchedulerState) {
+    const id = s.id || 'default';
+    this.apiService.runSchedule(id).subscribe({
+      next: (res) => {
+        this.snackBar.open(`Scrape completed for ${res.scrapedCount} page(s) in schedule "${s.name || id}"!`, 'OK', { duration: 3500 });
+      },
+      error: (err) => {
+        this.snackBar.open(`Failed to run schedule: ${err.error?.error || err.message}`, 'OK', { duration: 4000 });
+      },
     });
   }
 
-  openCronDialog() {
+  rerollSchedule(s: SchedulerState) {
+    const id = s.id || 'default';
+    this.apiService.rerollSchedule(id).subscribe(() => {
+      this.snackBar.open(`Re-rolled randomized time for "${s.name || id}"!`, 'OK', { duration: 3000 });
+    });
+  }
+
+  openCreateScheduleDialog() {
     const dialogRef = this.dialog.open(CronFormDialogComponent, {
-      data: { scheduler: this.scheduler() },
-      width: '500px',
+      data: { isNew: true },
+      width: '520px',
     });
 
     dialogRef.afterClosed().subscribe((result) => {
       if (result) {
-        this.apiService.updateScheduler(result).subscribe(() => {
-          this.snackBar.open('Cron schedule updated!', 'OK', { duration: 3000 });
+        this.apiService.createScheduler(result).subscribe(() => {
+          this.snackBar.open('Created new scraping schedule!', 'OK', { duration: 3000 });
         });
       }
+    });
+  }
+
+  openEditScheduleDialog(s: SchedulerState) {
+    const id = s.id || 'default';
+    const dialogRef = this.dialog.open(CronFormDialogComponent, {
+      data: { scheduler: s, isNew: false },
+      width: '520px',
+    });
+
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result) {
+        this.apiService.updateScheduleItem(id, result).subscribe(() => {
+          this.snackBar.open(`Updated schedule "${result.name || id}"!`, 'OK', { duration: 3000 });
+        });
+      }
+    });
+  }
+
+  deleteSchedule(s: SchedulerState) {
+    const id = s.id || 'default';
+    if (confirm(`Are you sure you want to delete schedule "${s.name || id}"? All assigned pages will revert to the default schedule.`)) {
+      this.apiService.deleteSchedule(id).subscribe(() => {
+        this.snackBar.open(`Deleted schedule "${s.name || id}".`, 'OK', { duration: 3000 });
+      });
+    }
+  }
+
+  onPageScheduleChange(page: ScrapePageConfig, scheduleId: string) {
+    this.apiService.assignPageSchedule(page.id, scheduleId).subscribe(() => {
+      this.snackBar.open(`Assigned ${page.categoryName} to selected schedule.`, 'OK', { duration: 2500 });
     });
   }
 
@@ -460,6 +679,7 @@ export class ScrapingComponent {
         case 'categoryName': return compare(a.categoryName, b.categoryName, isAsc);
         case 'provider': return compare(a.provider, b.provider, isAsc);
         case 'url': return compare(a.url, b.url, isAsc);
+        case 'scheduleId': return compare(a.scheduleId || 'default', b.scheduleId || 'default', isAsc);
         case 'withOffers': return compare(String(a.withOffers), String(b.withOffers), isAsc);
         case 'enabled': return compare(String(a.enabled), String(b.enabled), isAsc);
         default: return 0;

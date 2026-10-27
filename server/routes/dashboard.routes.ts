@@ -20,12 +20,14 @@ export function createDashboardRouter(ctx: ServerContext): Router {
       });
       const enebaConfig = await getEnebaConfig({ pool: ctx.pool });
 
+      const assignedPagesMap = ctx.pageStore.getAssignedPagesMap();
       res.json({
         pages,
         providers,
         statuses: ctx.runner.getLatestStatuses(),
         runner: ctx.runner.getState(),
         scheduler: ctx.scheduler.getState(),
+        schedulers: ctx.schedulerManager.getStates(assignedPagesMap),
         enebaConfig,
         history: ctx.runner.getHistory(),
         env: {

@@ -17,6 +17,8 @@ export function createPagesRouter(ctx: ServerContext): Router {
       enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
       withOffers:
         body.withOffers !== undefined ? Boolean(body.withOffers) : true,
+      scheduleId:
+        body.scheduleId !== undefined ? String(body.scheduleId) : "default",
     });
     res.status(201).json({ page });
   });
@@ -38,7 +40,20 @@ export function createPagesRouter(ctx: ServerContext): Router {
         body.withOffers !== undefined
           ? Boolean(body.withOffers)
           : undefined,
+      scheduleId:
+        body.scheduleId !== undefined ? String(body.scheduleId) : undefined,
     });
+    if (!updated) {
+      res.status(404).json({ error: "Page not found" });
+      return;
+    }
+    res.json({ page: updated });
+  });
+
+  router.put("/:id/schedule", (req, res) => {
+    const id = req.params.id;
+    const scheduleId = String(req.body?.scheduleId ?? "default");
+    const updated = ctx.pageStore.assignPageSchedule(id, scheduleId);
     if (!updated) {
       res.status(404).json({ error: "Page not found" });
       return;

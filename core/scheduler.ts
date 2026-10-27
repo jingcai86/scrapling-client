@@ -1,12 +1,16 @@
 import { loadEnv, updateEnvValues } from "./env.js";
 
 export interface SchedulerConfig {
+  id?: string;
+  name?: string;
   enabled: boolean;
   baseTime: string; // "HH:MM" in 24h format, e.g. "19:00"
   jitterMinutes: number; // e.g. 60 -> random offset in [0, 60] minutes
 }
 
 export interface SchedulerState extends SchedulerConfig {
+  id: string;
+  name: string;
   chosenOffsetMinutes: number;
   chosenOffsetSeconds: number;
   windowStartIso: string | null;
@@ -16,6 +20,15 @@ export interface SchedulerState extends SchedulerConfig {
   lastRunAt: string | null;
   lastRunStatus: "idle" | "running" | "success" | "error";
   lastRunSummary: string | null;
+  assignedPageIds?: string[];
+}
+
+export interface ScheduleItemConfig {
+  id: string;
+  name: string;
+  enabled: boolean;
+  baseTime: string;
+  jitterMinutes: number;
 }
 
 /**
@@ -120,6 +133,8 @@ export function computeNextRandomizedRun(
 }
 
 export class RandomizedDailyScheduler {
+  readonly id: string;
+  name: string;
   private timer: NodeJS.Timeout | null = null;
   private enabled = true;
   private baseTime = "19:00";
@@ -133,18 +148,27 @@ export class RandomizedDailyScheduler {
   private lastRunAt: string | null = null;
   private lastRunStatus: "idle" | "running" | "success" | "error" = "idle";
   private lastRunSummary: string | null = null;
-  private readonly jobCallback: () => Promise<string | void>;
+  private readonly jobCallback: (scheduleId: string) => Promise<string | void>;
   private readonly getLastScrapeTime?: () => Date | string | null | undefined;
+  private readonly syncWithEnv: boolean;
 
   constructor(
-    jobCallback: () => Promise<string | void>,
+    jobCallback: (scheduleId: string) => Promise<string | void>,
     options?: {
+      id?: string;
+      name?: string;
       getLastScrapeTime?: () => Date | string | null | undefined;
       lastRunAt?: Date | string | null;
+      initialConfig?: Partial<SchedulerConfig>;
+      syncWithEnv?: boolean;
     },
   ) {
+    this.id = options?.id || "default";
+    this.name = options?.name || "Daily Randomized Schedule";
     this.jobCallback = jobCallback;
     this.getLastScrapeTime = options?.getLastScrapeTime;
+    this.syncWithEnv = options?.syncWithEnv ?? (this.id === "default");
+
     if (options?.lastRunAt) {
       const dt =
         typeof options.lastRunAt === "string"
@@ -154,7 +178,27 @@ export class RandomizedDailyScheduler {
         this.lastRunAt = dt.toISOString();
       }
     }
-    this.reloadFromEnv();
+
+    if (options?.initialConfig) {
+      if (options.initialConfig.name) this.name = options.initialConfig.name;
+      if (options.initialConfig.enabled !== undefined) {
+        this.enabled = Boolean(options.initialConfig.enabled);
+      }
+      if (options.initialConfig.baseTime) {
+        this.baseTime = parseBaseTime(options.initialConfig.baseTime).normalized;
+      }
+      if (options.initialConfig.jitterMinutes !== undefined) {
+        this.jitterMinutes = Math.max(
+          0,
+          Math.min(720, Math.floor(Number(options.initialConfig.jitterMinutes) || 0)),
+        );
+      }
+      this.reschedule(false);
+    } else if (this.syncWithEnv) {
+      this.reloadFromEnv();
+    } else {
+      this.reschedule(false);
+    }
   }
 
   /**
@@ -162,18 +206,20 @@ export class RandomizedDailyScheduler {
    * and schedules the next randomized execution.
    */
   reloadFromEnv(): SchedulerState {
-    loadEnv();
-    const rawEnabled = process.env.CRON_ENABLED?.trim() || "true";
-    const enabled = rawEnabled.toLowerCase() !== "false";
-    const { normalized } = parseBaseTime(
-      process.env.CRON_BASE_TIME?.trim() || "19:00",
-    );
-    const rawJitter = process.env.CRON_JITTER_MINUTES?.trim() || "60";
-    const jitter = Math.max(0, Math.min(720, Number(rawJitter) || 0));
+    if (this.syncWithEnv) {
+      loadEnv();
+      const rawEnabled = process.env.CRON_ENABLED?.trim() || "true";
+      const enabled = rawEnabled.toLowerCase() !== "false";
+      const { normalized } = parseBaseTime(
+        process.env.CRON_BASE_TIME?.trim() || "19:00",
+      );
+      const rawJitter = process.env.CRON_JITTER_MINUTES?.trim() || "60";
+      const jitter = Math.max(0, Math.min(720, Number(rawJitter) || 0));
 
-    this.enabled = enabled;
-    this.baseTime = normalized;
-    this.jitterMinutes = jitter;
+      this.enabled = enabled;
+      this.baseTime = normalized;
+      this.jitterMinutes = jitter;
+    }
     this.reschedule(false);
     return this.getState();
   }
@@ -185,6 +231,9 @@ export class RandomizedDailyScheduler {
     partial: Partial<SchedulerConfig>,
     persistToEnv = false,
   ): SchedulerState {
+    if (partial.name !== undefined && partial.name.trim()) {
+      this.name = partial.name.trim();
+    }
     if (partial.enabled !== undefined) {
       this.enabled = Boolean(partial.enabled);
     }
@@ -198,16 +247,18 @@ export class RandomizedDailyScheduler {
       );
     }
 
-    process.env.CRON_ENABLED = String(this.enabled);
-    process.env.CRON_BASE_TIME = this.baseTime;
-    process.env.CRON_JITTER_MINUTES = String(this.jitterMinutes);
+    if (this.syncWithEnv) {
+      process.env.CRON_ENABLED = String(this.enabled);
+      process.env.CRON_BASE_TIME = this.baseTime;
+      process.env.CRON_JITTER_MINUTES = String(this.jitterMinutes);
 
-    if (persistToEnv) {
-      updateEnvValues({
-        CRON_ENABLED: String(this.enabled),
-        CRON_BASE_TIME: this.baseTime,
-        CRON_JITTER_MINUTES: String(this.jitterMinutes),
-      });
+      if (persistToEnv) {
+        updateEnvValues({
+          CRON_ENABLED: String(this.enabled),
+          CRON_BASE_TIME: this.baseTime,
+          CRON_JITTER_MINUTES: String(this.jitterMinutes),
+        });
+      }
     }
 
     this.reschedule(false);
@@ -285,9 +336,9 @@ export class RandomizedDailyScheduler {
     this.lastRunAt = new Date().toISOString();
 
     try {
-      const summary = await this.jobCallback();
+      const summary = await this.jobCallback(this.id);
       this.lastRunStatus = "success";
-      this.lastRunSummary = summary || "Scheduled scrape completed.";
+      this.lastRunSummary = summary || `Scheduled scrape (${this.name}) completed.`;
     } catch (err) {
       this.lastRunStatus = "error";
       this.lastRunSummary =
@@ -304,6 +355,8 @@ export class RandomizedDailyScheduler {
 
   getState(): SchedulerState {
     return {
+      id: this.id,
+      name: this.name,
       enabled: this.enabled,
       baseTime: this.baseTime,
       jitterMinutes: this.jitterMinutes,
@@ -317,5 +370,124 @@ export class RandomizedDailyScheduler {
       lastRunStatus: this.lastRunStatus,
       lastRunSummary: this.lastRunSummary,
     };
+  }
+}
+
+/**
+ * Manages an array of independent RandomizedDailyScheduler instances,
+ * routing each schedule to its target assigned pages.
+ */
+export class MultiSchedulerManager {
+  private schedulers = new Map<string, RandomizedDailyScheduler>();
+  private readonly jobCallback: (scheduleId: string) => Promise<string | void>;
+  private readonly getLastScrapeTime?: (scheduleId: string) => Date | string | null | undefined;
+
+  constructor(
+    jobCallback: (scheduleId: string) => Promise<string | void>,
+    options?: {
+      initialSchedules?: ScheduleItemConfig[];
+      getLastScrapeTime?: (scheduleId: string) => Date | string | null | undefined;
+    },
+  ) {
+    this.jobCallback = jobCallback;
+    this.getLastScrapeTime = options?.getLastScrapeTime;
+
+    const initial =
+      options?.initialSchedules && options.initialSchedules.length > 0
+        ? options.initialSchedules
+        : [
+            {
+              id: "default",
+              name: "Primary Daily Schedule",
+              enabled: true,
+              baseTime: "19:00",
+              jitterMinutes: 60,
+            },
+          ];
+
+    for (const item of initial) {
+      this.addOrUpdateSchedule(item);
+    }
+  }
+
+  getScheduler(id: string): RandomizedDailyScheduler | undefined {
+    return this.schedulers.get(id);
+  }
+
+  getStates(assignedPagesMap?: Record<string, string[]>): SchedulerState[] {
+    const list: SchedulerState[] = [];
+    for (const [id, sched] of this.schedulers.entries()) {
+      const state = sched.getState();
+      state.assignedPageIds = assignedPagesMap?.[id] || [];
+      list.push(state);
+    }
+    return list;
+  }
+
+  getState(id: string, assignedPageIds?: string[]): SchedulerState | undefined {
+    const s = this.schedulers.get(id);
+    if (!s) return undefined;
+    const state = s.getState();
+    state.assignedPageIds = assignedPageIds || [];
+    return state;
+  }
+
+  addOrUpdateSchedule(config: ScheduleItemConfig): SchedulerState {
+    const existing = this.schedulers.get(config.id);
+    if (existing) {
+      existing.updateConfig({
+        name: config.name,
+        enabled: config.enabled,
+        baseTime: config.baseTime,
+        jitterMinutes: config.jitterMinutes,
+      });
+      return existing.getState();
+    }
+
+    const scheduler = new RandomizedDailyScheduler(
+      async (sId) => this.jobCallback(sId),
+      {
+        id: config.id,
+        name: config.name,
+        initialConfig: config,
+        syncWithEnv: config.id === "default",
+        getLastScrapeTime: () => this.getLastScrapeTime?.(config.id),
+      },
+    );
+    this.schedulers.set(config.id, scheduler);
+    return scheduler.getState();
+  }
+
+  removeSchedule(id: string): boolean {
+    if (id === "default") return false; // Default schedule cannot be deleted
+    const existing = this.schedulers.get(id);
+    if (existing) {
+      existing.stop();
+      this.schedulers.delete(id);
+      return true;
+    }
+    return false;
+  }
+
+  reroll(id: string): SchedulerState | undefined {
+    const s = this.schedulers.get(id);
+    if (!s) return undefined;
+    return s.rerollNextRun();
+  }
+
+  recordRunCompleted(scheduleId?: string, date: Date = new Date()): void {
+    if (scheduleId && this.schedulers.has(scheduleId)) {
+      this.schedulers.get(scheduleId)!.recordRunCompleted(date);
+    } else {
+      for (const s of this.schedulers.values()) {
+        s.recordRunCompleted(date);
+      }
+    }
+  }
+
+  stopAll(): void {
+    for (const s of this.schedulers.values()) {
+      s.stop();
+    }
   }
 }

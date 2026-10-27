@@ -37,6 +37,18 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
 
         <div class="header-actions">
           <nav class="nav-links">
+            <a mat-button routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" class="nav-btn">
+              <mat-icon class="nav-icon">dashboard</mat-icon>
+              <span>Overview</span>
+            </a>
+            <a mat-button routerLink="/eneba" routerLinkActive="active" class="nav-btn">
+              <mat-icon class="nav-icon">local_offer</mat-icon>
+              <span>Eneba</span>
+            </a>
+            <a mat-button routerLink="/schedulers" routerLinkActive="active" class="nav-btn">
+              <mat-icon class="nav-icon">schedule</mat-icon>
+              <span>Schedulers</span>
+            </a>
             <button mat-button type="button" class="nav-btn config-btn" (click)="openConfigModal()">
               <mat-icon class="nav-icon">settings</mat-icon>
               <span>Configuration</span>

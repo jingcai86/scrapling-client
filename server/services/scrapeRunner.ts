@@ -185,6 +185,8 @@ export class ScrapeRunner {
    */
   async runScrape(options: {
     pageId?: string;
+    pageIds?: string[];
+    scheduleId?: string;
     withOffersOverride?: boolean;
   } = {}): Promise<PageDealStatus[]> {
     if (this.isScraping) {
@@ -192,15 +194,28 @@ export class ScrapeRunner {
     }
 
     const allPages = this.pageStore.listPages();
-    const targetPages: ScrapePageConfig[] = options.pageId
-      ? allPages.filter((p) => p.id === options.pageId)
-      : allPages.filter((p) => p.enabled);
+    let targetPages: ScrapePageConfig[];
+
+    if (options.pageId) {
+      targetPages = allPages.filter((p) => p.id === options.pageId);
+    } else if (options.pageIds && options.pageIds.length > 0) {
+      const idSet = new Set(options.pageIds);
+      targetPages = allPages.filter((p) => idSet.has(p.id) && p.enabled);
+    } else if (options.scheduleId) {
+      targetPages = allPages.filter(
+        (p) => (p.scheduleId || "default") === options.scheduleId && p.enabled,
+      );
+    } else {
+      targetPages = allPages.filter((p) => p.enabled);
+    }
 
     if (targetPages.length === 0) {
       throw new Error(
         options.pageId
           ? `Scrape page "${options.pageId}" was not found.`
-          : "No enabled scrape pages configured.",
+          : options.scheduleId
+            ? `No enabled scrape pages configured for schedule "${options.scheduleId}".`
+            : "No enabled scrape pages configured.",
       );
     }
 

@@ -2,7 +2,7 @@ import { Injectable, Inject, PLATFORM_ID, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
-import type { DashboardData, ScrapePageConfig, SellerOffer } from '../models/dashboard.model';
+import type { DashboardData, ScrapePageConfig, SellerOffer, SchedulerState } from '../models/dashboard.model';
 
 @Injectable({
   providedIn: 'root',
@@ -92,6 +92,47 @@ export class ApiService {
 
   rerollScheduler(): Observable<any> {
     return this.http.put('/api/scheduler', { reroll: true }).pipe(
+      tap(() => this.loadDashboard(false)),
+    );
+  }
+
+  // Multi-Scheduler Management
+  getSchedulers(): Observable<{ scheduler: SchedulerState; schedulers: SchedulerState[] }> {
+    return this.http.get<{ scheduler: SchedulerState; schedulers: SchedulerState[] }>('/api/scheduler');
+  }
+
+  createScheduler(data: { name: string; baseTime: string; jitterMinutes: number; enabled?: boolean }): Observable<{ scheduler: SchedulerState }> {
+    return this.http.post<{ scheduler: SchedulerState }>('/api/scheduler', data).pipe(
+      tap(() => this.loadDashboard(false)),
+    );
+  }
+
+  updateScheduleItem(id: string, data: Partial<SchedulerState>): Observable<{ scheduler: SchedulerState }> {
+    return this.http.put<{ scheduler: SchedulerState }>(`/api/scheduler/${encodeURIComponent(id)}`, data).pipe(
+      tap(() => this.loadDashboard(false)),
+    );
+  }
+
+  deleteSchedule(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`/api/scheduler/${encodeURIComponent(id)}`).pipe(
+      tap(() => this.loadDashboard(false)),
+    );
+  }
+
+  rerollSchedule(id: string): Observable<{ scheduler: SchedulerState }> {
+    return this.http.put<{ scheduler: SchedulerState }>(`/api/scheduler/${encodeURIComponent(id)}/reroll`, {}).pipe(
+      tap(() => this.loadDashboard(false)),
+    );
+  }
+
+  runSchedule(id: string): Observable<{ scrapedCount: number }> {
+    return this.http.post<{ scrapedCount: number }>(`/api/scheduler/${encodeURIComponent(id)}/run`, {}).pipe(
+      tap(() => this.loadDashboard(false)),
+    );
+  }
+
+  assignPageSchedule(pageId: string, scheduleId: string): Observable<{ page: ScrapePageConfig }> {
+    return this.http.put<{ page: ScrapePageConfig }>(`/api/pages/${encodeURIComponent(pageId)}/schedule`, { scheduleId }).pipe(
       tap(() => this.loadDashboard(false)),
     );
   }

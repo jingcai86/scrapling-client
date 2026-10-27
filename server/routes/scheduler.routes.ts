@@ -5,6 +5,109 @@ import type { ServerContext } from "../types.js";
 export function createSchedulerRouter(ctx: ServerContext): Router {
   const router = Router();
 
+  router.get("/", (_req, res) => {
+    const assignedPagesMap = ctx.pageStore.getAssignedPagesMap();
+    res.json({
+      scheduler: ctx.scheduler.getState(),
+      schedulers: ctx.schedulerManager.getStates(assignedPagesMap),
+    });
+  });
+
+  router.post("/", async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const created = ctx.pageStore.addSchedule({
+        name: String(body.name || "Custom Schedule"),
+        baseTime: String(body.baseTime || "19:00"),
+        jitterMinutes: Number(body.jitterMinutes ?? 60),
+        enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
+      });
+      const state = ctx.schedulerManager.addOrUpdateSchedule(created);
+      res.status(201).json({ scheduler: state });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.put("/:id/reroll", (req, res) => {
+    const id = req.params.id;
+    const rerolled = ctx.schedulerManager.reroll(id);
+    if (!rerolled) {
+      res.status(404).json({ error: `Schedule "${id}" not found.` });
+      return;
+    }
+    res.json({ scheduler: rerolled });
+  });
+
+  router.post("/:id/run", async (req, res, next) => {
+    try {
+      const id = req.params.id;
+      const results = await ctx.runner.runScrape({ scheduleId: id });
+      res.json({ scrapedCount: results.length, statuses: results });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete("/:id", (req, res) => {
+    const id = req.params.id;
+    if (id === "default") {
+      res.status(400).json({ error: "The default schedule cannot be deleted." });
+      return;
+    }
+    const deleted = ctx.pageStore.deleteSchedule(id);
+    if (deleted) {
+      ctx.schedulerManager.removeSchedule(id);
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: "Schedule not found." });
+    }
+  });
+
+  router.put("/:id", async (req, res, next) => {
+    try {
+      const id = req.params.id;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+
+      if (body.reroll) {
+        const rerolled = ctx.schedulerManager.reroll(id);
+        res.json({ scheduler: rerolled });
+        return;
+      }
+
+      const updated = ctx.pageStore.updateSchedule(id, {
+        name: body.name !== undefined ? String(body.name) : undefined,
+        baseTime: body.baseTime !== undefined ? String(body.baseTime) : undefined,
+        jitterMinutes:
+          body.jitterMinutes !== undefined
+            ? Number(body.jitterMinutes)
+            : undefined,
+        enabled: body.enabled !== undefined ? Boolean(body.enabled) : undefined,
+      });
+
+      if (!updated) {
+        res.status(404).json({ error: "Schedule not found." });
+        return;
+      }
+
+      const state = ctx.schedulerManager.addOrUpdateSchedule(updated);
+      if (id === "default") {
+        await updateDbConfigValues(
+          {
+            CRON_ENABLED: String(state.enabled),
+            CRON_BASE_TIME: state.baseTime,
+            CRON_JITTER_MINUTES: String(state.jitterMinutes),
+          },
+          { pool: ctx.pool, envPath: ctx.envPath },
+        );
+      }
+      res.json({ scheduler: state });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Legacy fallback for PUT /api/scheduler (targets 'default' schedule)
   router.put("/", async (req, res, next) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
@@ -12,19 +115,30 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
         res.json({ scheduler: ctx.scheduler.rerollNextRun() });
         return;
       }
-      const state = ctx.scheduler.updateConfig(
-        {
-          enabled:
-            body.enabled !== undefined ? Boolean(body.enabled) : undefined,
-          baseTime:
-            body.baseTime !== undefined ? String(body.baseTime) : undefined,
-          jitterMinutes:
-            body.jitterMinutes !== undefined
-              ? Number(body.jitterMinutes)
-              : undefined,
-        },
-        false,
-      );
+      const updated = ctx.pageStore.updateSchedule("default", {
+        baseTime: body.baseTime !== undefined ? String(body.baseTime) : undefined,
+        jitterMinutes:
+          body.jitterMinutes !== undefined
+            ? Number(body.jitterMinutes)
+            : undefined,
+        enabled: body.enabled !== undefined ? Boolean(body.enabled) : undefined,
+      });
+      const state = updated
+        ? ctx.schedulerManager.addOrUpdateSchedule(updated)
+        : ctx.scheduler.updateConfig(
+            {
+              enabled:
+                body.enabled !== undefined ? Boolean(body.enabled) : undefined,
+              baseTime:
+                body.baseTime !== undefined ? String(body.baseTime) : undefined,
+              jitterMinutes:
+                body.jitterMinutes !== undefined
+                  ? Number(body.jitterMinutes)
+                  : undefined,
+            },
+            false,
+          );
+
       await updateDbConfigValues(
         {
           CRON_ENABLED: String(state.enabled),

@@ -6,6 +6,7 @@ export interface ScrapePageConfig {
   enabled: boolean;
   withOffers: boolean;
   createdAt: string;
+  scheduleId?: string;
 }
 
 export interface SellerOffer {
@@ -71,13 +72,31 @@ export interface RunnerState {
 }
 
 export interface SchedulerState {
+  id?: string;
+  name?: string;
   enabled: boolean;
   baseTime: string;
   jitterMinutes: number;
   chosenOffsetMinutes?: number;
+  chosenOffsetSeconds?: number;
+  windowStartIso?: string | null;
+  windowEndIso?: string | null;
   nextRunAt: string | null;
+  isRunningJob?: boolean;
   lastRunAt: string | null;
+  lastRunStatus?: 'idle' | 'running' | 'success' | 'error';
+  lastRunSummary?: string | null;
   lastResult?: string | null;
+  assignedPageIds?: string[];
+}
+
+export interface ScheduleItemConfig {
+  id: string;
+  name: string;
+  enabled: boolean;
+  baseTime: string;
+  jitterMinutes: number;
+  createdAt?: string;
 }
 
 export interface EnvFieldSchema {
@@ -116,6 +135,7 @@ export interface DashboardData {
   statuses: PageDealStatus[];
   runner: RunnerState;
   scheduler: SchedulerState;
+  schedulers?: SchedulerState[];
   enebaConfig?: Record<string, string>;
   history?: ScrapeHistoryItem[];
   env: {

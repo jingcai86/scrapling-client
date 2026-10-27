@@ -61,8 +61,10 @@ export {
 } from "./progress.js";
 export {
   RandomizedDailyScheduler,
+  MultiSchedulerManager,
   computeNextRandomizedRun,
   parseBaseTime,
   type SchedulerConfig,
   type SchedulerState,
+  type ScheduleItemConfig,
 } from "./scheduler.js";

@@ -532,6 +532,79 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       } finally {
         await app2.close();
       }
+
+      // 7. Multi-Scheduler API and Category Schedule Assignment
+      // 7.1 GET /api/scheduler returns scheduler and schedulers array
+      const schedRes = await fetch(`${baseUrl}/api/scheduler`);
+      assert.equal(schedRes.status, 200);
+      const schedData = (await schedRes.json()) as {
+        scheduler: { id?: string; baseTime: string };
+        schedulers: Array<{ id: string; name: string }>;
+      };
+      assert.ok(Array.isArray(schedData.schedulers));
+      assert.equal(schedData.schedulers.length, 1);
+      assert.equal(schedData.schedulers[0].id, "default");
+
+      // 7.2 POST /api/scheduler creates a new schedule
+      const createSchedRes = await fetch(`${baseUrl}/api/scheduler`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Hourly Off-Peak",
+          baseTime: "03:00",
+          jitterMinutes: 30,
+          enabled: true,
+        }),
+      });
+      assert.equal(createSchedRes.status, 201);
+      const createdSched = (await createSchedRes.json()) as {
+        scheduler: { id: string; name: string; baseTime: string };
+      };
+      assert.equal(createdSched.scheduler.name, "Hourly Off-Peak");
+      assert.equal(createdSched.scheduler.baseTime, "03:00");
+      const newSchedId = createdSched.scheduler.id;
+
+      // 7.3 PUT /api/pages/:id/schedule assigns an Eneba category page to the new schedule
+      const assignRes = await fetch(
+        `${baseUrl}/api/pages/eneba-apple/schedule`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scheduleId: newSchedId }),
+        },
+      );
+      assert.equal(assignRes.status, 200);
+      const assignedPage = (await assignRes.json()) as {
+        page: { id: string; scheduleId: string };
+      };
+      assert.equal(assignedPage.page.id, "eneba-apple");
+      assert.equal(assignedPage.page.scheduleId, newSchedId);
+
+      // Verify dashboard reflects schedulers and assigned pages
+      const dashCheck = await fetch(`${baseUrl}/api/dashboard`);
+      const dashJson = (await dashCheck.json()) as {
+        schedulers: Array<{ id: string; assignedPageIds?: string[] }>;
+        pages: Array<{ id: string; scheduleId?: string }>;
+      };
+      const applePage = dashJson.pages.find((p) => p.id === "eneba-apple");
+      assert.equal(applePage?.scheduleId, newSchedId);
+      const customSched = dashJson.schedulers.find((s) => s.id === newSchedId);
+      assert.ok(customSched?.assignedPageIds?.includes("eneba-apple"));
+
+      // 7.4 DELETE /api/scheduler/:id deletes the schedule and reassigns pages to default
+      const deleteSchedRes = await fetch(
+        `${baseUrl}/api/scheduler/${encodeURIComponent(newSchedId)}`,
+        { method: "DELETE" },
+      );
+      assert.equal(deleteSchedRes.status, 200);
+
+      // Verify apple page reverted to default
+      const dashAfterDel = await fetch(`${baseUrl}/api/dashboard`);
+      const dashAfterJson = (await dashAfterDel.json()) as {
+        pages: Array<{ id: string; scheduleId?: string }>;
+      };
+      const appleAfter = dashAfterJson.pages.find((p) => p.id === "eneba-apple");
+      assert.equal(appleAfter?.scheduleId, "default");
     } finally {
       await app.close();
       if (originalDbUrl !== undefined) {
