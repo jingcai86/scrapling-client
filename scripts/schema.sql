@@ -380,7 +380,9 @@ VALUES
   ('b1000000-0000-4000-8000-000000000004'::uuid, 'steam-20', 'Steam Gift Card 20 USD Key GLOBAL', 'GLOBAL', 20.00, 'USD', 'https://www.eneba.com/us/steam-steam-gift-card-20-usd-key-global', 'eneba', NOW(), NOW()),
   ('f700d89a-919a-4e82-9eb6-c92f7853c2a2'::uuid, 'nintendo-10', 'Nintendo eShop Card 10 USD Key UNITED STATES', 'UNITED STATES', 10.00, 'USD', 'https://www.eneba.com/us/nintendo-eshop-card-10-usd-key-united-states', 'eneba', NOW(), NOW()),
   ('28519d1d-0742-4e92-b28f-f8e34cd60630'::uuid, 'amazon-10', 'Amazon Gift Card 10 USD UNITED STATES', 'UNITED STATES', 10.00, 'USD', 'https://www.eneba.com/us/amazon-amazon-gift-card-10-usd-united-states', 'eneba', NOW(), NOW()),
-  ('ad69d4d6-a0fd-49dd-a439-e983f3af32b3'::uuid, 'apple-50', 'Apple iTunes Gift Card 50 USD Key GLOBAL', 'GLOBAL', 50.00, 'USD', 'https://www.g2a.com/apple-itunes-gift-card-50-usd-key-global-i10000000002002', 'g2a', NOW(), NOW())
+  ('ad69d4d6-a0fd-49dd-a439-e983f3af32b3'::uuid, 'apple-50', 'Apple iTunes Gift Card 50 USD Key GLOBAL', 'GLOBAL', 50.00, 'USD', 'https://www.g2a.com/apple-itunes-gift-card-50-usd-key-global-i10000000002002', 'g2a', NOW(), NOW()),
+  ('ad69d4d6-a0fd-49dd-a439-e983f3af32b4'::uuid, 'g2a-google-play', 'Google Play Gift Cards (G2A)', 'GLOBAL', NULL, 'USD', 'https://www.g2a.com/search?query=google%20play', 'g2a', NOW(), NOW()),
+  ('ad69d4d6-a0fd-49dd-a439-e983f3af32b5'::uuid, 'g2a-psn', 'PlayStation (PSN) Gift Cards (G2A)', 'GLOBAL', NULL, 'USD', 'https://www.g2a.com/category/psn-c1567', 'g2a', NOW(), NOW())
 ON CONFLICT (slug) DO UPDATE SET url = EXCLUDED.url;
 
 -- ----------------------------------------------------------------------------
@@ -407,7 +409,9 @@ VALUES
   ('a1000000-0000-4000-8000-000000000004'::uuid, 'b1000000-0000-4000-8000-000000000004'::uuid, 'eneba', 'Steam Gift Cards & Wallet Codes', true, 'default', NOW(), NOW()),
   ('a1000000-0000-4000-8000-000000000005'::uuid, 'f700d89a-919a-4e82-9eb6-c92f7853c2a2'::uuid, 'eneba', 'Nintendo eShop Cards', true, 'default', NOW(), NOW()),
   ('a1000000-0000-4000-8000-000000000006'::uuid, '28519d1d-0742-4e92-b28f-f8e34cd60630'::uuid, 'eneba', 'Amazon Gift Cards', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000007'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b3'::uuid, 'g2a', 'Amazon Gift Cards (G2A)', true, 'default', NOW(), NOW())
+  ('a1000000-0000-4000-8000-000000000007'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b3'::uuid, 'g2a', 'Amazon Gift Cards (G2A)', true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000008'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b4'::uuid, 'g2a', 'Google Play Gift Cards (G2A)', true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000009'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b5'::uuid, 'g2a', 'PlayStation (PSN) Gift Cards (G2A)', true, 'default', NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET
   product_id = EXCLUDED.product_id,
   provider = EXCLUDED.provider,

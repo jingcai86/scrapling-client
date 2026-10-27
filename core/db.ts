@@ -669,6 +669,27 @@ export async function upsertDbTarget(
       }
     }
 
+    if (productId && (target.url || target.productSlug || target.name)) {
+      await p.query(
+        `INSERT INTO scrapling.products (id, slug, title, url, provider, first_seen_at, last_seen_at)
+         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           url = COALESCE(EXCLUDED.url, scrapling.products.url),
+           title = COALESCE(EXCLUDED.title, scrapling.products.title),
+           provider = COALESCE(EXCLUDED.provider, scrapling.products.provider)
+         ON CONFLICT (slug) DO UPDATE SET
+           url = COALESCE(EXCLUDED.url, scrapling.products.url),
+           provider = COALESCE(EXCLUDED.provider, scrapling.products.provider)`,
+        [
+          productId,
+          target.productSlug || `product-${productId.slice(0, 8)}`,
+          target.productTitle || target.name || "Monitored Gift Card",
+          target.url || null,
+          provider,
+        ],
+      );
+    }
+
     await p.query(
       `INSERT INTO scrapling.scrape_targets (id, product_id, provider, name, enabled, schedule_id, created_at, updated_at)
        VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, COALESCE($4, ''), $5, $6, COALESCE($7::timestamptz, NOW()), NOW())
@@ -777,6 +798,30 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     enabled: true,
     scheduleId: "default",
   },
+  {
+    id: "a1000000-0000-4000-8000-000000000008",
+    productId: "ad69d4d6-a0fd-49dd-a439-e983f3af32b4",
+    productSlug: "g2a-google-play",
+    productTitle: "Google Play Gift Cards (G2A)",
+    provider: "g2a",
+    category: "g2a",
+    name: "Google Play Gift Cards (G2A)",
+    url: "https://www.g2a.com/search?query=google%20play",
+    enabled: true,
+    scheduleId: "default",
+  },
+  {
+    id: "a1000000-0000-4000-8000-000000000009",
+    productId: "ad69d4d6-a0fd-49dd-a439-e983f3af32b5",
+    productSlug: "g2a-psn",
+    productTitle: "PlayStation (PSN) Gift Cards (G2A)",
+    provider: "g2a",
+    category: "g2a",
+    name: "PlayStation (PSN) Gift Cards (G2A)",
+    url: "https://www.g2a.com/category/psn-c1567",
+    enabled: true,
+    scheduleId: "default",
+  },
 ];
 export const DEFAULT_INITIAL_TARGET_PAGES = DEFAULT_INITIAL_TARGETS;
 
@@ -852,6 +897,13 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
       if (dbTargets.length === 0) {
         dbTargets = [...initialTargets];
       }
+    } else {
+      for (const target of initialTargets) {
+        if (!dbTargets.some((t) => t.id === target.id)) {
+          await upsertDbTarget(target, pool);
+        }
+      }
+      dbTargets = await getDbTargets(pool);
     }
 
     return { schedulers: dbSchedulers, targets: dbTargets };
