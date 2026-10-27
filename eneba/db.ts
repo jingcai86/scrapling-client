@@ -1338,6 +1338,7 @@ export async function fetchScrapeHistoryFromDb(
       {
         title: string;
         category: string;
+        provider?: string;
         sellerName: string;
         cost: number;
         faceValue: number;
@@ -1345,12 +1346,29 @@ export async function fetchScrapeHistoryFromDb(
         url?: string;
       }
     >();
+    const dealsByBatchAndProvider = new Map<
+      string,
+      Record<
+        string,
+        {
+          title: string;
+          category: string;
+          provider?: string;
+          sellerName: string;
+          cost: number;
+          faceValue: number;
+          discountPct: number;
+          url?: string;
+        }
+      >
+    >();
 
     if (batchIds.length > 0) {
       try {
         const topDealsRes = await db
-          .selectDistinctOn([scraplingRecords.batchId], {
+          .selectDistinctOn([scraplingRecords.batchId, scraplingRecords.provider], {
             batchId: scraplingRecords.batchId,
+            provider: scraplingRecords.provider,
             title: scraplingRecords.title,
             category: scraplingRecords.provider,
             targetName: sql<string>`COALESCE(${scraplingTargets.name}, ${scraplingRecords.provider})`,
@@ -1371,18 +1389,34 @@ export async function fetchScrapeHistoryFromDb(
             eq(scraplingRecords.scrapeTargetId, scraplingScrapeTargets.id),
           )
           .where(inArray(scraplingRecords.batchId, batchIds))
-          .orderBy(scraplingRecords.batchId, desc(scraplingRecords.discountPct));
+          .orderBy(
+            scraplingRecords.batchId,
+            scraplingRecords.provider,
+            desc(scraplingRecords.discountPct),
+          );
 
         for (const dr of topDealsRes) {
-          dealsByBatch.set(dr.batchId, {
+          const prov = (dr.provider || "eneba").toLowerCase().trim();
+          const dealItem = {
             title: dr.title,
             category: dr.targetName || dr.category,
+            provider: prov,
             sellerName: dr.sellerName || "Top Merchant",
             cost: Number(dr.sellingPrice) || 0,
             faceValue: Number(dr.faceValue) || Number(dr.originalPrice) || 0,
             discountPct: Number(dr.discountPct) || 0,
             url: dr.url,
-          });
+          };
+
+          if (!dealsByBatchAndProvider.has(dr.batchId)) {
+            dealsByBatchAndProvider.set(dr.batchId, {});
+          }
+          dealsByBatchAndProvider.get(dr.batchId)![prov] = dealItem;
+
+          const currentBest = dealsByBatch.get(dr.batchId);
+          if (!currentBest || dealItem.discountPct > currentBest.discountPct) {
+            dealsByBatch.set(dr.batchId, dealItem);
+          }
         }
       } catch {
         // Fallback gracefully without deals join
@@ -1404,6 +1438,7 @@ export async function fetchScrapeHistoryFromDb(
         totalListings: Number(r.totalListings) || 0,
         inStockCount: Number(r.inStockCount) || 0,
         bestDeal: dealsByBatch.get(r.batchId),
+        bestDealsByProvider: dealsByBatchAndProvider.get(r.batchId) || {},
       };
     });
   } catch {

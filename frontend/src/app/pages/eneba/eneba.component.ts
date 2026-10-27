@@ -342,12 +342,12 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
         <!-- Best Discount in History Chart -->
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
-            <mat-card-title class="chart-header-title">Best Discount in History</mat-card-title>
+            <mat-card-title class="chart-header-title">{{ providerDisplayName }} Best Discount in History</mat-card-title>
             <mat-card-subtitle>
-              Historical #1 highest discount across scrape runs. Hover point for seller, cost, and face value.
+              Historical #1 highest {{ providerDisplayName }} discount across scrape runs. Hover point for seller, cost, and face value.
             </mat-card-subtitle>
             <div class="peak-badge-box" *ngIf="!isLoading">
-              <span class="peak-label">All-Time Peak:</span>
+              <span class="peak-label">{{ providerDisplayName }} Peak:</span>
               <strong class="peak-val">{{ peakDiscountPct() }}</strong>
             </div>
           </mat-card-header>
@@ -1074,9 +1074,18 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     const data = this.apiService.dashboardData();
     if (!data) return true;
     const history = data.history || [];
-    const statuses = data.statuses || [];
-    const hasHistoryDeal = history.some((h) => h.bestDeal || (h.totalListings && h.totalListings > 0));
-    const hasStatusDeal = statuses.some((s) => s.bestDeal || s.bestEffectiveDeal || (s.rankedDeals && s.rankedDeals.length > 0));
+    const statuses = this.sortedCategories;
+
+    const hasHistoryDeal = history.some((h) => {
+      const deal = (h as any).bestDealsByProvider?.[this.provider] || h.bestDeal;
+      if (!deal) return false;
+      return this.getCanonicalProvider(deal) === this.provider;
+    });
+
+    const hasStatusDeal = statuses.some(
+      (s) => s.bestDeal || s.bestEffectiveDeal || (s.rankedDeals && s.rankedDeals.length > 0),
+    );
+
     return !hasHistoryDeal && !hasStatusDeal;
   }
 
@@ -1722,18 +1731,28 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
   peakDiscountPct(): string {
     const data = this.apiService.dashboardData();
     const history = data?.history || [];
-    const statuses = data?.statuses || [];
+    const statuses = this.sortedCategories;
     let maxPct = 0;
 
     for (const h of history) {
-      if (h.bestDeal && h.bestDeal.discountPct > maxPct) {
-        maxPct = h.bestDeal.discountPct;
+      const providerDeal =
+        (h as any).bestDealsByProvider?.[this.provider] ||
+        (h.bestDeal && this.getCanonicalProvider(h.bestDeal) === this.provider ? h.bestDeal : null);
+
+      if (providerDeal && (providerDeal.discountPct || 0) > maxPct) {
+        maxPct = providerDeal.discountPct;
       }
     }
+
     for (const s of statuses) {
       const d = s.bestDeal || s.bestEffectiveDeal;
-      if (d && d.discountPct > maxPct) {
+      if (d && (d.discountPct || 0) > maxPct) {
         maxPct = d.discountPct;
+      }
+      for (const deal of s.rankedDeals || s.topDeals || []) {
+        if (deal && (deal.discountPct || 0) > maxPct) {
+          maxPct = deal.discountPct;
+        }
       }
     }
 
@@ -1747,22 +1766,48 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     const history = data?.history || [];
     const statuses = this.sortedCategories;
 
-    let items = history.filter((h) => {
-      const cat = (h.bestDeal?.category || (h as any).provider || '').toLowerCase();
-      const hasListings = h.totalListings && h.totalListings > 0;
-      return (h.bestDeal || hasListings) && (!cat || cat === this.provider);
-    });
-
-    if (items.length === 0 && statuses.length > 0) {
-      let bestItem: {
+    // Collect historical points strictly for THIS provider
+    const providerPoints: {
+      timestamp: string;
+      deal: {
         title: string;
         category: string;
+        provider?: string;
         sellerName: string;
         cost: number;
         faceValue: number;
         discountPct: number;
         url?: string;
-      } | null = null;
+      };
+      pct: number;
+    }[] = [];
+
+    for (const h of history) {
+      const provDeal =
+        (h as any).bestDealsByProvider?.[this.provider] ||
+        (h.bestDeal && this.getCanonicalProvider(h.bestDeal) === this.provider ? h.bestDeal : null);
+
+      if (provDeal && (provDeal.discountPct || 0) > 0) {
+        providerPoints.push({
+          timestamp: h.timestamp,
+          deal: {
+            title: provDeal.title,
+            category: provDeal.category || this.providerDisplayName,
+            provider: this.provider,
+            sellerName: provDeal.sellerName || 'Top Merchant',
+            cost: provDeal.cost ?? 0,
+            faceValue: provDeal.faceValue ?? 0,
+            discountPct: provDeal.discountPct,
+            url: provDeal.url,
+          },
+          pct: Number(provDeal.discountPct.toFixed(1)),
+        });
+      }
+    }
+
+    // Fallback: If no provider-specific history points yet, derive from current statuses for THIS provider
+    if (providerPoints.length === 0 && statuses.length > 0) {
+      let bestItem: any = null;
       let highest = -1;
 
       for (const st of statuses) {
@@ -1771,9 +1816,12 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
           highest = top.discountPct;
           bestItem = {
             title: top.title,
-            category: st.category,
-            sellerName: (st.bestDealOffers && st.bestDealOffers[0]?.sellerName) ||
-              top.lowestSellerName || 'Top Merchant',
+            category: st.targetName || st.name || st.category,
+            provider: this.provider,
+            sellerName:
+              (st.bestDealOffers && st.bestDealOffers[0]?.sellerName) ||
+              top.lowestSellerName ||
+              'Top Merchant',
             cost: top.sellingPrice ?? 0,
             faceValue: top.faceValue ?? top.originalPrice ?? 0,
             discountPct: top.discountPct,
@@ -1783,17 +1831,15 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       }
 
       if (bestItem) {
-        items = [{
+        providerPoints.push({
           timestamp: statuses[0].scrapedAt,
-          totalPages: statuses.length,
-          successfulPages: statuses.filter((s) => s.totalListings > 0).length,
-          successRate: 100,
-          bestDeal: bestItem,
-        }];
+          deal: bestItem,
+          pct: Number(bestItem.discountPct.toFixed(1)),
+        });
       }
     }
 
-    if (items.length === 0) {
+    if (providerPoints.length === 0) {
       this.chartInstance?.dispose();
       this.chartInstance = undefined;
       return;
@@ -1819,32 +1865,13 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     const isDark = currentTheme === 'dark' ||
       (currentTheme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-    const resolvedPoints = items.map((it) => {
-      let deal = it.bestDeal;
-      if (!deal && statuses.length > 0) {
-        const fallback = statuses[0].bestDeal || statuses[0].bestEffectiveDeal;
-        if (fallback) {
-          deal = {
-            title: fallback.title,
-            category: statuses[0].category,
-            sellerName: (statuses[0].bestDealOffers && statuses[0].bestDealOffers[0]?.sellerName) || 'Top Merchant',
-            cost: fallback.sellingPrice,
-            faceValue: fallback.faceValue ?? 0,
-            discountPct: fallback.discountPct,
-          };
-        }
-      }
-      const pct = deal ? Number((deal.discountPct || 0).toFixed(1)) : 0;
-      return { it, deal, pct };
-    });
-
-    const categories = resolvedPoints.map((p, idx) => {
-      const d = new Date(p.it.timestamp);
+    const categories = providerPoints.map((p, idx) => {
+      const d = new Date(p.timestamp);
       if (isNaN(d.getTime())) return `Run #${idx + 1}`;
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     });
 
-    const values = resolvedPoints.map((p) => p.pct);
+    const values = providerPoints.map((p) => p.pct);
 
     const option: echarts.EChartsOption = {
       backgroundColor: 'transparent',
@@ -1881,13 +1908,12 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
           if (!Array.isArray(params) || !params.length) return '';
           const p = params[0];
           const idx = p.dataIndex;
-          const point = resolvedPoints[idx];
+          const point = providerPoints[idx];
           if (!point) return '';
-          const it = point.it;
           const d = point.deal;
-          const fullTime = isNaN(new Date(it.timestamp).getTime())
+          const fullTime = isNaN(new Date(point.timestamp).getTime())
             ? 'Recent Scrape'
-            : new Date(it.timestamp).toLocaleString();
+            : new Date(point.timestamp).toLocaleString();
           if (!d) {
             return `<div style="font-weight:600;">🕒 ${escapeHtml(fullTime)}</div><div>Discount: <strong>${p.value}%</strong></div>`;
           }
@@ -1897,7 +1923,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
           const sellerStr = d.sellerName || 'Top Merchant';
           return `
             <div style="font-weight:700;margin-bottom:6px;color:${isDark ? '#f8fafc' : '#0f172a'};">
-              🕒 ${escapeHtml(fullTime)}
+              🕒 ${escapeHtml(fullTime)} — ${this.providerDisplayName}
             </div>
             <div style="font-size:12.5px;font-weight:600;color:#10b981;margin-bottom:6px;line-height:1.3;">
               🏷️ ${escapeHtml(d.title)} ${d.category ? `<span style="font-size:11px;opacity:0.85;">(${escapeHtml(d.category)})</span>` : ''}
@@ -1949,7 +1975,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
           name: 'Best Discount %',
           type: 'line',
           smooth: true,
-          showSymbol: items.length < 35,
+          showSymbol: providerPoints.length < 35,
           symbol: 'circle',
           symbolSize: 7,
           itemStyle: {

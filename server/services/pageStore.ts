@@ -43,6 +43,7 @@ export interface ScheduleConfigItem {
 
 export interface ScrapeHistoryItem {
   id: string;
+  provider?: string;
   timestamp: string;
   totalPages: number;
   successfulPages: number;
@@ -52,12 +53,26 @@ export interface ScrapeHistoryItem {
   bestDeal?: {
     title: string;
     category: string;
+    provider?: string;
     sellerName: string;
     cost: number;
     faceValue: number;
     discountPct: number;
     url?: string;
   };
+  bestDealsByProvider?: Record<
+    string,
+    {
+      title: string;
+      category: string;
+      provider?: string;
+      sellerName: string;
+      cost: number;
+      faceValue: number;
+      discountPct: number;
+      url?: string;
+    }
+  >;
 }
 
 export const DEFAULT_SCHEDULES: ScheduleConfigItem[] = [
