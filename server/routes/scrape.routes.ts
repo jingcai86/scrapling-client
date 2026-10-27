@@ -11,11 +11,12 @@ export function createScrapeRouter(ctx: ServerContext): Router {
     }
     const body = (req.body ?? {}) as Record<string, unknown>;
     const pageId = body.pageId ? String(body.pageId) : undefined;
+    const provider = body.provider ? String(body.provider) : undefined;
     const withOffersOverride =
       body.withOffers !== undefined ? Boolean(body.withOffers) : undefined;
 
     void ctx.runner
-      .runScrape({ pageId, withOffersOverride })
+      .runScrape({ pageId, provider, withOffersOverride })
       .catch(() => undefined);
 
     res.status(202).json({

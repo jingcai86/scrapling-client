@@ -255,6 +255,10 @@ export async function searchDeals(
         values.push(to.toISOString());
         conditions.push(`r.scraped_at <= $${values.length}`);
       }
+      if (providerFilter) {
+        values.push(providerFilter);
+        conditions.push(`r.provider = $${values.length}`);
+      }
       if (categoryFilter) {
         values.push(`%${categoryFilter}%`);
         conditions.push(`(r.provider ILIKE $${values.length} OR t.name ILIKE $${values.length})`);

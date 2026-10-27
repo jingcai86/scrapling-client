@@ -114,13 +114,14 @@ export class ScrapeRunner {
       const dbStatuses = await fetchLatestEnebaStatusesFromDb();
       if (dbStatuses.length > 0) {
         for (const st of dbStatuses) {
-          const existing = this.statusesByCategory.get(st.category);
+          const key = st.targetId || st.targetName || st.category;
+          const existing = this.statusesByCategory.get(key);
           if (
             !existing ||
             new Date(st.scrapedAt).getTime() >=
               new Date(existing.scrapedAt).getTime()
           ) {
-            this.statusesByCategory.set(st.category, st);
+            this.statusesByCategory.set(key, st);
           }
         }
         this.pageStore.saveLatestStatuses(this.getLatestStatuses());
@@ -188,6 +189,7 @@ export class ScrapeRunner {
     pageId?: string;
     pageIds?: string[];
     scheduleId?: string;
+    provider?: string;
     withOffersOverride?: boolean;
   } = {}): Promise<PageDealStatus[]> {
     if (this.isScraping) {
@@ -205,6 +207,13 @@ export class ScrapeRunner {
     } else if (options.scheduleId) {
       targetPages = allPages.filter(
         (p) => (p.scheduleId || "default") === options.scheduleId && p.enabled,
+      );
+    } else if (options.provider) {
+      targetPages = allPages.filter(
+        (p) =>
+          ((p.provider || p.category)?.toLowerCase() ===
+            options.provider?.toLowerCase()) &&
+          p.enabled,
       );
     } else {
       targetPages = allPages.filter((p) => p.enabled);

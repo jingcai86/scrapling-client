@@ -45,7 +45,7 @@ export class ApiService {
   }
 
   // Scraper Runner
-  triggerScrape(opts: { pageId?: string; withOffers?: boolean }): Observable<any> {
+  triggerScrape(opts: { pageId?: string; provider?: string; withOffers?: boolean }): Observable<any> {
     return this.http.post('/api/scrape', opts).pipe(
       tap(() => this.loadDashboard(false)),
     );

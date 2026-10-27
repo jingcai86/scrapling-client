@@ -45,6 +45,10 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
               <mat-icon class="nav-icon">local_offer</mat-icon>
               <span>Eneba</span>
             </a>
+            <a mat-button routerLink="/g2a" routerLinkActive="active" class="nav-btn">
+              <mat-icon class="nav-icon">storefront</mat-icon>
+              <span>G2A</span>
+            </a>
             <a mat-button routerLink="/schedulers" routerLinkActive="active" class="nav-btn">
               <mat-icon class="nav-icon">schedule</mat-icon>
               <span>Schedulers</span>

@@ -66,11 +66,11 @@ async function main() {
 
     console.log("⏳ Synchronizing schedulers and scraping targets...");
     await syncSchedulersAndTargetsOnStartup({ pool });
-    console.log("✔ Synced scrapling.schedulers and scrapling.targets in PostgreSQL");
+    console.log("✔ Synced scrapling.schedulers and scrapling.target_pages in PostgreSQL");
 
     const tablesRes = await pool.query<{
       table_name: string;
-      column_count: string;
+      column_count: number;
     }>(`
       SELECT
         t.table_name,
@@ -87,7 +87,9 @@ async function main() {
     console.log("📊 Schema 'scrapling' Summary:");
     console.log("------------------------------------------------------------");
     for (const r of tablesRes.rows) {
-      console.log(` • scrapling.${r.table_name.padEnd(22)}: ${r.column_count} columns`);
+      const countRes = await pool.query(`SELECT COUNT(*)::int AS cnt FROM scrapling."${r.table_name}"`);
+      const rowCount = countRes.rows[0].cnt;
+      console.log(` • scrapling.${r.table_name.padEnd(20)}: ${String(r.column_count).padStart(2)} columns, ${String(rowCount).padStart(4)} rows`);
     }
 
     console.log("\n============================================================");

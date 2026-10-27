@@ -904,8 +904,8 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     const statuses = data.statuses || [];
 
     const rows: ProviderRow[] = providers.map((prov) => {
-      const activePages = data.pages?.filter((p) => p.provider === prov && p.enabled).length || 0;
-      const provStatuses = statuses.filter((s) => s.pageUrl.includes(prov) || prov === 'eneba');
+      const activePages = data.pages?.filter((p) => ((p.provider || p.category)?.toLowerCase() === prov.toLowerCase()) && p.enabled).length || 0;
+      const provStatuses = statuses.filter((s) => (s.category?.toLowerCase() === prov.toLowerCase()) || (s.pageUrl?.toLowerCase().includes(prov.toLowerCase())));
       let lastScraped = 'Never';
       let lastScrapedRaw = '';
 

@@ -1,7 +1,8 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, Inject, PLATFORM_ID, HostListener } from '@angular/core';
+import { Component, ElementRef, ViewChild, OnInit, AfterViewInit, OnDestroy, Inject, PLATFORM_ID, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatSortModule, Sort } from '@angular/material/sort';
@@ -47,14 +48,14 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
   ],
   template: `
     <div class="page-container">
-      <!-- Eneba KPIs -->
+      <!-- Provider KPIs -->
       <div class="kpi-grid">
         <!-- Card 1: Categories (Indigo / Violet) -->
         <mat-card class="kpi-card kpi-indigo" appearance="outlined">
           <div class="kpi-top-bar"></div>
           <div class="kpi-card-inner">
             <div class="kpi-header-row">
-              <span class="kpi-eyebrow">Eneba Store Categories</span>
+              <span class="kpi-eyebrow">{{ providerDisplayName }} Store Categories</span>
               <div class="kpi-icon-pill">
                 <mat-icon>category</mat-icon>
               </div>
@@ -64,11 +65,8 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
               <span class="kpi-unit-badge">monitored</span>
             </div>
             <div class="kpi-chips-row">
-              <span class="kpi-mini-chip">PlayStation</span>
-              <span class="kpi-mini-chip">Nintendo</span>
-              <span class="kpi-mini-chip">Android</span>
-              <span class="kpi-mini-chip">Amazon</span>
-              <span class="kpi-mini-chip">Apple</span>
+              <span class="kpi-mini-chip" *ngFor="let name of activeTargetNames | slice:0:5">{{ name }}</span>
+              <span class="kpi-mini-chip" *ngIf="activeTargetNames.length === 0">{{ providerDisplayName }}</span>
             </div>
           </div>
         </mat-card>
@@ -78,7 +76,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
           <div class="kpi-top-bar"></div>
           <div class="kpi-card-inner">
             <div class="kpi-header-row">
-              <span class="kpi-eyebrow">Eneba Cards In Stock</span>
+              <span class="kpi-eyebrow">{{ providerDisplayName }} Cards In Stock</span>
               <div class="kpi-icon-pill">
                 <mat-icon>inventory_2</mat-icon>
               </div>
@@ -96,12 +94,12 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
           </div>
         </mat-card>
 
-        <!-- Card 3: Best Eneba Deal (Emerald / Mint) -->
+        <!-- Card 3: Best Deal (Emerald / Mint) -->
         <mat-card class="kpi-card kpi-emerald" appearance="outlined">
           <div class="kpi-top-bar"></div>
           <div class="kpi-card-inner">
             <div class="kpi-header-row">
-              <span class="kpi-eyebrow">Best Eneba Deal</span>
+              <span class="kpi-eyebrow">Best {{ providerDisplayName }} Deal</span>
               <div class="kpi-icon-pill">
                 <mat-icon>trending_down</mat-icon>
               </div>
@@ -158,7 +156,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
             <div class="table-header-titles">
-              <mat-card-title>Eneba Gift Card Categories — Status &amp; Seller Offers</mat-card-title>
+              <mat-card-title>{{ providerDisplayName }} Categories — Status &amp; Seller Offers</mat-card-title>
               <mat-card-subtitle>
                 Category metrics &amp; best discounts. Click row for seller offers; hover for scrape history.
               </mat-card-subtitle>
@@ -377,7 +375,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
       <!-- Top Deals Table -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="table-header">
-          <mat-card-title>Eneba Top {{ topDealsLimit }} Ranked Gift Card Deals (Latest Scrape)</mat-card-title>
+          <mat-card-title>{{ providerDisplayName }} Top {{ topDealsLimit }} Ranked Deals (Latest Scrape)</mat-card-title>
           <mat-card-subtitle>
             Active live deals from the most recent scrape run. Expired deals from older scrapes are excluded.
           </mat-card-subtitle>
@@ -454,7 +452,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
               </ng-container>
 
               <ng-container matColumnDef="url">
-                <th mat-header-cell *matHeaderCellDef class="col-buy">Eneba Link</th>
+                <th mat-header-cell *matHeaderCellDef class="col-buy">{{ providerDisplayName }} Link</th>
                 <td mat-cell *matCellDef="let deal" class="col-buy">
                   <a [href]="deal.url" target="_blank" rel="noopener" mat-stroked-button color="primary" class="btn-xs buy-btn">
                     <span>Buy ↗</span>
@@ -1022,11 +1020,24 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
     }
   `],
 })
-export class EnebaComponent implements AfterViewInit, OnDestroy {
+export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('bestDiscountChartContainer') bestDiscountChartContainerRef?: ElementRef<HTMLDivElement>;
   private chartInstance?: echarts.ECharts;
   private resizeObserver?: ResizeObserver;
   private lastDataRef?: any;
+  private routeSub?: Subscription;
+
+  provider = 'eneba';
+
+  get providerDisplayName(): string {
+    if (this.provider === 'g2a') return 'G2A';
+    if (this.provider === 'eneba') return 'Eneba';
+    return this.provider ? this.provider.charAt(0).toUpperCase() + this.provider.slice(1) : 'Provider';
+  }
+
+  get activeTargetNames(): string[] {
+    return this.sortedCategories.map((s) => s.targetName || s.name || s.category);
+  }
 
   categoryColumns: string[] = [
     'category',
@@ -1064,8 +1075,20 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
     private dialog: MatDialog,
     private snackBar: MatSnackBar,
     private themeService: ThemeService,
+    private route: ActivatedRoute,
     @Inject(PLATFORM_ID) private platformId: object,
   ) {}
+
+  ngOnInit() {
+    this.routeSub = this.route.url.subscribe(() => {
+      const seg = this.route.snapshot.params['provider'] || this.route.snapshot.url[0]?.path || 'eneba';
+      this.provider = seg.toLowerCase();
+      this.syncData();
+      if (isPlatformBrowser(this.platformId)) {
+        setTimeout(() => this.renderBestDiscountChart(), 0);
+      }
+    });
+  }
 
   get isLoading(): boolean {
     return this.apiService.isLoading() || !this.apiService.dashboardData();
@@ -1138,6 +1161,7 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.routeSub?.unsubscribe();
     this.resizeObserver?.disconnect();
     this.chartInstance?.dispose();
   }
@@ -1166,13 +1190,18 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
       }
     }
 
-    const statuses = data.statuses || [];
+    const allStatuses = data.statuses || [];
+    const statuses = allStatuses.filter((s) => {
+      const cat = (s.category || '').toLowerCase();
+      const url = (s.pageUrl || '').toLowerCase();
+      return cat === this.provider || url.includes(this.provider);
+    });
     this.sortedCategories = [...statuses];
 
     // Gather categories
-    this.availableCategories = Array.from(new Set(statuses.map((s) => s.category)));
+    this.availableCategories = Array.from(new Set(statuses.map((s) => s.targetName || s.name || s.category)));
 
-    // Gather all ranked deals across all categories
+    // Gather all ranked deals across all matching categories
     const collected: (RankedDeal & { scrapedAt?: string })[] = [];
     for (const st of statuses) {
       const deals = st.rankedDeals || st.topDeals || [];
@@ -1192,25 +1221,25 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   }
 
   categoriesCount(): number {
-    return this.apiService.dashboardData()?.statuses?.length || 5;
+    return this.sortedCategories.length;
   }
 
   totalInStock(): number {
-    return (this.apiService.dashboardData()?.statuses || []).reduce((acc, s) => acc + (s.inStockCount || 0), 0);
+    return this.sortedCategories.reduce((acc, s) => acc + (s.inStockCount || 0), 0);
   }
 
   totalDiscounted(): number {
-    return (this.apiService.dashboardData()?.statuses || []).reduce((acc, s) => acc + (s.discountedCount || 0), 0);
+    return this.sortedCategories.reduce((acc, s) => acc + (s.discountedCount || 0), 0);
   }
 
   bestDealPct(): string {
-    const statuses = this.apiService.dashboardData()?.statuses || [];
+    const statuses = this.sortedCategories;
     const maxDisc = Math.max(...statuses.map((s) => s.maxDiscountPct || 0), 0);
     return maxDisc > 0 ? `${maxDisc.toFixed(1)}%` : '—';
   }
 
   bestDealTitle(): string {
-    const statuses = this.apiService.dashboardData()?.statuses || [];
+    const statuses = this.sortedCategories;
     let best: RankedDeal | null = null;
     for (const s of statuses) {
       const candidate = s.bestDeal || s.bestEffectiveDeal;
@@ -1292,7 +1321,10 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   get enebaPages(): ScrapePageConfig[] {
     const pages = this.apiService.dashboardData()?.pages || [];
     return pages.filter(
-      (p) => p.provider === 'eneba' || p.id.startsWith('eneba-') || p.categoryName
+      (p) =>
+        (p.provider || '').toLowerCase() === this.provider ||
+        (p.category || '').toLowerCase() === this.provider ||
+        p.url.toLowerCase().includes(this.provider)
     );
   }
 
@@ -1393,8 +1425,8 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   }
 
   triggerScrape() {
-    this.apiService.triggerScrape({}).subscribe(() => {
-      this.snackBar.open('Scrape triggered across enabled pages!', 'OK', { duration: 3000 });
+    this.apiService.triggerScrape({ provider: this.provider }).subscribe(() => {
+      this.snackBar.open(`Scrape triggered for ${this.providerDisplayName} pages!`, 'OK', { duration: 3000 });
     });
   }
 
@@ -1417,11 +1449,13 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
     const cat = this.selectedCategory;
 
     const matched = this.allDeals.filter((deal) => {
-      const matchCat = cat === 'all' || deal.category === cat;
+      const dealCat = deal.targetName || deal.category;
+      const matchCat = cat === 'all' || dealCat === cat || deal.category === cat;
       const matchQ =
         !q ||
         deal.title.toLowerCase().includes(q) ||
-        deal.region.toLowerCase().includes(q) ||
+        (deal.region && deal.region.toLowerCase().includes(q)) ||
+        (dealCat && dealCat.toLowerCase().includes(q)) ||
         deal.category.toLowerCase().includes(q);
       return matchCat && matchQ;
     });
@@ -1503,9 +1537,13 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
 
     const data = this.apiService.dashboardData();
     const history = data?.history || [];
-    const statuses = data?.statuses || [];
+    const statuses = this.sortedCategories;
 
-    let items = history.filter((h) => h.bestDeal || (h.totalListings && h.totalListings > 0));
+    let items = history.filter((h) => {
+      const cat = (h.bestDeal?.category || (h as any).provider || '').toLowerCase();
+      const hasListings = h.totalListings && h.totalListings > 0;
+      return (h.bestDeal || hasListings) && (!cat || cat === this.provider);
+    });
 
     if (items.length === 0 && statuses.length > 0) {
       let bestItem: {
