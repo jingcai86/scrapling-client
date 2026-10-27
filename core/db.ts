@@ -85,8 +85,14 @@ VALUES
 ON CONFLICT (key) DO NOTHING;
 
 -- Drop legacy table names if present
-DROP TABLE IF EXISTS scrapling.scrape_pages;
-DROP TABLE IF EXISTS scrapling.schedules;
+DROP TABLE IF EXISTS scrapling.scrape_pages CASCADE;
+DROP TABLE IF EXISTS scrapling.schedules CASCADE;
+DROP TABLE IF EXISTS scrapling.eneba_config CASCADE;
+DROP TABLE IF EXISTS scrapling.eneba_product_offers CASCADE;
+DROP TABLE IF EXISTS scrapling.eneba_top_deals CASCADE;
+DROP TABLE IF EXISTS scrapling.eneba_scrape_runs CASCADE;
+DROP TABLE IF EXISTS scrapling.eneba_sellers CASCADE;
+DROP TABLE IF EXISTS scrapling.eneba_products CASCADE;
 
 CREATE TABLE IF NOT EXISTS scrapling.schedulers (
   id TEXT PRIMARY KEY,
