@@ -9,6 +9,7 @@ export interface PageDealStatus {
   scrapedAt: string;
   category: string; // site name: "eneba", "g2a"
   provider?: string; // alias for provider site name
+  scrapeTargetId?: string;
   targetId?: string;
   targetName?: string;
   name?: string; // alias for targetName
@@ -40,6 +41,7 @@ export interface PageDealStatus {
 export interface AnalyzePageOptions {
   category?: string;
   provider?: string;
+  scrapeTargetId?: string;
   targetId?: string;
   targetName?: string;
   name?: string;
@@ -69,6 +71,7 @@ export function analyzePageDeals(
   listings: GiftCardListing[],
   {
     category = "eneba",
+    scrapeTargetId,
     targetId,
     targetName,
     name,
@@ -135,7 +138,8 @@ export function analyzePageDeals(
   return {
     scrapedAt: scrapedAtIso,
     category,
-    targetId,
+    scrapeTargetId: scrapeTargetId || targetId,
+    targetId: scrapeTargetId || targetId,
     targetName: resolvedTargetName,
     name: resolvedTargetName,
     pageUrl,

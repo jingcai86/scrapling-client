@@ -80,8 +80,8 @@ function createInMemoryConfigPool(): {
         }
       }
 
-      // Scraping Target Pages table queries (scrapling.target_pages / scrapling.targets)
-      if (lower.includes("scrapling.target_pages") || lower.includes("scrapling.targets") || lower.includes("scrapling.scrape_pages")) {
+      // Scraping Targets table queries (scrapling.scrape_targets / scrapling.target_pages / scrapling.targets)
+      if (lower.includes("scrapling.scrape_targets") || lower.includes("scrapling.target_pages") || lower.includes("scrapling.targets") || lower.includes("scrapling.scrape_pages")) {
         if (lower.includes("insert into") || lower.includes("on conflict")) {
           const id = String(sqlParams[0] ?? "");
           const category = String(sqlParams[1] ?? "eneba");

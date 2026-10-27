@@ -14,6 +14,7 @@ import {
 
 export interface G2aGiftCardScraperOptions {
   category?: string; // site name: "g2a"
+  scrapeTargetId?: string;
   targetId?: string;
   targetName?: string;
   categoryName?: string;
@@ -29,6 +30,7 @@ const G2A_PRODUCT_CARD_SELECTOR = "div[class*='indexes__StyledCard'], li[class*=
  */
 export class G2aGiftCardScraper {
   public readonly siteCategory: string;
+  public readonly scrapeTargetId: string;
   public readonly targetId: string;
   public readonly targetName: string;
   public readonly categoryName: string;
@@ -37,6 +39,7 @@ export class G2aGiftCardScraper {
 
   constructor({
     category = "g2a",
+    scrapeTargetId,
     targetId = "g2a-amazon-gift-cards",
     targetName,
     categoryName = "Amazon Gift Cards (G2A)",
@@ -44,7 +47,8 @@ export class G2aGiftCardScraper {
     client,
   }: G2aGiftCardScraperOptions = {}) {
     this.siteCategory = category;
-    this.targetId = targetId;
+    this.scrapeTargetId = scrapeTargetId ?? targetId;
+    this.targetId = this.scrapeTargetId;
     this.targetName = targetName ?? categoryName;
     this.categoryName = this.targetName;
     this.categoryUrl = categoryUrl;
@@ -119,6 +123,7 @@ export class G2aGiftCardScraper {
 
         listings.push({
           category: this.siteCategory,
+          scrapeTargetId: this.scrapeTargetId,
           targetId: this.targetId,
           targetName: this.targetName,
           title,
@@ -233,6 +238,7 @@ export class G2aGiftCardScraper {
     const listings = await this.scrapePage({ page, useStealth });
     const status = analyzePageDeals(listings, {
       category: this.siteCategory,
+      scrapeTargetId: this.scrapeTargetId,
       targetId: this.targetId,
       targetName: this.targetName,
       pageUrl: this.categoryUrl,

@@ -71,6 +71,13 @@
       "when": 1793097000000,
       "tag": "0009_drop_is_lowest_price",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793100000000,
+      "tag": "0010_rename_to_scrape_targets",
+      "breakpoints": true
     }
   ]
 }

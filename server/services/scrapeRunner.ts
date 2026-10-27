@@ -114,7 +114,7 @@ export class ScrapeRunner {
       const dbStatuses = await fetchLatestEnebaStatusesFromDb();
       if (dbStatuses.length > 0) {
         for (const st of dbStatuses) {
-          const key = st.targetId || st.targetName || st.category;
+          const key = st.scrapeTargetId || st.targetId || st.targetName || st.category;
           const existing = this.statusesByCategory.get(key);
           if (
             !existing ||
@@ -268,6 +268,7 @@ export class ScrapeRunner {
           case "g2a":
             scraper = new G2aGiftCardScraper({
               category: "g2a",
+              scrapeTargetId: pageCfg.id,
               targetId: pageCfg.id,
               targetName: pageCfg.name || pageCfg.categoryName,
               categoryUrl: pageCfg.url,
@@ -278,6 +279,7 @@ export class ScrapeRunner {
           default:
             scraper = new EnebaGiftCardScraper({
               category: "eneba",
+              scrapeTargetId: pageCfg.id,
               targetId: pageCfg.id,
               targetName: pageCfg.name || pageCfg.categoryName,
               categoryUrl: pageCfg.url,
@@ -293,7 +295,13 @@ export class ScrapeRunner {
         });
 
         scrapedResults.push(status);
-        this.statusesByCategory.set(status.targetId || status.targetName || status.category, status);
+        this.statusesByCategory.set(
+          status.scrapeTargetId ||
+            status.targetId ||
+            status.targetName ||
+            status.category,
+          status,
+        );
         this.completedPages = i + 1;
 
         const best = status.bestEffectiveDeal || status.bestDeal;

@@ -98,26 +98,37 @@ ALTER TABLE scrapling.records DROP COLUMN IF EXISTS is_featured_offer;
 DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_category_time;
 DO $$
 BEGIN
-  -- Rename targets to target_pages if present
+  -- Rename targets / target_pages to scrape_targets if present
   IF EXISTS (
     SELECT 1 FROM information_schema.tables 
     WHERE table_schema = 'scrapling' AND table_name = 'targets'
   ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
   ) THEN
-    ALTER TABLE scrapling.targets RENAME TO target_pages;
+    ALTER TABLE scrapling.targets RENAME TO scrape_targets;
   END IF;
-
-  DROP TABLE IF EXISTS scrapling.targets CASCADE;
 
   IF EXISTS (
     SELECT 1 FROM information_schema.tables 
     WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
   ) THEN
-    ALTER TABLE scrapling.target_pages DROP COLUMN IF EXISTS with_offers;
-    ALTER TABLE scrapling.target_pages ALTER COLUMN name DROP NOT NULL;
-    ALTER TABLE scrapling.target_pages ALTER COLUMN name SET DEFAULT '';
+    ALTER TABLE scrapling.target_pages RENAME TO scrape_targets;
+  END IF;
+
+  DROP TABLE IF EXISTS scrapling.targets CASCADE;
+  DROP TABLE IF EXISTS scrapling.target_pages CASCADE;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
+  ) THEN
+    ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS with_offers;
+    ALTER TABLE scrapling.scrape_targets ALTER COLUMN name DROP NOT NULL;
+    ALTER TABLE scrapling.scrape_targets ALTER COLUMN name SET DEFAULT '';
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs' AND column_name = 'category') THEN
     UPDATE scrapling.scrape_runs SET provider = category WHERE (provider IS NULL OR provider = '') AND category IS NOT NULL;
@@ -134,9 +145,14 @@ BEGIN
     ALTER TABLE scrapling.records RENAME COLUMN category TO provider;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'category')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'provider') THEN
-    ALTER TABLE scrapling.targets RENAME COLUMN category TO provider;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'records' AND column_name = 'target_id')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'records' AND column_name = 'scrape_target_id') THEN
+    ALTER TABLE scrapling.records RENAME COLUMN target_id TO scrape_target_id;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.scrape_targets RENAME COLUMN category TO provider;
   END IF;
 
   -- Ensure targets.id and foreign keys are UUID
@@ -173,13 +189,9 @@ BEGIN
     ALTER TABLE scrapling.targets ADD PRIMARY KEY (id);
     ALTER TABLE scrapling.targets ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
-    ALTER TABLE scrapling.scrape_runs
-      ADD CONSTRAINT scrape_runs_target_id_targets_id_fk
-      FOREIGN KEY (target_id) REFERENCES scrapling.target_pages(id) ON DELETE SET NULL;
-
     ALTER TABLE scrapling.records
-      ADD CONSTRAINT records_target_id_targets_id_fk
-      FOREIGN KEY (target_id) REFERENCES scrapling.target_pages(id) ON DELETE SET NULL;
+      ADD CONSTRAINT records_scrape_target_id_scrape_targets_id_fk
+      FOREIGN KEY (scrape_target_id) REFERENCES scrapling.scrape_targets(id) ON DELETE SET NULL;
   END IF;
 
   -- Ensure products.id and records.product_id are UUID
@@ -312,9 +324,9 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
--- 3. Monitored Scraping Target Pages Table
+-- 3. Monitored Scraping Targets Table
 -- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS scrapling.target_pages (
+CREATE TABLE IF NOT EXISTS scrapling.scrape_targets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   provider TEXT NOT NULL DEFAULT 'eneba',
   name TEXT DEFAULT '',
@@ -325,8 +337,8 @@ CREATE TABLE IF NOT EXISTS scrapling.target_pages (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Seed default initial target pages
-INSERT INTO scrapling.target_pages (id, provider, name, url, enabled, schedule_id, created_at, updated_at)
+-- Seed default initial scrape targets
+INSERT INTO scrapling.scrape_targets (id, provider, name, url, enabled, schedule_id, created_at, updated_at)
 VALUES
   ('a1000000-0000-4000-8000-000000000001'::uuid, 'eneba', 'PlayStation (PSN) Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network', true, 'default', NOW(), NOW()),
   ('a1000000-0000-4000-8000-000000000002'::uuid, 'eneba', 'Apple iTunes / App Store Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes', true, 'default', NOW(), NOW()),
@@ -389,7 +401,7 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL,
   scrape_run_id UUID REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
-  target_id UUID REFERENCES scrapling.target_pages(id) ON DELETE SET NULL,
+  scrape_target_id UUID REFERENCES scrapling.scrape_targets(id) ON DELETE SET NULL,
   product_id UUID REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
   provider TEXT NOT NULL DEFAULT 'eneba',
@@ -426,8 +438,8 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_records_scrape_run_id
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_provider_time
   ON scrapling.records (provider, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_records_target_time
-  ON scrapling.records (target_id, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_scrape_target_time
+  ON scrapling.records (scrape_target_id, scraped_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_batch_id
   ON scrapling.records (batch_id);

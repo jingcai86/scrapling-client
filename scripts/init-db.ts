@@ -66,7 +66,7 @@ async function main() {
 
     console.log("⏳ Synchronizing schedulers and scraping targets...");
     await syncSchedulersAndTargetsOnStartup({ pool });
-    console.log("✔ Synced scrapling.schedulers and scrapling.target_pages in PostgreSQL");
+    console.log("✔ Synced scrapling.schedulers and scrapling.scrape_targets in PostgreSQL");
 
     const tablesRes = await pool.query<{
       table_name: string;

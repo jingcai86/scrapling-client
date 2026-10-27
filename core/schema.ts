@@ -52,9 +52,9 @@ export const scraplingSchedulers = scraplingSchema.table("schedulers", {
 });
 
 /**
- * 2c. Monitored Scraping Target Pages and Provider Mappings (`scrapling.target_pages`)
+ * 2c. Monitored Scraping Targets and Provider Mappings (`scrapling.scrape_targets`)
  */
-export const scraplingTargetPages = scraplingSchema.table("target_pages", {
+export const scraplingScrapeTargets = scraplingSchema.table("scrape_targets", {
   id: uuid("id").primaryKey().defaultRandom(),
   provider: text("provider").notNull().default("eneba"), // scraper provider (e.g. 'eneba', 'g2a')
   name: text("name").default(""), // display title (e.g. 'PlayStation (PSN) Gift Cards')
@@ -69,7 +69,8 @@ export const scraplingTargetPages = scraplingSchema.table("target_pages", {
     .defaultNow(),
 });
 
-export const scraplingTargets = scraplingTargetPages; // backward-compatibility alias
+export const scraplingTargetPages = scraplingScrapeTargets; // backward-compatibility alias
+export const scraplingTargets = scraplingScrapeTargets; // backward-compatibility alias
 
 /**
  * 3. Normalized Catalog of Unique Gift Card Products (`scrapling.products`)
@@ -167,9 +168,10 @@ export const scraplingRecords = scraplingSchema.table(
       () => scraplingScrapeRuns.id,
       { onDelete: "cascade" },
     ),
-    targetId: uuid("target_id").references(() => scraplingTargets.id, {
-      onDelete: "set null",
-    }),
+    scrapeTargetId: uuid("scrape_target_id").references(
+      () => scraplingScrapeTargets.id,
+      { onDelete: "set null" },
+    ),
     productId: uuid("product_id").references(
       () => scraplingProducts.id,
       { onDelete: "set null" },
@@ -217,8 +219,8 @@ export const scraplingRecords = scraplingSchema.table(
       table.provider,
       table.scrapedAt,
     ),
-    index("idx_scrapling_records_target_time").on(
-      table.targetId,
+    index("idx_scrapling_records_scrape_target_time").on(
+      table.scrapeTargetId,
       table.scrapedAt,
     ),
     index("idx_scrapling_records_batch_id").on(table.batchId),
@@ -277,9 +279,9 @@ export const scraplingRecordsRelations = relations(
       fields: [scraplingRecords.sellerId],
       references: [scraplingSellers.id],
     }),
-    target: one(scraplingTargets, {
-      fields: [scraplingRecords.targetId],
-      references: [scraplingTargets.id],
+    target: one(scraplingScrapeTargets, {
+      fields: [scraplingRecords.scrapeTargetId],
+      references: [scraplingScrapeTargets.id],
     }),
   }),
 );

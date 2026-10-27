@@ -24,6 +24,7 @@ export interface SellerOffer {
 
 export interface GiftCardListing {
   category: string; // site name: "eneba", "g2a"
+  scrapeTargetId?: string;
   targetId?: string;
   targetName?: string;
   title: string;
@@ -183,6 +184,7 @@ export function buildPageUrl(baseUrl: string, page = 1): string {
 
 export interface EnebaGiftCardScraperOptions {
   category?: string; // site name: "eneba"
+  scrapeTargetId?: string;
   targetId?: string;
   targetName?: string;
   categoryName?: string; // display title (e.g. "PlayStation (PSN) Gift Cards")
@@ -195,6 +197,7 @@ export interface EnebaGiftCardScraperOptions {
  */
 export class EnebaGiftCardScraper {
   public readonly siteCategory: string;
+  public readonly scrapeTargetId: string;
   public readonly targetId: string;
   public readonly targetName: string;
   public readonly categoryName: string;
@@ -203,6 +206,7 @@ export class EnebaGiftCardScraper {
 
   constructor({
     category = "eneba",
+    scrapeTargetId,
     targetId = "",
     targetName,
     categoryName,
@@ -212,7 +216,8 @@ export class EnebaGiftCardScraper {
     this.siteCategory = category;
     this.targetName = targetName ?? categoryName ?? "Eneba Gift Cards";
     this.categoryName = this.targetName;
-    this.targetId = targetId;
+    this.scrapeTargetId = scrapeTargetId ?? targetId;
+    this.targetId = this.scrapeTargetId;
     this.categoryUrl = categoryUrl;
     this.client = client ?? new ScraplingClient();
   }
@@ -365,6 +370,7 @@ export class EnebaGiftCardScraper {
 
     return {
       category: this.siteCategory,
+      scrapeTargetId: this.scrapeTargetId,
       targetId: this.targetId,
       targetName: this.targetName,
       title,
@@ -547,6 +553,7 @@ export class EnebaGiftCardScraper {
     const listings = await this.scrapePage({ page, useStealth });
     const initialStatus = analyzePageDeals(listings, {
       category: this.siteCategory,
+      scrapeTargetId: this.scrapeTargetId,
       targetId: this.targetId,
       targetName: this.targetName,
       pageUrl: buildPageUrl(this.categoryUrl, page),
@@ -581,6 +588,7 @@ export class EnebaGiftCardScraper {
 
     return analyzePageDeals(listings, {
       category: this.siteCategory,
+      scrapeTargetId: this.scrapeTargetId,
       targetId: this.targetId,
       targetName: this.targetName,
       pageUrl: buildPageUrl(this.categoryUrl, page),

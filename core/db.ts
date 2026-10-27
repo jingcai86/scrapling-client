@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS scrapling.schedulers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS scrapling.target_pages (
+CREATE TABLE IF NOT EXISTS scrapling.scrape_targets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   provider TEXT NOT NULL DEFAULT 'eneba',
   name TEXT DEFAULT '',
@@ -122,25 +122,36 @@ BEGIN
     WHERE table_schema = 'scrapling' AND table_name = 'targets'
   ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
   ) THEN
-    ALTER TABLE scrapling.targets RENAME TO target_pages;
+    ALTER TABLE scrapling.targets RENAME TO scrape_targets;
   END IF;
-
-  DROP TABLE IF EXISTS scrapling.targets CASCADE;
 
   IF EXISTS (
     SELECT 1 FROM information_schema.tables 
     WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
   ) THEN
-    ALTER TABLE scrapling.target_pages DROP COLUMN IF EXISTS with_offers;
-    ALTER TABLE scrapling.target_pages ALTER COLUMN name DROP NOT NULL;
-    ALTER TABLE scrapling.target_pages ALTER COLUMN name SET DEFAULT '';
+    ALTER TABLE scrapling.target_pages RENAME TO scrape_targets;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'target_pages' AND column_name = 'category')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'target_pages' AND column_name = 'provider') THEN
-    ALTER TABLE scrapling.target_pages RENAME COLUMN category TO provider;
+  DROP TABLE IF EXISTS scrapling.targets CASCADE;
+  DROP TABLE IF EXISTS scrapling.target_pages CASCADE;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
+  ) THEN
+    ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS with_offers;
+    ALTER TABLE scrapling.scrape_targets ALTER COLUMN name DROP NOT NULL;
+    ALTER TABLE scrapling.scrape_targets ALTER COLUMN name SET DEFAULT '';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.scrape_targets RENAME COLUMN category TO provider;
   END IF;
 END $$;
 `;
@@ -507,7 +518,7 @@ export async function deleteDbScheduler(
     await ensureScraplingConfigTable(p);
     await p.query("DELETE FROM scrapling.schedulers WHERE id = $1", [id]);
     await p.query(
-      "UPDATE scrapling.target_pages SET schedule_id = 'default', updated_at = NOW() WHERE schedule_id = $1",
+      "UPDATE scrapling.scrape_targets SET schedule_id = 'default', updated_at = NOW() WHERE schedule_id = $1",
       [id],
     );
   } finally {
@@ -516,7 +527,7 @@ export async function deleteDbScheduler(
 }
 
 /**
- * Loads all configured scrape target pages from `scrapling.target_pages`.
+ * Loads all configured scrape target pages from `scrapling.scrape_targets`.
  */
 export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
   const ownPool = !pool;
@@ -531,7 +542,7 @@ export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
       enabled: boolean;
       schedule_id: string;
       created_at: Date;
-    }>("SELECT id, provider, name, url, enabled, schedule_id, created_at FROM scrapling.target_pages ORDER BY created_at ASC");
+    }>("SELECT id, provider, name, url, enabled, schedule_id, created_at FROM scrapling.scrape_targets ORDER BY created_at ASC");
     return res.rows.map((r) => ({
       id: r.id,
       provider: r.provider || "eneba",
@@ -550,7 +561,7 @@ export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
 export const getDbTargetPages = getDbTargets;
 
 /**
- * Upserts a scrape target page into `scrapling.target_pages`.
+ * Upserts a scrape target page into `scrapling.scrape_targets`.
  */
 export async function upsertDbTarget(
   target: TargetDbItem,
@@ -562,7 +573,7 @@ export async function upsertDbTarget(
     await ensureScraplingConfigTable(p);
     const provider = target.provider || target.category || "eneba";
     await p.query(
-      `INSERT INTO scrapling.target_pages (id, provider, name, url, enabled, schedule_id, created_at, updated_at)
+      `INSERT INTO scrapling.scrape_targets (id, provider, name, url, enabled, schedule_id, created_at, updated_at)
        VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, COALESCE($3, ''), $4, $5, $6, COALESCE($7::timestamptz, NOW()), NOW())
        ON CONFLICT (id) DO UPDATE SET
          provider = EXCLUDED.provider,
@@ -588,7 +599,7 @@ export async function upsertDbTarget(
 export const upsertDbTargetPage = upsertDbTarget;
 
 /**
- * Deletes a scrape target page from `scrapling.target_pages`.
+ * Deletes a scrape target page from `scrapling.scrape_targets`.
  */
 export async function deleteDbTarget(
   id: string,
@@ -598,7 +609,7 @@ export async function deleteDbTarget(
   const p = pool ?? createPgPool();
   try {
     await ensureScraplingConfigTable(p);
-    await p.query("DELETE FROM scrapling.target_pages WHERE id = $1", [id]);
+    await p.query("DELETE FROM scrapling.scrape_targets WHERE id = $1", [id]);
   } finally {
     if (ownPool) await p.end();
   }

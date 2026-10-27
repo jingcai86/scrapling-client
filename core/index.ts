@@ -51,6 +51,7 @@ export {
   scraplingRecords,
   scraplingSchedulers,
   scraplingScrapeRuns,
+  scraplingScrapeTargets,
   scraplingSellers,
   scraplingTargetPages,
   scraplingTargets,

@@ -282,10 +282,10 @@ export async function searchDeals(
         !from && !to
           ? `
           WITH latest_runs AS (
-            SELECT DISTINCT ON (r.target_id) r.scrape_run_id AS id
+            SELECT DISTINCT ON (r.scrape_target_id) r.scrape_run_id AS id
             FROM scrapling.records r
-            WHERE r.target_id IS NOT NULL
-            ORDER BY r.target_id, r.scraped_at DESC
+            WHERE r.scrape_target_id IS NOT NULL
+            ORDER BY r.scrape_target_id, r.scraped_at DESC
           )
           SELECT
             r.scrape_run_id,
@@ -293,7 +293,7 @@ export async function searchDeals(
             r.scraped_at,
             r.rank,
             r.provider,
-            r.target_id,
+            r.scrape_target_id,
             COALESCE(t.name, r.provider) AS target_name,
             r.title,
             r.url,
@@ -312,7 +312,7 @@ export async function searchDeals(
             s.rating_label
           FROM scrapling.records r
           JOIN latest_runs lr ON lr.id = r.scrape_run_id
-          LEFT JOIN scrapling.target_pages t ON t.id = r.target_id
+          LEFT JOIN scrapling.scrape_targets t ON t.id = r.scrape_target_id
           LEFT JOIN scrapling.sellers s ON s.id = r.seller_id
           ${whereClause}
           ORDER BY r.discount_pct DESC, r.savings_amount DESC, r.scraped_at DESC
@@ -324,7 +324,7 @@ export async function searchDeals(
             r.scraped_at,
             r.rank,
             r.provider,
-            r.target_id,
+            r.scrape_target_id,
             COALESCE(t.name, r.provider) AS target_name,
             r.title,
             r.url,
@@ -342,7 +342,7 @@ export async function searchDeals(
             s.rating_pct,
             s.rating_label
           FROM scrapling.records r
-          LEFT JOIN scrapling.target_pages t ON t.id = r.target_id
+          LEFT JOIN scrapling.scrape_targets t ON t.id = r.scrape_target_id
           LEFT JOIN scrapling.sellers s ON s.id = r.seller_id
           ${whereClause}
           ORDER BY r.discount_pct DESC, r.savings_amount DESC, r.scraped_at DESC
@@ -355,7 +355,7 @@ export async function searchDeals(
         scraped_at: Date;
         rank: number;
         provider: string;
-        target_id: string | null;
+        scrape_target_id: string | null;
         target_name: string;
         title: string;
         url: string;

@@ -11,6 +11,7 @@ import {
   scraplingProducts,
   scraplingRecords,
   scraplingScrapeRuns,
+  scraplingScrapeTargets,
   scraplingSellers,
   scraplingTargets,
   TerminalSpinner,
@@ -69,26 +70,37 @@ BEGIN
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS cashback_pct;
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS is_featured_offer;
 
-  -- Rename targets to target_pages if present
+  -- Rename targets / target_pages to scrape_targets if present
   IF EXISTS (
     SELECT 1 FROM information_schema.tables 
     WHERE table_schema = 'scrapling' AND table_name = 'targets'
   ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
   ) THEN
-    ALTER TABLE scrapling.targets RENAME TO target_pages;
+    ALTER TABLE scrapling.targets RENAME TO scrape_targets;
   END IF;
-
-  DROP TABLE IF EXISTS scrapling.targets CASCADE;
 
   IF EXISTS (
     SELECT 1 FROM information_schema.tables 
     WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
   ) THEN
-    ALTER TABLE scrapling.target_pages DROP COLUMN IF EXISTS with_offers;
-    ALTER TABLE scrapling.target_pages ALTER COLUMN name DROP NOT NULL;
-    ALTER TABLE scrapling.target_pages ALTER COLUMN name SET DEFAULT '';
+    ALTER TABLE scrapling.target_pages RENAME TO scrape_targets;
+  END IF;
+
+  DROP TABLE IF EXISTS scrapling.targets CASCADE;
+  DROP TABLE IF EXISTS scrapling.target_pages CASCADE;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
+  ) THEN
+    ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS with_offers;
+    ALTER TABLE scrapling.scrape_targets ALTER COLUMN name DROP NOT NULL;
+    ALTER TABLE scrapling.scrape_targets ALTER COLUMN name SET DEFAULT '';
   END IF;
 
   -- Ensure products.id and records.product_id are UUID
@@ -242,7 +254,7 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL,
   scrape_run_id UUID REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
-  target_id UUID REFERENCES scrapling.target_pages(id) ON DELETE SET NULL,
+  scrape_target_id UUID REFERENCES scrapling.scrape_targets(id) ON DELETE SET NULL,
   product_id UUID REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
   provider TEXT NOT NULL DEFAULT 'eneba',
@@ -277,8 +289,8 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_records_scrape_run_id
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_provider_time
   ON scrapling.records (provider, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_records_target_time
-  ON scrapling.records (target_id, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_scrape_target_time
+  ON scrapling.records (scrape_target_id, scraped_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_batch_id
   ON scrapling.records (batch_id);
@@ -318,9 +330,14 @@ BEGIN
     ALTER TABLE scrapling.records RENAME COLUMN category TO provider;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'target_pages' AND column_name = 'category')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'target_pages' AND column_name = 'provider') THEN
-    ALTER TABLE scrapling.target_pages RENAME COLUMN category TO provider;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'records' AND column_name = 'target_id')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'records' AND column_name = 'scrape_target_id') THEN
+    ALTER TABLE scrapling.records RENAME COLUMN target_id TO scrape_target_id;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.scrape_targets RENAME COLUMN category TO provider;
   END IF;
 END $$;
 `;
@@ -600,7 +617,11 @@ export async function savePageDealsToDb(
           Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
 
         const target = targetRes[0];
-        const targetId = target?.id ?? (isValidUuid(status.targetId) ? status.targetId! : null);
+        const scrapeTargetId =
+          target?.id ??
+          (isValidUuid(status.targetId || (status as any).scrapeTargetId)
+            ? (status.targetId || (status as any).scrapeTargetId)!
+            : null);
         const targetName =
           target?.name ??
           status.targetName ??
@@ -743,7 +764,7 @@ export async function savePageDealsToDb(
               await tx.insert(scraplingRecords).values({
                 batchId,
                 scrapeRunId,
-                targetId,
+                scrapeTargetId,
                 productId,
                 sellerId,
                 provider: siteProvider,
@@ -776,7 +797,7 @@ export async function savePageDealsToDb(
             await tx.insert(scraplingRecords).values({
               batchId,
               scrapeRunId,
-              targetId,
+              scrapeTargetId,
               productId,
               sellerId: null,
               provider: siteProvider,
@@ -940,7 +961,7 @@ export async function saveProductOffersToDb(
           await tx.insert(scraplingRecords).values({
             batchId: latestRecord.batchId,
             scrapeRunId: latestRecord.scrapeRunId,
-            targetId: latestRecord.targetId,
+            scrapeTargetId: latestRecord.scrapeTargetId,
             productId,
             sellerId,
             provider: latestRecord.provider,
@@ -1091,9 +1112,9 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
     const db: ScraplingDb = createDrizzleDb(pool);
 
     const runsWithTargets = await db
-      .selectDistinctOn([scraplingRecords.targetId], {
+      .selectDistinctOn([scraplingRecords.scrapeTargetId], {
         run: scraplingScrapeRuns,
-        target: scraplingTargets,
+        target: scraplingScrapeTargets,
       })
       .from(scraplingRecords)
       .innerJoin(
@@ -1101,11 +1122,11 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         eq(scraplingRecords.scrapeRunId, scraplingScrapeRuns.id),
       )
       .leftJoin(
-        scraplingTargets,
-        eq(scraplingRecords.targetId, scraplingTargets.id),
+        scraplingScrapeTargets,
+        eq(scraplingRecords.scrapeTargetId, scraplingScrapeTargets.id),
       )
-      .where(sql`${scraplingRecords.targetId} IS NOT NULL`)
-      .orderBy(scraplingRecords.targetId, desc(scraplingRecords.scrapedAt));
+      .where(sql`${scraplingRecords.scrapeTargetId} IS NOT NULL`)
+      .orderBy(scraplingRecords.scrapeTargetId, desc(scraplingRecords.scrapedAt));
 
     const statuses: PageDealStatus[] = [];
 
@@ -1132,7 +1153,8 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
       const rankedDeals = records.map(({ record: d }) => ({
         rank: Number(d.rank ?? 1),
         category: d.provider,
-        targetId: d.targetId ?? target?.id ?? undefined,
+        scrapeTargetId: d.scrapeTargetId ?? target?.id ?? undefined,
+        targetId: d.scrapeTargetId ?? target?.id ?? undefined,
         targetName: targetTitle,
         title: d.title,
         url: d.url,
@@ -1175,6 +1197,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
 
       statuses.push({
         category: provider,
+        scrapeTargetId: target?.id ?? undefined,
         targetId: target?.id ?? undefined,
         targetName: targetTitle,
         name: targetTitle,
@@ -1309,8 +1332,8 @@ export async function fetchScrapeHistoryFromDb(
             eq(scraplingRecords.sellerId, scraplingSellers.id),
           )
           .leftJoin(
-            scraplingTargets,
-            eq(scraplingRecords.targetId, scraplingTargets.id),
+            scraplingScrapeTargets,
+            eq(scraplingRecords.scrapeTargetId, scraplingScrapeTargets.id),
           )
           .where(inArray(scraplingRecords.batchId, batchIds))
           .orderBy(scraplingRecords.batchId, desc(scraplingRecords.discountPct));
