@@ -142,7 +142,35 @@ export class ScrapeRunner {
             ? (existing.targetName || existing.name)
             : (status.targetName || existing.targetName);
 
-        if (stTime < exTime) {
+        const existingHasData =
+          existing.totalListings > 0 ||
+          Boolean(existing.bestDeal) ||
+          (existing.rankedDeals && existing.rankedDeals.length > 0);
+        const statusHasData =
+          status.totalListings > 0 ||
+          Boolean(status.bestDeal) ||
+          (status.rankedDeals && status.rankedDeals.length > 0);
+
+        if (!statusHasData && existingHasData) {
+          status = {
+            ...status,
+            totalListings: existing.totalListings,
+            inStockCount: existing.inStockCount,
+            discountedCount: existing.discountedCount,
+            averageDiscountPctAllInStock: existing.averageDiscountPctAllInStock,
+            bestDeal: existing.bestDeal,
+            bestEffectiveDeal: existing.bestEffectiveDeal,
+            rankedDeals: existing.rankedDeals,
+            topDeals: existing.topDeals,
+            bestDealOffers: existing.bestDealOffers,
+            scrapeTargetId: status.scrapeTargetId || existing.scrapeTargetId,
+            targetId: status.targetId || existing.targetId,
+            targetName: bestName || status.targetName || existing.targetName,
+            name: bestName || status.name || existing.name,
+            provider: stProvider,
+            category: stProvider,
+          };
+        } else if (stTime < exTime) {
           status = {
             ...status,
             ...existing,
@@ -163,6 +191,15 @@ export class ScrapeRunner {
             name: bestName || status.name || existing.name,
             provider: stProvider,
             category: stProvider,
+            totalListings: !statusHasData && existingHasData ? existing.totalListings : status.totalListings,
+            inStockCount: !statusHasData && existingHasData ? existing.inStockCount : status.inStockCount,
+            discountedCount: !statusHasData && existingHasData ? existing.discountedCount : status.discountedCount,
+            averageDiscountPctAllInStock: !statusHasData && existingHasData ? existing.averageDiscountPctAllInStock : status.averageDiscountPctAllInStock,
+            bestDeal: status.bestDeal || existing.bestDeal,
+            bestEffectiveDeal: status.bestEffectiveDeal || existing.bestEffectiveDeal,
+            bestDealOffers: status.bestDealOffers?.length ? status.bestDealOffers : existing.bestDealOffers,
+            rankedDeals: status.rankedDeals?.length ? status.rankedDeals : existing.rankedDeals,
+            topDeals: status.topDeals?.length ? status.topDeals : existing.topDeals,
           };
         }
       }
@@ -468,6 +505,39 @@ export class ScrapeRunner {
         }
       }
 
+      // Ensure all active providers have their latest best deal captured in bestDealsByProvider
+      for (const st of this.getLatestStatuses()) {
+        const prov = getCanonicalProvider(st);
+        if (!bestDealsByProvider[prov]) {
+          const top = st.bestDeal || st.bestEffectiveDeal || st.rankedDeals?.[0];
+          if (top) {
+            const seller =
+              st.bestDealOffers?.[0]?.sellerName ||
+              top.offers?.[0]?.sellerName ||
+              (top as any).lowestSellerName ||
+              "Top Merchant";
+            bestDealsByProvider[prov] = {
+              title: top.title,
+              category: st.targetName || st.name || st.category,
+              provider: prov,
+              sellerName: seller,
+              cost: top.sellingPrice ?? 0,
+              faceValue: top.faceValue ?? top.originalPrice ?? 0,
+              discountPct: top.discountPct,
+              url: top.url,
+            };
+          }
+        }
+      }
+
+      if (!bestItem) {
+        const remainingDeals = Object.values(bestDealsByProvider);
+        if (remainingDeals.length > 0) {
+          remainingDeals.sort((a, b) => b.discountPct - a.discountPct);
+          bestItem = remainingDeals[0];
+        }
+      }
+
       const historyItem: ScrapeHistoryItem = {
         id: dbStatus?.batchId || crypto.randomUUID(),
         provider: options.provider || (targetPages.length === 1 ? getCanonicalProvider(targetPages[0]) : undefined),
@@ -542,6 +612,39 @@ export class ScrapeRunner {
         if ((top.discountPct ?? 0) > highestDiscount) {
           highestDiscount = top.discountPct;
           bestItem = provItem;
+        }
+      }
+
+      // Ensure all active providers have their latest best deal captured in bestDealsByProvider
+      for (const st of this.getLatestStatuses()) {
+        const prov = getCanonicalProvider(st);
+        if (!bestDealsByProvider[prov]) {
+          const top = st.bestDeal || st.bestEffectiveDeal || st.rankedDeals?.[0];
+          if (top) {
+            const seller =
+              st.bestDealOffers?.[0]?.sellerName ||
+              top.offers?.[0]?.sellerName ||
+              (top as any).lowestSellerName ||
+              "Top Merchant";
+            bestDealsByProvider[prov] = {
+              title: top.title,
+              category: st.targetName || st.name || st.category,
+              provider: prov,
+              sellerName: seller,
+              cost: top.sellingPrice ?? 0,
+              faceValue: top.faceValue ?? top.originalPrice ?? 0,
+              discountPct: top.discountPct,
+              url: top.url,
+            };
+          }
+        }
+      }
+
+      if (!bestItem) {
+        const remainingDeals = Object.values(bestDealsByProvider);
+        if (remainingDeals.length > 0) {
+          remainingDeals.sort((a, b) => b.discountPct - a.discountPct);
+          bestItem = remainingDeals[0];
         }
       }
 

@@ -1171,7 +1171,12 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         })
         .from(scraplingRecords)
         .leftJoin(scraplingSellers, eq(scraplingRecords.sellerId, scraplingSellers.id))
-        .where(eq(scraplingRecords.scrapeRunId, run.id))
+        .where(
+          and(
+            eq(scraplingRecords.scrapeRunId, run.id),
+            target?.id ? eq(scraplingRecords.scrapeTargetId, target.id) : sql`true`,
+          ),
+        )
         .orderBy(asc(scraplingRecords.rank));
 
       const provider = target?.provider || records[0]?.record.provider || "eneba";

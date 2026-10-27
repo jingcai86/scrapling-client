@@ -1276,10 +1276,29 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
             ? (deduplicatedStatuses[exIdx].targetName || deduplicatedStatuses[exIdx].name)
             : (st.targetName || deduplicatedStatuses[exIdx].targetName);
 
+        const exHasData =
+          deduplicatedStatuses[exIdx].totalListings > 0 ||
+          Boolean(deduplicatedStatuses[exIdx].bestDeal) ||
+          Boolean(deduplicatedStatuses[exIdx].rankedDeals && deduplicatedStatuses[exIdx].rankedDeals.length > 0);
+        const stHasData =
+          st.totalListings > 0 ||
+          Boolean(st.bestDeal) ||
+          Boolean(st.rankedDeals && st.rankedDeals.length > 0);
+        const preserveExisting = !stHasData && exHasData;
+
         if (stTime >= exTime) {
           deduplicatedStatuses[exIdx] = {
             ...deduplicatedStatuses[exIdx],
             ...st,
+            totalListings: preserveExisting ? deduplicatedStatuses[exIdx].totalListings : st.totalListings,
+            inStockCount: preserveExisting ? deduplicatedStatuses[exIdx].inStockCount : st.inStockCount,
+            discountedCount: preserveExisting ? deduplicatedStatuses[exIdx].discountedCount : st.discountedCount,
+            averageDiscountPctAllInStock: preserveExisting ? deduplicatedStatuses[exIdx].averageDiscountPctAllInStock : st.averageDiscountPctAllInStock,
+            bestDeal: st.bestDeal || deduplicatedStatuses[exIdx].bestDeal,
+            bestEffectiveDeal: st.bestEffectiveDeal || deduplicatedStatuses[exIdx].bestEffectiveDeal,
+            rankedDeals: st.rankedDeals?.length ? st.rankedDeals : deduplicatedStatuses[exIdx].rankedDeals,
+            topDeals: st.topDeals?.length ? st.topDeals : deduplicatedStatuses[exIdx].topDeals,
+            bestDealOffers: st.bestDealOffers?.length ? st.bestDealOffers : deduplicatedStatuses[exIdx].bestDealOffers,
             scrapeTargetId: st.scrapeTargetId || deduplicatedStatuses[exIdx].scrapeTargetId,
             targetId: st.targetId || deduplicatedStatuses[exIdx].targetId,
             targetName: bestName || st.targetName || deduplicatedStatuses[exIdx].targetName,
@@ -1310,6 +1329,9 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       const candidates = [...deals];
       if (st.bestDeal) {
         candidates.push(st.bestDeal);
+      }
+      if (st.bestEffectiveDeal) {
+        candidates.push(st.bestEffectiveDeal);
       }
       for (const d of candidates) {
         if (!d || !d.title) continue;
@@ -1944,7 +1966,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       xAxis: {
         type: 'category',
         data: categories,
-        boundaryGap: false,
+        boundaryGap: providerPoints.length <= 1,
         axisLine: {
           lineStyle: { color: isDark ? '#334155' : '#e2e8f0' },
         },

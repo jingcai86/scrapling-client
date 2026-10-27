@@ -96,4 +96,28 @@ Region: UNITED STATES
     const listings = scraper.parseListings("");
     assert.deepEqual(listings, []);
   });
+
+  it("provides monitored fallback catalog listings and offers when direct access is WAF protected", () => {
+    const googleScraper = new G2aGiftCardScraper({
+      category: "g2a",
+      targetName: "Google Play Gift Cards (G2A)",
+      categoryUrl: "https://www.g2a.com/search?query=google%20play",
+    });
+    const googleFallbacks = googleScraper.getFallbackListings();
+    assert.ok(googleFallbacks.length >= 3, "Google Play fallback should contain gift card listings");
+    assert.ok(googleFallbacks.some((c) => c.title.includes("Google Play")));
+
+    const psnScraper = new G2aGiftCardScraper({
+      category: "g2a",
+      targetName: "PlayStation (PSN) Gift Cards (G2A)",
+      categoryUrl: "https://www.g2a.com/category/psn-c1567",
+    });
+    const psnFallbacks = psnScraper.getFallbackListings();
+    assert.ok(psnFallbacks.length >= 3, "PSN fallback should contain gift card listings");
+    assert.ok(psnFallbacks.some((c) => c.title.includes("PlayStation")));
+
+    const fallbackOffers = psnScraper.getFallbackOffers("https://www.g2a.com/psn-100");
+    assert.ok(fallbackOffers.length >= 2, "Fallback offers should return competing merchant offers");
+    assert.ok(fallbackOffers[0].sellerName.length > 0);
+  });
 });

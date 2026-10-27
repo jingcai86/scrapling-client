@@ -442,20 +442,36 @@ export function deduplicatePageDealStatuses(
       const bestRanked = mergedDeals[0] ?? (stTime >= exTime ? st.bestDeal : result[existingIdx].bestDeal);
       const bestEff = mergedDeals[0] ?? (stTime >= exTime ? st.bestEffectiveDeal : result[existingIdx].bestEffectiveDeal);
 
+      const existingHasData =
+        (result[existingIdx].totalListings > 0) ||
+        Boolean(result[existingIdx].bestDeal) ||
+        Boolean(result[existingIdx].rankedDeals && result[existingIdx].rankedDeals.length > 0);
+      const stHasData =
+        (st.totalListings > 0) ||
+        Boolean(st.bestDeal) ||
+        Boolean(st.rankedDeals && st.rankedDeals.length > 0);
+
+      const preserveExistingMetrics = !stHasData && existingHasData;
+
       if (stTime >= exTime) {
         result[existingIdx] = {
           ...result[existingIdx],
           ...st,
+          totalListings: preserveExistingMetrics ? result[existingIdx].totalListings : st.totalListings,
+          inStockCount: preserveExistingMetrics ? result[existingIdx].inStockCount : st.inStockCount,
+          discountedCount: preserveExistingMetrics ? result[existingIdx].discountedCount : st.discountedCount,
+          averageDiscountPctAllInStock: preserveExistingMetrics ? result[existingIdx].averageDiscountPctAllInStock : st.averageDiscountPctAllInStock,
+          bestDealOffers: (st.bestDealOffers && st.bestDealOffers.length > 0) ? st.bestDealOffers : result[existingIdx].bestDealOffers,
           scrapeTargetId: st.scrapeTargetId || result[existingIdx].scrapeTargetId,
           targetId: st.targetId || result[existingIdx].targetId,
           targetName: bestName || st.targetName || result[existingIdx].targetName,
           name: bestName || st.name || result[existingIdx].name,
           provider: stProvider,
           category: stProvider,
-          rankedDeals: mergedDeals,
-          topDeals: mergedDeals.slice(0, 10).map((d, i) => ({ rank: i + 1, ...d })),
-          bestDeal: bestRanked,
-          bestEffectiveDeal: bestEff,
+          rankedDeals: mergedDeals.length > 0 ? mergedDeals : result[existingIdx].rankedDeals,
+          topDeals: mergedDeals.length > 0 ? mergedDeals.slice(0, 10).map((d, i) => ({ rank: i + 1, ...d })) : result[existingIdx].topDeals,
+          bestDeal: bestRanked || result[existingIdx].bestDeal,
+          bestEffectiveDeal: bestEff || result[existingIdx].bestEffectiveDeal,
         };
       } else {
         result[existingIdx] = {
@@ -467,10 +483,11 @@ export function deduplicatePageDealStatuses(
           name: bestName || result[existingIdx].name || st.name,
           provider: stProvider,
           category: stProvider,
-          rankedDeals: mergedDeals,
-          topDeals: mergedDeals.slice(0, 10).map((d, i) => ({ rank: i + 1, ...d })),
-          bestDeal: bestRanked,
-          bestEffectiveDeal: bestEff,
+          rankedDeals: mergedDeals.length > 0 ? mergedDeals : result[existingIdx].rankedDeals,
+          topDeals: mergedDeals.length > 0 ? mergedDeals.slice(0, 10).map((d, i) => ({ rank: i + 1, ...d })) : result[existingIdx].topDeals,
+          bestDeal: bestRanked || result[existingIdx].bestDeal,
+          bestEffectiveDeal: bestEff || result[existingIdx].bestEffectiveDeal,
+          bestDealOffers: (result[existingIdx].bestDealOffers && result[existingIdx].bestDealOffers.length > 0) ? result[existingIdx].bestDealOffers : st.bestDealOffers,
         };
       }
     }

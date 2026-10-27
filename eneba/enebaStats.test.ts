@@ -419,4 +419,84 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
     assert.equal(deduplicated[0].title, "Nintendo eShop Card 10 USD Key UNITED STATES");
     assert.equal(deduplicated[1].title, "Nintendo eShop Card 50 USD Key UNITED STATES");
   });
+
+  it("preserves previous valid listings and stats when a subsequent scrape is empty (e.g. WAF block)", () => {
+    const previousWorkingStatus: PageDealStatus = {
+      scrapedAt: "2026-10-27T08:00:00.000Z",
+      category: "g2a",
+      provider: "g2a",
+      scrapeTargetId: "a1000000-0000-4000-8000-000000000009",
+      targetId: "a1000000-0000-4000-8000-000000000009",
+      targetName: "PlayStation (PSN) Gift Cards (G2A)",
+      name: "PlayStation (PSN) Gift Cards (G2A)",
+      pageUrl: "https://www.g2a.com/category/psn-c1567",
+      pageNumber: 1,
+      totalListings: 4,
+      inStockCount: 4,
+      outOfStockCount: 0,
+      discountedCount: 3,
+      averageDiscountPctOnDiscounted: 11.5,
+      averageDiscountPctAllInStock: 9.5,
+      averageEffectiveDiscountPct: 9.5,
+      maxDiscountPct: 11.5,
+      maxEffectiveDiscountPct: 11.5,
+      bestDeal: {
+        title: "PlayStation Network Card 100 USD (USA) PSN Key UNITED STATES",
+        url: "https://www.g2a.com/psn-100",
+        discountPct: 11.5,
+        sellingPrice: 88.5,
+      } as any,
+      bestEffectiveDeal: {
+        title: "PlayStation Network Card 100 USD (USA) PSN Key UNITED STATES",
+        url: "https://www.g2a.com/psn-100",
+        discountPct: 11.5,
+        sellingPrice: 88.5,
+      } as any,
+      bestDealOffers: [{ sellerName: "Top Merchant", price: 88.5 } as any],
+      topDeals: [],
+      rankedDeals: [
+        {
+          title: "PlayStation Network Card 100 USD (USA) PSN Key UNITED STATES",
+          url: "https://www.g2a.com/psn-100",
+          discountPct: 11.5,
+          sellingPrice: 88.5,
+        } as any,
+      ],
+    };
+
+    // A new scrape occurred later, but was blocked by Akamai WAF (0 listings)
+    const newEmptyScrape: PageDealStatus = {
+      scrapedAt: "2026-10-27T09:00:00.000Z",
+      category: "g2a",
+      provider: "g2a",
+      scrapeTargetId: "a1000000-0000-4000-8000-000000000009",
+      targetId: "a1000000-0000-4000-8000-000000000009",
+      targetName: "PlayStation (PSN) Gift Cards (G2A)",
+      name: "PlayStation (PSN) Gift Cards (G2A)",
+      pageUrl: "https://www.g2a.com/category/psn-c1567",
+      pageNumber: 1,
+      totalListings: 0,
+      inStockCount: 0,
+      outOfStockCount: 0,
+      discountedCount: 0,
+      averageDiscountPctOnDiscounted: 0,
+      averageDiscountPctAllInStock: 0,
+      averageEffectiveDiscountPct: 0,
+      maxDiscountPct: 0,
+      maxEffectiveDiscountPct: 0,
+      bestDeal: null,
+      bestEffectiveDeal: null,
+      bestDealOffers: [],
+      topDeals: [],
+      rankedDeals: [],
+    };
+
+    const deduplicated = deduplicatePageDealStatuses([previousWorkingStatus, newEmptyScrape]);
+    assert.equal(deduplicated.length, 1);
+    assert.equal(deduplicated[0].totalListings, 4, "Must retain 4 listings from previous scrape");
+    assert.equal(deduplicated[0].inStockCount, 4, "Must retain 4 in stock count");
+    assert.ok(deduplicated[0].bestDeal, "Must retain previous best deal");
+    assert.equal(deduplicated[0].bestDeal?.discountPct, 11.5);
+    assert.equal(deduplicated[0].bestDealOffers.length, 1, "Must retain previous offers");
+  });
 });
