@@ -9,6 +9,7 @@ import { tryPersistScrapeResult } from "./db.js";
 import {
   analyzePageDeals,
   deduplicatePageDealStatuses,
+  deduplicateRankedDeals,
   formatPageStatusReport,
   type PageDealStatus,
 } from "./pageStats.js";
@@ -386,5 +387,36 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
     assert.equal(deduplicated[0].totalListings, 18);
     assert.equal(deduplicated[0].inStockCount, 16);
     assert.equal(deduplicated[0].scrapeTargetId, "a1000000-0000-4000-8000-000000000001");
+  });
+
+  it("deduplicates identical card listings across rankings so each unique gift card appears once", () => {
+    const rawDeals = [
+      {
+        title: "Nintendo eShop Card 10 USD Key UNITED STATES",
+        url: "https://www.eneba.com/us/nintendo-eshop-card-10-usd-key-united-states",
+        sellingPrice: 8.22,
+        discountPct: 17.8,
+        region: "UNITED STATES",
+      },
+      {
+        title: "Nintendo eShop Card 10 USD Key UNITED STATES",
+        url: "https://www.eneba.com/nintendo-eshop-card-10-usd-key-united-states",
+        sellingPrice: 8.22,
+        discountPct: 17.8,
+        region: "UNITED STATES",
+      },
+      {
+        title: "Nintendo eShop Card 50 USD Key UNITED STATES",
+        url: "https://www.eneba.com/us/nintendo-eshop-card-50-usd-key-united-states",
+        sellingPrice: 42.5,
+        discountPct: 15.0,
+        region: "UNITED STATES",
+      },
+    ];
+
+    const deduplicated = deduplicateRankedDeals(rawDeals);
+    assert.equal(deduplicated.length, 2, "Duplicate 10 USD Nintendo cards must collapse into 1");
+    assert.equal(deduplicated[0].title, "Nintendo eShop Card 10 USD Key UNITED STATES");
+    assert.equal(deduplicated[1].title, "Nintendo eShop Card 50 USD Key UNITED STATES");
   });
 });

@@ -106,7 +106,7 @@ export function analyzePageDeals(
   const averageEffectiveDiscountPct = averageDiscountPctAllInStock;
 
   // Sort in-stock listings by discountPct desc, then savingsAmount desc, then sellingPrice asc
-  const rankedDeals = [...inStockListings].sort((a, b) => {
+  const rawRankedDeals = [...inStockListings].sort((a, b) => {
     if (b.discountPct !== a.discountPct) {
       return b.discountPct - a.discountPct;
     }
@@ -115,6 +115,8 @@ export function analyzePageDeals(
     }
     return (a.sellingPrice || 0) - (b.sellingPrice || 0);
   });
+
+  const rankedDeals = deduplicateRankedDeals(rawRankedDeals);
 
   const bestDeal = rankedDeals[0] ?? null;
   const bestEffectiveDeal = rankedDeals[0] ?? null;
@@ -310,6 +312,66 @@ export function getCanonicalTargetKey(s: Partial<PageDealStatus> | any): string 
 }
 
 /**
+ * Normalizes and deduplicates gift card listings so that each distinct product card
+ * appears at most once, keeping the listing with the best discount % (or lowest selling price).
+ */
+export function deduplicateRankedDeals<
+  T extends {
+    title?: string;
+    url?: string;
+    discountPct?: number;
+    sellingPrice?: number | null;
+  },
+>(deals: T[]): T[] {
+  const result: T[] = [];
+
+  for (const deal of deals) {
+    if (!deal || !deal.title) continue;
+    const dTitle = (deal.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const rawUrl = (deal.url || "").trim().toLowerCase();
+    const dUrl = rawUrl
+      .split("?")[0]
+      .replace(/^https?:\/\/[^/]+/, "")
+      .replace(/^\/(?:us|en|de|fr|es|it)\//, "/");
+
+    const isProductUrl = (u: string) =>
+      u.length > 5 &&
+      !u.startsWith("/store") &&
+      !u.startsWith("/category") &&
+      !u.startsWith("/search");
+
+    const existingIdx = result.findIndex((ex) => {
+      const exTitle = (ex.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (dTitle && exTitle && dTitle === exTitle) return true;
+
+      const exRawUrl = (ex.url || "").trim().toLowerCase();
+      const exUrl = exRawUrl
+        .split("?")[0]
+        .replace(/^https?:\/\/[^/]+/, "")
+        .replace(/^\/(?:us|en|de|fr|es|it)\//, "/");
+
+      if (isProductUrl(dUrl) && isProductUrl(exUrl) && dUrl === exUrl) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingIdx === -1) {
+      result.push(deal);
+    } else {
+      const ex = result[existingIdx];
+      const exDisc = ex.discountPct ?? 0;
+      const dDisc = deal.discountPct ?? 0;
+      if (dDisc > exDisc) {
+        result[existingIdx] = deal;
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * Normalizes and deduplicates an array of PageDealStatus objects so that each distinct
  * scrape target appears at most once (keeping the latest scrape result when duplicate
  * snapshots or keys exist).
@@ -372,6 +434,14 @@ export function deduplicatePageDealStatuses(
           ? (result[existingIdx].targetName || result[existingIdx].name)
           : (st.targetName || result[existingIdx].targetName);
 
+      const mergedDeals = deduplicateRankedDeals(
+        stTime >= exTime
+          ? [...(st.rankedDeals || st.topDeals || []), ...(result[existingIdx].rankedDeals || result[existingIdx].topDeals || [])]
+          : [...(result[existingIdx].rankedDeals || result[existingIdx].topDeals || []), ...(st.rankedDeals || st.topDeals || [])],
+      );
+      const bestRanked = mergedDeals[0] ?? (stTime >= exTime ? st.bestDeal : result[existingIdx].bestDeal);
+      const bestEff = mergedDeals[0] ?? (stTime >= exTime ? st.bestEffectiveDeal : result[existingIdx].bestEffectiveDeal);
+
       if (stTime >= exTime) {
         result[existingIdx] = {
           ...result[existingIdx],
@@ -382,6 +452,10 @@ export function deduplicatePageDealStatuses(
           name: bestName || st.name || result[existingIdx].name,
           provider: stProvider,
           category: stProvider,
+          rankedDeals: mergedDeals,
+          topDeals: mergedDeals.slice(0, 10).map((d, i) => ({ rank: i + 1, ...d })),
+          bestDeal: bestRanked,
+          bestEffectiveDeal: bestEff,
         };
       } else {
         result[existingIdx] = {
@@ -393,6 +467,10 @@ export function deduplicatePageDealStatuses(
           name: bestName || result[existingIdx].name || st.name,
           provider: stProvider,
           category: stProvider,
+          rankedDeals: mergedDeals,
+          topDeals: mergedDeals.slice(0, 10).map((d, i) => ({ rank: i + 1, ...d })),
+          bestDeal: bestRanked,
+          bestEffectiveDeal: bestEff,
         };
       }
     }

@@ -1294,24 +1294,66 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     // Gather categories
     this.availableCategories = Array.from(new Set(deduplicatedStatuses.map((s) => s.targetName || s.name || s.category)));
 
-    // Gather all ranked deals across all matching categories
-    const collected: (RankedDeal & { scrapedAt?: string })[] = [];
+    // Gather all ranked deals across all matching categories, ensuring each gift card is unique
+    const dealList: (RankedDeal & { scrapedAt?: string })[] = [];
     for (const st of deduplicatedStatuses) {
       const deals = st.rankedDeals || st.topDeals || [];
-      for (const d of deals) {
-        collected.push({ ...d, scrapedAt: st.scrapedAt });
-      }
+      const candidates = [...deals];
       if (st.bestDeal) {
-        const alreadyIn = deals.some((d) => d.url === st.bestDeal!.url || d.title === st.bestDeal!.title);
-        if (!alreadyIn) {
-          collected.push({ ...st.bestDeal, scrapedAt: st.scrapedAt });
+        candidates.push(st.bestDeal);
+      }
+      for (const d of candidates) {
+        if (!d || !d.title) continue;
+        const dTitle = (d.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const dUrl = (d.url || '')
+          .trim()
+          .toLowerCase()
+          .split('?')[0]
+          .replace(/^https?:\/\/[^/]+/, '')
+          .replace(/^\/(?:us|en|de|fr|es|it)\//, '/');
+
+        const isProductUrl = (u: string) =>
+          u.length > 5 &&
+          !u.startsWith('/store') &&
+          !u.startsWith('/category') &&
+          !u.startsWith('/search');
+
+        const existingIdx = dealList.findIndex((ex) => {
+          const exTitle = (ex.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (dTitle && exTitle && dTitle === exTitle) return true;
+
+          const exUrl = (ex.url || '')
+            .trim()
+            .toLowerCase()
+            .split('?')[0]
+            .replace(/^https?:\/\/[^/]+/, '')
+            .replace(/^\/(?:us|en|de|fr|es|it)\//, '/');
+
+          if (isProductUrl(dUrl) && isProductUrl(exUrl) && dUrl === exUrl) {
+            return true;
+          }
+          return false;
+        });
+
+        if (existingIdx === -1) {
+          dealList.push({ ...d, scrapedAt: st.scrapedAt });
+        } else {
+          const ex = dealList[existingIdx];
+          const exTime = new Date(ex.scrapedAt || 0).getTime();
+          const dTime = new Date(st.scrapedAt || 0).getTime();
+          if (
+            d.discountPct > ex.discountPct ||
+            (d.discountPct === ex.discountPct && dTime >= exTime)
+          ) {
+            dealList[existingIdx] = { ...d, scrapedAt: st.scrapedAt };
+          }
         }
       }
     }
 
     // Sort by discountPct descending by default (highest discount first)
-    collected.sort((a, b) => b.discountPct - a.discountPct);
-    this.allDeals = collected;
+    dealList.sort((a, b) => b.discountPct - a.discountPct);
+    this.allDeals = dealList;
     this.applyDealsFilter();
     this.cdr.markForCheck();
 

@@ -776,7 +776,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     productId: "f700d89a-919a-4e82-9eb6-c92f7853c2a2",
     provider: "eneba",
     category: "eneba",
-    name: "Nintendo eShop Cards",
+    name: "Nintendo eShop Gift Cards",
     enabled: true,
     scheduleId: "default",
   },

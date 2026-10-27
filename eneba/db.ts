@@ -18,7 +18,11 @@ import {
   type ScraplingDb,
 } from "../core/index.js";
 import type { SellerOffer } from "./baseScraper.js";
-import type { PageDealStatus } from "./pageStats.js";
+import {
+  deduplicatePageDealStatuses,
+  deduplicateRankedDeals,
+  type PageDealStatus,
+} from "./pageStats.js";
 
 export const ENEBA_SCHEMA_NAME = "scrapling";
 
@@ -1179,31 +1183,33 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         ({ record: r }) => Number(r.discountPct) > 0,
       ).length;
 
-      const rankedDeals = records.map(({ record: d }) => ({
-        rank: Number(d.rank ?? 1),
-        category: d.provider,
-        scrapeTargetId: d.scrapeTargetId ?? target?.id ?? undefined,
-        targetId: d.scrapeTargetId ?? target?.id ?? undefined,
-        targetName: targetTitle,
-        title: d.title,
-        url: d.url,
-        region: d.region,
-        sellingPrice:
-          d.sellingPrice !== null ? Number(d.sellingPrice) : null,
-        originalPrice:
-          d.originalPrice !== null ? Number(d.originalPrice) : null,
-        faceValue: d.faceValue !== null ? Number(d.faceValue) : null,
-        faceValueCurrency: d.faceValueCurrency,
-        listedDiscountPct:
-          d.listedDiscountPct !== null ? Number(d.listedDiscountPct) : null,
-        cashbackPct: 0,
-        inStock: d.inStock,
-        discountPct: Number(d.discountPct),
-        effectiveDiscountPct: Number(d.effectiveDiscountPct),
-        effectivePrice:
-          d.effectivePrice !== null ? Number(d.effectivePrice) : null,
-        savingsAmount: Number(d.savingsAmount),
-      }));
+      const rankedDeals = deduplicateRankedDeals(
+        records.map(({ record: d }) => ({
+          rank: Number(d.rank ?? 1),
+          category: d.provider,
+          scrapeTargetId: d.scrapeTargetId ?? target?.id ?? undefined,
+          targetId: d.scrapeTargetId ?? target?.id ?? undefined,
+          targetName: targetTitle,
+          title: d.title,
+          url: d.url,
+          region: d.region,
+          sellingPrice:
+            d.sellingPrice !== null ? Number(d.sellingPrice) : null,
+          originalPrice:
+            d.originalPrice !== null ? Number(d.originalPrice) : null,
+          faceValue: d.faceValue !== null ? Number(d.faceValue) : null,
+          faceValueCurrency: d.faceValueCurrency,
+          listedDiscountPct:
+            d.listedDiscountPct !== null ? Number(d.listedDiscountPct) : null,
+          cashbackPct: 0,
+          inStock: d.inStock,
+          discountPct: Number(d.discountPct),
+          effectiveDiscountPct: Number(d.effectiveDiscountPct),
+          effectivePrice:
+            d.effectivePrice !== null ? Number(d.effectivePrice) : null,
+          savingsAmount: Number(d.savingsAmount),
+        })),
+      );
 
       const bestDealOffers: SellerOffer[] = records
         .filter(({ record: r, seller: s }) => s != null && (Number(r.rank) === 1 || r.sellerId != null))
@@ -1252,7 +1258,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
       });
     }
 
-    return statuses;
+    return deduplicatePageDealStatuses(statuses);
   } catch {
     return [];
   } finally {
