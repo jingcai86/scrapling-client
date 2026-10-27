@@ -8,6 +8,7 @@ export interface RankedGiftCardListing extends GiftCardListing {
 export interface PageDealStatus {
   scrapedAt: string;
   category: string; // site name: "eneba", "g2a"
+  provider?: string; // alias for provider site name
   targetId?: string;
   targetName?: string;
   name?: string; // alias for targetName
@@ -38,6 +39,7 @@ export interface PageDealStatus {
 
 export interface AnalyzePageOptions {
   category?: string;
+  provider?: string;
   targetId?: string;
   targetName?: string;
   name?: string;

@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS scrapling.schedulers (
 
 CREATE TABLE IF NOT EXISTS scrapling.targets (
   id TEXT PRIMARY KEY,
-  category TEXT NOT NULL DEFAULT 'eneba',
+  provider TEXT NOT NULL DEFAULT 'eneba',
   name TEXT NOT NULL,
   url TEXT NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -115,6 +115,14 @@ CREATE TABLE IF NOT EXISTS scrapling.targets (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.targets RENAME COLUMN category TO provider;
+  END IF;
+END $$;
 `;
 
 /**
@@ -388,7 +396,8 @@ export interface ScheduleDbItem {
 
 export interface TargetDbItem {
   id: string;
-  category: string;
+  provider?: string;
+  category?: string; // backward-compat alias
   name: string;
   url: string;
   enabled: boolean;
@@ -495,17 +504,18 @@ export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
     await ensureScraplingConfigTable(p);
     const res = await p.query<{
       id: string;
-      category: string;
+      provider: string;
       name: string;
       url: string;
       enabled: boolean;
       with_offers: boolean;
       schedule_id: string;
       created_at: Date;
-    }>("SELECT id, category, name, url, enabled, with_offers, schedule_id, created_at FROM scrapling.targets ORDER BY created_at ASC");
+    }>("SELECT id, provider, name, url, enabled, with_offers, schedule_id, created_at FROM scrapling.targets ORDER BY created_at ASC");
     return res.rows.map((r) => ({
       id: r.id,
-      category: r.category || "eneba",
+      provider: r.provider || "eneba",
+      category: r.provider || "eneba",
       name: r.name,
       url: r.url,
       enabled: Boolean(r.enabled),
@@ -529,11 +539,12 @@ export async function upsertDbTarget(
   const p = pool ?? createPgPool();
   try {
     await ensureScraplingConfigTable(p);
+    const provider = target.provider || target.category || "eneba";
     await p.query(
-      `INSERT INTO scrapling.targets (id, category, name, url, enabled, with_offers, schedule_id, created_at, updated_at)
+      `INSERT INTO scrapling.targets (id, provider, name, url, enabled, with_offers, schedule_id, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, NOW()), NOW())
        ON CONFLICT (id) DO UPDATE SET
-         category = EXCLUDED.category,
+         provider = EXCLUDED.provider,
          name = EXCLUDED.name,
          url = EXCLUDED.url,
          enabled = EXCLUDED.enabled,
@@ -542,7 +553,7 @@ export async function upsertDbTarget(
          updated_at = NOW()`,
       [
         target.id,
-        target.category || "eneba",
+        provider,
         target.name,
         target.url,
         target.enabled,
@@ -576,6 +587,7 @@ export async function deleteDbTarget(
 const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
   {
     id: "playstation-network-psn",
+    provider: "eneba",
     category: "eneba",
     name: "PlayStation (PSN) Gift Cards",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network",
@@ -585,6 +597,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
   },
   {
     id: "apple-itunes",
+    provider: "eneba",
     category: "eneba",
     name: "Apple iTunes / App Store Gift Cards",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes",
@@ -594,6 +607,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
   },
   {
     id: "google-play",
+    provider: "eneba",
     category: "eneba",
     name: "Google Play Gift Cards",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=google_play",
@@ -603,6 +617,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
   },
   {
     id: "steam",
+    provider: "eneba",
     category: "eneba",
     name: "Steam Gift Cards & Wallet Codes",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam",
@@ -612,6 +627,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
   },
   {
     id: "nintendo-eshop",
+    provider: "eneba",
     category: "eneba",
     name: "Nintendo eShop Cards",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=nintendo_eshop",
@@ -621,6 +637,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
   },
   {
     id: "eneba-amazon-gift-cards",
+    provider: "eneba",
     category: "eneba",
     name: "Amazon Gift Cards",
     url: "https://www.eneba.com/us/store/amazon-gift-cards",
@@ -630,6 +647,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
   },
   {
     id: "g2a-amazon-gift-cards",
+    provider: "g2a",
     category: "g2a",
     name: "Amazon Gift Cards (G2A)",
     url: "https://www.g2a.com/category/gift-cards-c6",

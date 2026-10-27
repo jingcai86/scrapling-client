@@ -29,6 +29,7 @@ export function createPagesRouter(ctx: ServerContext): Router {
           await upsertDbTarget(
             {
               id: page.id,
+              provider: page.provider || page.category || "eneba",
               category: page.category || page.provider || "eneba",
               name: page.categoryName || page.name || page.id,
               url: page.url,
@@ -97,6 +98,7 @@ export function createPagesRouter(ctx: ServerContext): Router {
           await upsertDbTarget(
             {
               id: updated.id,
+              provider: updated.provider || updated.category || "eneba",
               category: updated.category || updated.provider || "eneba",
               name: updated.categoryName || updated.name || updated.id,
               url: updated.url,
@@ -131,6 +133,7 @@ export function createPagesRouter(ctx: ServerContext): Router {
           await upsertDbTarget(
             {
               id: updated.id,
+              provider: updated.provider || updated.category || "eneba",
               category: updated.category || updated.provider || "eneba",
               name: updated.categoryName || updated.name || updated.id,
               url: updated.url,

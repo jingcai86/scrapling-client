@@ -29,6 +29,13 @@
       "when": 1793077645788,
       "tag": "0003_create_records_table",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793081000000,
+      "tag": "0004_drop_non_generic_columns",
+      "breakpoints": true
     }
   ]
 }

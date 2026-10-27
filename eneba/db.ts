@@ -68,7 +68,6 @@ CREATE TABLE IF NOT EXISTS scrapling.products (
   provider TEXT NOT NULL DEFAULT 'eneba',
   slug TEXT NOT NULL UNIQUE,
   url TEXT NOT NULL UNIQUE,
-  category TEXT NOT NULL,
   title TEXT NOT NULL,
   region TEXT NOT NULL,
   face_value NUMERIC(10, 2),
@@ -83,14 +82,12 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   batch_id UUID NOT NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   provider TEXT NOT NULL DEFAULT 'eneba',
-  category TEXT NOT NULL,
   target_id TEXT,
   target_name TEXT NOT NULL DEFAULT '',
   page_url TEXT NOT NULL,
   page_number SMALLINT NOT NULL DEFAULT 1,
   total_listings SMALLINT NOT NULL,
   in_stock_count SMALLINT NOT NULL,
-  out_of_stock_count SMALLINT NOT NULL,
   discounted_count SMALLINT NOT NULL,
   avg_discount_pct_on_discounted NUMERIC(6, 2) NOT NULL,
   avg_discount_pct_all_in_stock NUMERIC(6, 2) NOT NULL,
@@ -109,7 +106,6 @@ CREATE TABLE IF NOT EXISTS scrapling.sellers (
   rating_pct NUMERIC(5, 2),
   rating_label TEXT,
   rating_count INTEGER,
-  is_verified BOOLEAN NOT NULL DEFAULT FALSE,
   first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -124,7 +120,7 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   target_url TEXT NOT NULL DEFAULT '',
   product_id BIGINT REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
-  category TEXT NOT NULL DEFAULT 'eneba',
+  provider TEXT NOT NULL DEFAULT 'eneba',
   title TEXT NOT NULL,
   url TEXT NOT NULL,
   region TEXT NOT NULL DEFAULT 'GLOBAL',
@@ -150,14 +146,14 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
 CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_scraped_at
   ON scrapling.scrape_runs (scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_category_time
-  ON scrapling.scrape_runs (category, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_provider_time
+  ON scrapling.scrape_runs (provider, scraped_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_target_time
   ON scrapling.scrape_runs (target_id, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_records_category_time
-  ON scrapling.records (category, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_provider_time
+  ON scrapling.records (provider, scraped_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_target_time
   ON scrapling.records (target_id, scraped_at DESC);
@@ -179,6 +175,34 @@ ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS provider TEXT NOT NUL
 ALTER TABLE scrapling.sellers ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS target_id TEXT;
 ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT '';
+
+-- Cleanup non-generic columns and drop legacy category columns
+ALTER TABLE scrapling.sellers DROP COLUMN IF EXISTS is_verified;
+ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS out_of_stock_count;
+DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_category_time;
+DROP INDEX IF EXISTS scrapling.idx_scrapling_records_category_time;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs' AND column_name = 'category') THEN
+    UPDATE scrapling.scrape_runs SET provider = category WHERE (provider IS NULL OR provider = '') AND category IS NOT NULL;
+    ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS category;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'products' AND column_name = 'category') THEN
+    UPDATE scrapling.products SET provider = category WHERE (provider IS NULL OR provider = '') AND category IS NOT NULL;
+    ALTER TABLE scrapling.products DROP COLUMN IF EXISTS category;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'records' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'records' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.records RENAME COLUMN category TO provider;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.targets RENAME COLUMN category TO provider;
+  END IF;
+END $$;
 `;
 
 export interface SaveDealsResult {
@@ -401,9 +425,12 @@ export async function savePageDealsToDb(
           status.targetName ??
           status.name ??
           status.category;
-        const siteCategory =
-          target?.category ??
-          (status.category?.toLowerCase() === "g2a" ? "g2a" : "eneba");
+        const siteProvider =
+          target?.provider ??
+          (status.provider?.toLowerCase() === "g2a" ||
+          status.category?.toLowerCase() === "g2a"
+            ? "g2a"
+            : "eneba");
 
         // 1. Insert the page-level scrape run into scrapling.scrape_runs
         const runRes = await tx
@@ -411,15 +438,13 @@ export async function savePageDealsToDb(
           .values({
             batchId,
             scrapedAt: batchDate,
-            provider: siteCategory,
-            category: siteCategory, // site name!
+            provider: siteProvider,
             targetId,
             targetName,
             pageUrl: status.pageUrl,
             pageNumber: status.pageNumber ?? 1,
             totalListings: status.totalListings,
             inStockCount: status.inStockCount,
-            outOfStockCount: status.outOfStockCount,
             discountedCount: status.discountedCount,
             avgDiscountPctOnDiscounted: String(
               status.averageDiscountPctOnDiscounted,
@@ -454,7 +479,7 @@ export async function savePageDealsToDb(
           const sellerRes = await tx
             .insert(scraplingSellers)
             .values({
-              provider: siteCategory,
+              provider: siteProvider,
               sellerName: offer.sellerName,
               sellerSlug: offer.sellerSlug || null,
               sellerUrl: offer.sellerUrl || null,
@@ -497,10 +522,9 @@ export async function savePageDealsToDb(
           const prodRes = await tx
             .insert(scraplingProducts)
             .values({
-              provider: siteCategory,
+              provider: siteProvider,
               slug,
               url: deal.url,
-              category: siteCategory,
               title: deal.title,
               region: deal.region,
               faceValue:
@@ -546,7 +570,7 @@ export async function savePageDealsToDb(
                 targetUrl: status.pageUrl,
                 productId,
                 sellerId,
-                category: siteCategory,
+                provider: siteProvider,
                 title: deal.title,
                 url: deal.url,
                 region: deal.region,
@@ -584,7 +608,7 @@ export async function savePageDealsToDb(
               targetUrl: status.pageUrl,
               productId,
               sellerId: null,
-              category: siteCategory,
+              provider: siteProvider,
               title: deal.title,
               url: deal.url,
               region: deal.region,
@@ -740,7 +764,7 @@ export async function saveProductOffersToDb(
             targetUrl: latestRecord.targetUrl,
             productId,
             sellerId,
-            category: latestRecord.category,
+            provider: latestRecord.provider,
             title: latestRecord.title,
             url: latestRecord.url,
             region: latestRecord.region,
@@ -910,7 +934,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
 
       const rankedDeals = records.map(({ record: d }) => ({
         rank: Number(d.rank ?? 1),
-        category: d.category,
+        category: d.provider,
         targetId: d.targetId ?? run.targetId ?? undefined,
         targetName: d.targetName ?? run.targetName ?? undefined,
         title: d.title,
@@ -953,16 +977,16 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         null;
 
       statuses.push({
-        category: run.category,
+        category: run.provider,
         targetId: run.targetId ?? undefined,
-        targetName: run.targetName || run.category,
-        name: run.targetName || run.category,
+        targetName: run.targetName || run.provider,
+        name: run.targetName || run.provider,
         pageUrl: run.pageUrl,
         pageNumber: run.pageNumber,
         scrapedAt: new Date(run.scrapedAt).toISOString(),
         totalListings: run.totalListings,
         inStockCount: run.inStockCount,
-        outOfStockCount: run.outOfStockCount,
+        outOfStockCount: run.totalListings - run.inStockCount,
         discountedCount: run.discountedCount,
         averageDiscountPctOnDiscounted: Number(
           run.avgDiscountPctOnDiscounted,
@@ -1055,7 +1079,7 @@ export async function fetchScrapeHistoryFromDb(
           .selectDistinctOn([scraplingRecords.batchId], {
             batchId: scraplingRecords.batchId,
             title: scraplingRecords.title,
-            category: scraplingRecords.category,
+            category: scraplingRecords.provider,
             targetName: scraplingRecords.targetName,
             sellingPrice: scraplingRecords.sellingPrice,
             faceValue: scraplingRecords.faceValue,

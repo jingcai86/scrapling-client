@@ -257,7 +257,7 @@ export async function searchDeals(
       }
       if (categoryFilter) {
         values.push(`%${categoryFilter}%`);
-        conditions.push(`(r.category ILIKE $${values.length} OR r.target_name ILIKE $${values.length})`);
+        conditions.push(`(r.provider ILIKE $${values.length} OR r.target_name ILIKE $${values.length})`);
       }
       if (minDiscount !== null) {
         values.push(minDiscount);
@@ -287,7 +287,7 @@ export async function searchDeals(
             r.product_id,
             r.scraped_at,
             r.rank,
-            r.category,
+            r.provider,
             r.target_id,
             r.target_name,
             r.title,
@@ -321,7 +321,7 @@ export async function searchDeals(
             r.product_id,
             r.scraped_at,
             r.rank,
-            r.category,
+            r.provider,
             r.target_id,
             r.target_name,
             r.title,
@@ -355,7 +355,7 @@ export async function searchDeals(
         product_id: string;
         scraped_at: Date;
         rank: number;
-        category: string;
+        provider: string;
         target_id: string | null;
         target_name: string;
         title: string;
@@ -380,8 +380,8 @@ export async function searchDeals(
       }>(sql, values);
 
       const matchedRows = res.rows.filter((row) => {
-        if (providerFilter && providerFilter !== row.category) return false;
-        const haystack = `${row.title} ${row.category} ${row.target_name || ""} ${row.region} ${row.seller_name || ""}`;
+        if (providerFilter && providerFilter !== row.provider) return false;
+        const haystack = `${row.title} ${row.provider} ${row.target_name || ""} ${row.region} ${row.seller_name || ""}`;
         return matchesSearchTokens(haystack, searchText);
       });
 
@@ -408,8 +408,8 @@ export async function searchDeals(
             : [];
 
           deals.push({
-            provider: row.category,
-            category: row.target_name || row.category,
+            provider: row.provider,
+            category: row.target_name || row.provider,
             rank: Number(row.rank ?? 1),
             title: row.title,
             url: row.url,

@@ -86,6 +86,34 @@ DROP TABLE IF EXISTS scrapling.eneba_products CASCADE;
 DROP TABLE IF EXISTS scrapling.top_deals CASCADE;
 DROP TABLE IF EXISTS scrapling.product_offers CASCADE;
 
+-- Drop non-generic columns and standardize provider on existing tables
+ALTER TABLE scrapling.sellers DROP COLUMN IF EXISTS is_verified;
+ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS out_of_stock_count;
+DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_category_time;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs' AND column_name = 'category') THEN
+    UPDATE scrapling.scrape_runs SET provider = category WHERE (provider IS NULL OR provider = '') AND category IS NOT NULL;
+    ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS category;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'products' AND column_name = 'category') THEN
+    UPDATE scrapling.products SET provider = category WHERE (provider IS NULL OR provider = '') AND category IS NOT NULL;
+    ALTER TABLE scrapling.products DROP COLUMN IF EXISTS category;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'records' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'records' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.records RENAME COLUMN category TO provider;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.targets RENAME COLUMN category TO provider;
+  END IF;
+END $$;
+DROP INDEX IF EXISTS scrapling.idx_scrapling_records_category_time;
+
 -- ----------------------------------------------------------------------------
 -- 2. Multi-Scheduler Configurations Table
 -- ----------------------------------------------------------------------------
@@ -110,7 +138,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.targets (
   id TEXT PRIMARY KEY,
-  category TEXT NOT NULL DEFAULT 'eneba',
+  provider TEXT NOT NULL DEFAULT 'eneba',
   name TEXT NOT NULL,
   url TEXT NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT true,
@@ -121,7 +149,7 @@ CREATE TABLE IF NOT EXISTS scrapling.targets (
 );
 
 -- Seed default initial target pages
-INSERT INTO scrapling.targets (id, category, name, url, enabled, with_offers, schedule_id, created_at, updated_at)
+INSERT INTO scrapling.targets (id, provider, name, url, enabled, with_offers, schedule_id, created_at, updated_at)
 VALUES
   ('playstation-network-psn', 'eneba', 'PlayStation (PSN) Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network', true, true, 'default', NOW(), NOW()),
   ('apple-itunes', 'eneba', 'Apple iTunes / App Store Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes', true, true, 'default', NOW(), NOW()),
@@ -140,7 +168,6 @@ CREATE TABLE IF NOT EXISTS scrapling.products (
   provider TEXT NOT NULL DEFAULT 'eneba',
   slug TEXT NOT NULL UNIQUE,
   url TEXT NOT NULL UNIQUE,
-  category TEXT NOT NULL,
   title TEXT NOT NULL,
   region TEXT NOT NULL,
   face_value NUMERIC(10, 2),
@@ -157,14 +184,12 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   batch_id UUID NOT NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   provider TEXT NOT NULL DEFAULT 'eneba',
-  category TEXT NOT NULL,
   target_id TEXT REFERENCES scrapling.targets(id) ON DELETE SET NULL,
   target_name TEXT NOT NULL DEFAULT '',
   page_url TEXT NOT NULL,
   page_number SMALLINT NOT NULL DEFAULT 1,
   total_listings SMALLINT NOT NULL,
   in_stock_count SMALLINT NOT NULL,
-  out_of_stock_count SMALLINT NOT NULL,
   discounted_count SMALLINT NOT NULL,
   avg_discount_pct_on_discounted NUMERIC(6, 2) NOT NULL,
   avg_discount_pct_all_in_stock NUMERIC(6, 2) NOT NULL,
@@ -185,7 +210,6 @@ CREATE TABLE IF NOT EXISTS scrapling.sellers (
   rating_pct NUMERIC(5, 2),
   rating_label TEXT,
   rating_count INTEGER,
-  is_verified BOOLEAN NOT NULL DEFAULT FALSE,
   first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -202,7 +226,7 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   target_url TEXT NOT NULL DEFAULT '',
   product_id BIGINT REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
-  category TEXT NOT NULL DEFAULT 'eneba',
+  provider TEXT NOT NULL DEFAULT 'eneba',
   title TEXT NOT NULL,
   url TEXT NOT NULL,
   region TEXT NOT NULL DEFAULT 'GLOBAL',
@@ -230,14 +254,14 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
 CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_scraped_at
   ON scrapling.scrape_runs (scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_category_time
-  ON scrapling.scrape_runs (category, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_provider_time
+  ON scrapling.scrape_runs (provider, scraped_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_target_time
   ON scrapling.scrape_runs (target_id, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_records_category_time
-  ON scrapling.records (category, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_provider_time
+  ON scrapling.records (provider, scraped_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_target_time
   ON scrapling.records (target_id, scraped_at DESC);

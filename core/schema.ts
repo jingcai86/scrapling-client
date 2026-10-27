@@ -52,11 +52,11 @@ export const scraplingSchedulers = scraplingSchema.table("schedulers", {
 });
 
 /**
- * 2c. Monitored Scraping Targets and Category Mappings (`scrapling.targets`)
+ * 2c. Monitored Scraping Targets and Provider Mappings (`scrapling.targets`)
  */
 export const scraplingTargets = scraplingSchema.table("targets", {
   id: text("id").primaryKey(),
-  category: text("category").notNull().default("eneba"), // scraper type / site category (e.g. 'eneba', 'g2a')
+  provider: text("provider").notNull().default("eneba"), // scraper provider (e.g. 'eneba', 'g2a')
   name: text("name").notNull(), // display title (e.g. 'PlayStation (PSN) Gift Cards')
   url: text("url").notNull(),
   enabled: boolean("enabled").notNull().default(true),
@@ -78,7 +78,6 @@ export const scraplingProducts = scraplingSchema.table("products", {
   provider: text("provider").notNull().default("eneba"),
   slug: text("slug").notNull().unique(),
   url: text("url").notNull().unique(),
-  category: text("category").notNull(),
   title: text("title").notNull(),
   region: text("region").notNull(),
   faceValue: numeric("face_value", { precision: 10, scale: 2 }),
@@ -105,7 +104,6 @@ export const scraplingScrapeRuns = scraplingSchema.table(
       .notNull()
       .defaultNow(),
     provider: text("provider").notNull().default("eneba"),
-    category: text("category").notNull(), // site name, e.g. 'eneba', 'g2a'
     targetId: text("target_id").references(() => scraplingTargets.id, {
       onDelete: "set null",
     }),
@@ -114,7 +112,6 @@ export const scraplingScrapeRuns = scraplingSchema.table(
     pageNumber: smallint("page_number").notNull().default(1),
     totalListings: smallint("total_listings").notNull(),
     inStockCount: smallint("in_stock_count").notNull(),
-    outOfStockCount: smallint("out_of_stock_count").notNull(),
     discountedCount: smallint("discounted_count").notNull(),
     avgDiscountPctOnDiscounted: numeric("avg_discount_pct_on_discounted", {
       precision: 6,
@@ -139,8 +136,8 @@ export const scraplingScrapeRuns = scraplingSchema.table(
   },
   (table) => [
     index("idx_scrapling_scrape_runs_scraped_at").on(table.scrapedAt),
-    index("idx_scrapling_scrape_runs_category_time").on(
-      table.category,
+    index("idx_scrapling_scrape_runs_provider_time").on(
+      table.provider,
       table.scrapedAt,
     ),
     index("idx_scrapling_scrape_runs_target_time").on(
@@ -164,7 +161,6 @@ export const scraplingSellers = scraplingSchema.table("sellers", {
   ratingPct: numeric("rating_pct", { precision: 5, scale: 2 }),
   ratingLabel: text("rating_label"),
   ratingCount: integer("rating_count"),
-  isVerified: boolean("is_verified").notNull().default(false),
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -201,7 +197,7 @@ export const scraplingRecords = scraplingSchema.table(
       () => scraplingSellers.id,
       { onDelete: "set null" },
     ),
-    category: text("category").notNull().default("eneba"), // site name: 'eneba', 'g2a'
+    provider: text("provider").notNull().default("eneba"), // scraper provider: 'eneba', 'g2a'
     title: text("title").notNull(),
     url: text("url").notNull(),
     region: text("region").notNull().default("GLOBAL"),
@@ -241,8 +237,8 @@ export const scraplingRecords = scraplingSchema.table(
       .defaultNow(),
   },
   (table) => [
-    index("idx_scrapling_records_category_time").on(
-      table.category,
+    index("idx_scrapling_records_provider_time").on(
+      table.provider,
       table.scrapedAt,
     ),
     index("idx_scrapling_records_target_time").on(

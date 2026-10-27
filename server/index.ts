@@ -70,18 +70,21 @@ export async function createDashboardServer(options: {
       });
       pageStore.saveSchedules(synced.schedulers);
       pageStore.savePages(
-        synced.targets.map((t) => ({
-          id: t.id,
-          category: t.category,
-          provider: t.category,
-          categoryName: t.name,
-          name: t.name,
-          url: t.url,
-          enabled: t.enabled,
-          withOffers: t.withOffers,
-          scheduleId: t.scheduleId || "default",
-          createdAt: t.createdAt || new Date().toISOString(),
-        })),
+        synced.targets.map((t) => {
+          const provider = t.provider || t.category || "eneba";
+          return {
+            id: t.id,
+            category: provider,
+            provider,
+            categoryName: t.name,
+            name: t.name,
+            url: t.url,
+            enabled: t.enabled,
+            withOffers: t.withOffers,
+            scheduleId: t.scheduleId || "default",
+            createdAt: t.createdAt || new Date().toISOString(),
+          };
+        }),
       );
     } catch (syncErr) {
       console.warn("[PostgreSQL Warn] Could not sync schedulers/targets on startup:", syncErr);
