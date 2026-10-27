@@ -44,6 +44,42 @@ export const enebaConfig = scraplingSchema.table("eneba_config", {
 });
 
 /**
+ * 2b. Multi-Scheduler Configurations (`scrapling.schedules`)
+ */
+export const scraplingSchedules = scraplingSchema.table("schedules", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  baseTime: text("base_time").notNull().default("19:00"),
+  jitterMinutes: integer("jitter_minutes").notNull().default(60),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * 2c. Monitored Scraping Pages and Category Target Mappings (`scrapling.scrape_pages`)
+ */
+export const scraplingScrapePages = scraplingSchema.table("scrape_pages", {
+  id: text("id").primaryKey(),
+  provider: text("provider").notNull().default("eneba"),
+  categoryName: text("category_name").notNull(),
+  url: text("url").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  withOffers: boolean("with_offers").notNull().default(true),
+  scheduleId: text("schedule_id").notNull().default("default"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
  * 3. Normalized Catalog of Unique Eneba Gift Card Products (`scrapling.eneba_products`)
  */
 export const enebaProducts = scraplingSchema.table("eneba_products", {

@@ -10,6 +10,7 @@ import {
   ensureDefaultEnvKeys,
   getEmailConfigStatus,
   initScraplingConfigOnStartup,
+  syncSchedulesAndPagesOnStartup,
   loadEnv,
 } from "../core/index.js";
 import { ensureEnebaSchema } from "../eneba/db.js";
@@ -37,6 +38,8 @@ export async function createDashboardServer(options: {
   loadEnv(options.envPath);
   ensureDefaultEnvKeys(options.envPath);
 
+  const pageStore = new PageStore(options.dataDir);
+
   // Mandatory startup check: Ensure PostgreSQL is reachable and initialize `scrapling.config` + `scrapling.eneba_*` tables.
   // Fails fast if DATABASE_URL is missing or PostgreSQL is unreachable.
   const startupPool = options.pool ?? createPgPool();
@@ -46,13 +49,25 @@ export async function createDashboardServer(options: {
       envPath: options.envPath,
     });
     await ensureEnebaSchema(startupPool);
+
+    // Sync schedules and scraping page targets with PostgreSQL
+    try {
+      const synced = await syncSchedulesAndPagesOnStartup({
+        pool: startupPool,
+        initialSchedules: pageStore.listSchedules(),
+        initialPages: pageStore.listPages(),
+      });
+      pageStore.saveSchedules(synced.schedules);
+      pageStore.savePages(synced.pages);
+    } catch (syncErr) {
+      console.warn("[PostgreSQL Warn] Could not sync schedules/pages on startup:", syncErr);
+    }
   } finally {
     if (!options.pool) {
       await startupPool.end();
     }
   }
 
-  const pageStore = new PageStore(options.dataDir);
   const runner = new ScrapeRunner(pageStore);
   await runner.hydrateFromDatabase();
 

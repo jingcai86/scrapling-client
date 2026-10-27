@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { upsertDbPage, deleteDbPage } from "../../core/index.js";
 import type { ServerContext } from "../types.js";
 
 export function createPagesRouter(ctx: ServerContext): Router {
@@ -8,63 +9,107 @@ export function createPagesRouter(ctx: ServerContext): Router {
     res.json({ pages: ctx.pageStore.listPages() });
   });
 
-  router.post("/", (req, res) => {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const page = ctx.pageStore.addPage({
-      provider: String(body.provider ?? "eneba"),
-      categoryName: String(body.categoryName ?? ""),
-      url: String(body.url ?? ""),
-      enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
-      withOffers:
-        body.withOffers !== undefined ? Boolean(body.withOffers) : true,
-      scheduleId:
-        body.scheduleId !== undefined ? String(body.scheduleId) : "default",
-    });
-    res.status(201).json({ page });
-  });
-
-  router.patch("/:id", (req, res) => {
-    const id = req.params.id;
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const updated = ctx.pageStore.updatePage(id, {
-      categoryName:
-        body.categoryName !== undefined
-          ? String(body.categoryName)
-          : undefined,
-      url: body.url !== undefined ? String(body.url) : undefined,
-      provider:
-        body.provider !== undefined ? String(body.provider) : undefined,
-      enabled:
-        body.enabled !== undefined ? Boolean(body.enabled) : undefined,
-      withOffers:
-        body.withOffers !== undefined
-          ? Boolean(body.withOffers)
-          : undefined,
-      scheduleId:
-        body.scheduleId !== undefined ? String(body.scheduleId) : undefined,
-    });
-    if (!updated) {
-      res.status(404).json({ error: "Page not found" });
-      return;
+  router.post("/", async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const page = ctx.pageStore.addPage({
+        provider: String(body.provider ?? "eneba"),
+        categoryName: String(body.categoryName ?? ""),
+        url: String(body.url ?? ""),
+        enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
+        withOffers:
+          body.withOffers !== undefined ? Boolean(body.withOffers) : true,
+        scheduleId:
+          body.scheduleId !== undefined ? String(body.scheduleId) : "default",
+      });
+      if (ctx.pool) {
+        try {
+          await upsertDbPage(page, ctx.pool);
+        } catch (dbErr) {
+          console.warn("[PostgreSQL Warn] Failed to persist page to database:", dbErr);
+        }
+      }
+      res.status(201).json({ page });
+    } catch (err) {
+      next(err);
     }
-    res.json({ page: updated });
   });
 
-  router.put("/:id/schedule", (req, res) => {
-    const id = req.params.id;
-    const scheduleId = String(req.body?.scheduleId ?? "default");
-    const updated = ctx.pageStore.assignPageSchedule(id, scheduleId);
-    if (!updated) {
-      res.status(404).json({ error: "Page not found" });
-      return;
+  router.patch("/:id", async (req, res, next) => {
+    try {
+      const id = req.params.id;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const updated = ctx.pageStore.updatePage(id, {
+        categoryName:
+          body.categoryName !== undefined
+            ? String(body.categoryName)
+            : undefined,
+        url: body.url !== undefined ? String(body.url) : undefined,
+        provider:
+          body.provider !== undefined ? String(body.provider) : undefined,
+        enabled:
+          body.enabled !== undefined ? Boolean(body.enabled) : undefined,
+        withOffers:
+          body.withOffers !== undefined
+            ? Boolean(body.withOffers)
+            : undefined,
+        scheduleId:
+          body.scheduleId !== undefined ? String(body.scheduleId) : undefined,
+      });
+      if (!updated) {
+        res.status(404).json({ error: "Page not found" });
+        return;
+      }
+      if (ctx.pool) {
+        try {
+          await upsertDbPage(updated, ctx.pool);
+        } catch (dbErr) {
+          console.warn("[PostgreSQL Warn] Failed to update page in database:", dbErr);
+        }
+      }
+      res.json({ page: updated });
+    } catch (err) {
+      next(err);
     }
-    res.json({ page: updated });
   });
 
-  router.delete("/:id", (req, res) => {
-    const id = req.params.id;
-    const deleted = ctx.pageStore.deletePage(id);
-    res.status(deleted ? 200 : 404).json({ deleted });
+  router.put("/:id/schedule", async (req, res, next) => {
+    try {
+      const id = req.params.id;
+      const scheduleId = String(req.body?.scheduleId ?? "default");
+      const updated = ctx.pageStore.assignPageSchedule(id, scheduleId);
+      if (!updated) {
+        res.status(404).json({ error: "Page not found" });
+        return;
+      }
+      if (ctx.pool) {
+        try {
+          await upsertDbPage(updated, ctx.pool);
+        } catch (dbErr) {
+          console.warn("[PostgreSQL Warn] Failed to update page schedule in database:", dbErr);
+        }
+      }
+      res.json({ page: updated });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete("/:id", async (req, res, next) => {
+    try {
+      const id = req.params.id;
+      const deleted = ctx.pageStore.deletePage(id);
+      if (deleted && ctx.pool) {
+        try {
+          await deleteDbPage(id, ctx.pool);
+        } catch (dbErr) {
+          console.warn("[PostgreSQL Warn] Failed to delete page from database:", dbErr);
+        }
+      }
+      res.status(deleted ? 200 : 404).json({ deleted });
+    } catch (err) {
+      next(err);
+    }
   });
 
   return router;

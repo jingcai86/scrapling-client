@@ -16,9 +16,13 @@ function createInMemoryConfigPool(): {
   pool: pg.Pool;
   configRows: Map<string, { key: string; value: string }>;
   enebaConfigRows: Map<string, { key: string; value: string }>;
+  scheduleRows: Map<string, any>;
+  pageRows: Map<string, any>;
 } {
   const configRows = new Map<string, { key: string; value: string }>();
   const enebaConfigRows = new Map<string, { key: string; value: string }>();
+  const scheduleRows = new Map<string, any>();
+  const pageRows = new Map<string, any>();
 
   const pool = {
     query: async (
@@ -46,6 +50,61 @@ function createInMemoryConfigPool(): {
         .replace(/\s+/g, " ")
         .trim();
       const lower = normalized.toLowerCase();
+
+      // Schedules table queries
+      if (lower.includes("scrapling.schedules")) {
+        if (lower.includes("insert into") || lower.includes("on conflict")) {
+          const id = String(sqlParams[0] ?? "");
+          const name = String(sqlParams[1] ?? "");
+          const base_time = String(sqlParams[2] ?? "19:00");
+          const jitter_minutes = Number(sqlParams[3] ?? 60);
+          const enabled = Boolean(sqlParams[4]);
+          const created_at = sqlParams[5] ? new Date(String(sqlParams[5])) : new Date();
+          if (id) {
+            scheduleRows.set(id, { id, name, base_time, jitter_minutes, enabled, created_at });
+          }
+          return { rows: [], rowCount: 1 };
+        }
+        if (lower.startsWith("select")) {
+          const rows = Array.from(scheduleRows.values());
+          return { rows, rowCount: rows.length };
+        }
+        if (lower.startsWith("delete from")) {
+          const id = String(sqlParams[0] ?? "");
+          scheduleRows.delete(id);
+          return { rows: [], rowCount: 1 };
+        }
+      }
+
+      // Scrape Pages table queries
+      if (lower.includes("scrapling.scrape_pages")) {
+        if (lower.includes("insert into") || lower.includes("on conflict")) {
+          const id = String(sqlParams[0] ?? "");
+          const provider = String(sqlParams[1] ?? "eneba");
+          const category_name = String(sqlParams[2] ?? "");
+          const url = String(sqlParams[3] ?? "");
+          const enabled = Boolean(sqlParams[4]);
+          const with_offers = Boolean(sqlParams[5]);
+          const schedule_id = String(sqlParams[6] ?? "default");
+          const created_at = sqlParams[7] ? new Date(String(sqlParams[7])) : new Date();
+          if (id) {
+            pageRows.set(id, { id, provider, category_name, url, enabled, with_offers, schedule_id, created_at });
+          }
+          return { rows: [], rowCount: 1 };
+        }
+        if (lower.startsWith("select")) {
+          const rows = Array.from(pageRows.values());
+          return { rows, rowCount: rows.length };
+        }
+        if (lower.startsWith("delete from")) {
+          const id = String(sqlParams[0] ?? "");
+          pageRows.delete(id);
+          return { rows: [], rowCount: 1 };
+        }
+        if (lower.startsWith("update")) {
+          return { rows: [], rowCount: 1 };
+        }
+      }
 
       if (
         lower.includes("scrapling.config") &&
@@ -158,7 +217,7 @@ function createInMemoryConfigPool(): {
     end: async () => undefined,
   } as unknown as pg.Pool;
 
-  return { pool, configRows, enebaConfigRows };
+  return { pool, configRows, enebaConfigRows, scheduleRows, pageRows };
 }
 
 describe("Server, Randomized Cron, Email Template & Page Store API", () => {
@@ -295,7 +354,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
     const originalDbUrl = process.env.DATABASE_URL;
     delete process.env.DATABASE_URL;
 
-    const { pool, configRows, enebaConfigRows } = createInMemoryConfigPool();
+    const { pool, configRows, enebaConfigRows, scheduleRows, pageRows } = createInMemoryConfigPool();
 
     const app = await createDashboardServer({
       port: 0,
@@ -564,6 +623,10 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       assert.equal(createdSched.scheduler.baseTime, "03:00");
       const newSchedId = createdSched.scheduler.id;
 
+      // Verify schedule was persisted to PostgreSQL scrapling.schedules
+      assert.ok(scheduleRows.has(newSchedId));
+      assert.equal(scheduleRows.get(newSchedId).name, "Hourly Off-Peak");
+
       // 7.3 PUT /api/pages/:id/schedule assigns an Eneba category page to the new schedule
       const assignRes = await fetch(
         `${baseUrl}/api/pages/eneba-apple/schedule`,
@@ -579,6 +642,9 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       };
       assert.equal(assignedPage.page.id, "eneba-apple");
       assert.equal(assignedPage.page.scheduleId, newSchedId);
+
+      // Verify page was updated in PostgreSQL scrapling.scrape_pages
+      assert.equal(pageRows.get("eneba-apple")?.schedule_id, newSchedId);
 
       // Verify dashboard reflects schedulers and assigned pages
       const dashCheck = await fetch(`${baseUrl}/api/dashboard`);
@@ -597,6 +663,9 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
         { method: "DELETE" },
       );
       assert.equal(deleteSchedRes.status, 200);
+
+      // Verify schedule was removed from PostgreSQL scrapling.schedules
+      assert.equal(scheduleRows.has(newSchedId), false);
 
       // Verify apple page reverted to default
       const dashAfterDel = await fetch(`${baseUrl}/api/dashboard`);

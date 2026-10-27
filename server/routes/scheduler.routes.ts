@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { updateDbConfigValues } from "../../core/index.js";
+import {
+  updateDbConfigValues,
+  upsertDbSchedule,
+  deleteDbSchedule,
+} from "../../core/index.js";
 import type { ServerContext } from "../types.js";
 
 export function createSchedulerRouter(ctx: ServerContext): Router {
@@ -23,6 +27,13 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
         enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
       });
       const state = ctx.schedulerManager.addOrUpdateSchedule(created);
+      if (ctx.pool) {
+        try {
+          await upsertDbSchedule(created, ctx.pool);
+        } catch (dbErr) {
+          console.warn("[PostgreSQL Warn] Failed to persist new schedule to database:", dbErr);
+        }
+      }
       res.status(201).json({ scheduler: state });
     } catch (err) {
       next(err);
@@ -49,7 +60,7 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
     }
   });
 
-  router.delete("/:id", (req, res) => {
+  router.delete("/:id", async (req, res) => {
     const id = req.params.id;
     if (id === "default") {
       res.status(400).json({ error: "The default schedule cannot be deleted." });
@@ -58,6 +69,13 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
     const deleted = ctx.pageStore.deleteSchedule(id);
     if (deleted) {
       ctx.schedulerManager.removeSchedule(id);
+      if (ctx.pool) {
+        try {
+          await deleteDbSchedule(id, ctx.pool);
+        } catch (dbErr) {
+          console.warn("[PostgreSQL Warn] Failed to delete schedule from database:", dbErr);
+        }
+      }
       res.json({ success: true });
     } else {
       res.status(404).json({ error: "Schedule not found." });
@@ -91,6 +109,13 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
       }
 
       const state = ctx.schedulerManager.addOrUpdateSchedule(updated);
+      if (ctx.pool) {
+        try {
+          await upsertDbSchedule(updated, ctx.pool);
+        } catch (dbErr) {
+          console.warn("[PostgreSQL Warn] Failed to update schedule in database:", dbErr);
+        }
+      }
       if (id === "default") {
         await updateDbConfigValues(
           {
@@ -138,6 +163,14 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
             },
             false,
           );
+
+      if (updated && ctx.pool) {
+        try {
+          await upsertDbSchedule(updated, ctx.pool);
+        } catch (dbErr) {
+          console.warn("[PostgreSQL Warn] Failed to update default schedule in database:", dbErr);
+        }
+      }
 
       await updateDbConfigValues(
         {

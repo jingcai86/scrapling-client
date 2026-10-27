@@ -155,7 +155,7 @@ export class PageStore {
     return [...DEFAULT_SCRAPE_PAGES];
   }
 
-  private savePages(pages: ScrapePageConfig[]): void {
+  savePages(pages: ScrapePageConfig[]): void {
     fs.mkdirSync(path.dirname(this.pagesFilePath), { recursive: true });
     fs.writeFileSync(
       this.pagesFilePath,

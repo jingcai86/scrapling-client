@@ -35,6 +35,28 @@ CREATE TABLE IF NOT EXISTS scrapling.config (
   description TEXT NOT NULL DEFAULT '',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS scrapling.schedules (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  base_time TEXT NOT NULL DEFAULT '19:00',
+  jitter_minutes INTEGER NOT NULL DEFAULT 60,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS scrapling.scrape_pages (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL DEFAULT 'eneba',
+  category_name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  with_offers BOOLEAN NOT NULL DEFAULT TRUE,
+  schedule_id TEXT NOT NULL DEFAULT 'default',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `;
 
 /**
@@ -290,6 +312,263 @@ export async function deleteDbConfigKey(
     }
 
     return await readAllConfigValues({ pool, envPath: options.envPath });
+  } finally {
+    if (ownPool) {
+      await pool.end();
+    }
+  }
+}
+
+export interface ScheduleDbItem {
+  id: string;
+  name: string;
+  baseTime: string;
+  jitterMinutes: number;
+  enabled: boolean;
+  createdAt?: string;
+}
+
+export interface ScrapePageDbItem {
+  id: string;
+  provider: string;
+  categoryName: string;
+  url: string;
+  enabled: boolean;
+  withOffers: boolean;
+  scheduleId?: string;
+  createdAt: string;
+}
+
+/**
+ * Loads all configured schedules from `scrapling.schedules`.
+ */
+export async function getDbSchedules(pool?: pg.Pool): Promise<ScheduleDbItem[]> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    const res = await p.query<{
+      id: string;
+      name: string;
+      base_time: string;
+      jitter_minutes: number;
+      enabled: boolean;
+      created_at: Date;
+    }>("SELECT id, name, base_time, jitter_minutes, enabled, created_at FROM scrapling.schedules ORDER BY created_at ASC");
+    return res.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      baseTime: r.base_time,
+      jitterMinutes: Number(r.jitter_minutes) || 0,
+      enabled: Boolean(r.enabled),
+      createdAt: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+    }));
+  } finally {
+    if (ownPool) await p.end();
+  }
+}
+
+/**
+ * Upserts a schedule into `scrapling.schedules`.
+ */
+export async function upsertDbSchedule(
+  item: ScheduleDbItem,
+  pool?: pg.Pool,
+): Promise<void> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    await p.query(
+      `INSERT INTO scrapling.schedules (id, name, base_time, jitter_minutes, enabled, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW()), NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         base_time = EXCLUDED.base_time,
+         jitter_minutes = EXCLUDED.jitter_minutes,
+         enabled = EXCLUDED.enabled,
+         updated_at = NOW()`,
+      [
+        item.id,
+        item.name,
+        item.baseTime,
+        item.jitterMinutes,
+        item.enabled,
+        item.createdAt || new Date().toISOString(),
+      ],
+    );
+  } finally {
+    if (ownPool) await p.end();
+  }
+}
+
+/**
+ * Deletes a schedule from `scrapling.schedules` and reassigns any orphaned pages to 'default'.
+ */
+export async function deleteDbSchedule(
+  id: string,
+  pool?: pg.Pool,
+): Promise<void> {
+  if (id === "default") return;
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    await p.query("DELETE FROM scrapling.schedules WHERE id = $1", [id]);
+    await p.query(
+      "UPDATE scrapling.scrape_pages SET schedule_id = 'default', updated_at = NOW() WHERE schedule_id = $1",
+      [id],
+    );
+  } finally {
+    if (ownPool) await p.end();
+  }
+}
+
+/**
+ * Loads all configured scrape pages from `scrapling.scrape_pages`.
+ */
+export async function getDbPages(pool?: pg.Pool): Promise<ScrapePageDbItem[]> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    const res = await p.query<{
+      id: string;
+      provider: string;
+      category_name: string;
+      url: string;
+      enabled: boolean;
+      with_offers: boolean;
+      schedule_id: string;
+      created_at: Date;
+    }>("SELECT id, provider, category_name, url, enabled, with_offers, schedule_id, created_at FROM scrapling.scrape_pages ORDER BY created_at ASC");
+    return res.rows.map((r) => ({
+      id: r.id,
+      provider: r.provider,
+      categoryName: r.category_name,
+      url: r.url,
+      enabled: Boolean(r.enabled),
+      withOffers: Boolean(r.with_offers),
+      scheduleId: r.schedule_id || "default",
+      createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+    }));
+  } finally {
+    if (ownPool) await p.end();
+  }
+}
+
+/**
+ * Upserts a scrape page target into `scrapling.scrape_pages`.
+ */
+export async function upsertDbPage(
+  page: ScrapePageDbItem,
+  pool?: pg.Pool,
+): Promise<void> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    await p.query(
+      `INSERT INTO scrapling.scrape_pages (id, provider, category_name, url, enabled, with_offers, schedule_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, NOW()), NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         provider = EXCLUDED.provider,
+         category_name = EXCLUDED.category_name,
+         url = EXCLUDED.url,
+         enabled = EXCLUDED.enabled,
+         with_offers = EXCLUDED.with_offers,
+         schedule_id = EXCLUDED.schedule_id,
+         updated_at = NOW()`,
+      [
+        page.id,
+        page.provider,
+        page.categoryName,
+        page.url,
+        page.enabled,
+        page.withOffers,
+        page.scheduleId || "default",
+        page.createdAt || new Date().toISOString(),
+      ],
+    );
+  } finally {
+    if (ownPool) await p.end();
+  }
+}
+
+/**
+ * Deletes a scrape page target from `scrapling.scrape_pages`.
+ */
+export async function deleteDbPage(
+  id: string,
+  pool?: pg.Pool,
+): Promise<void> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    await p.query("DELETE FROM scrapling.scrape_pages WHERE id = $1", [id]);
+  } finally {
+    if (ownPool) await p.end();
+  }
+}
+
+/**
+ * Synchronizes schedules and pages between PostgreSQL and disk fallback on server boot.
+ */
+export async function syncSchedulesAndPagesOnStartup(options: {
+  pool?: pg.Pool;
+  initialSchedules: ScheduleDbItem[];
+  initialPages: ScrapePageDbItem[];
+}): Promise<{
+  schedules: ScheduleDbItem[];
+  pages: ScrapePageDbItem[];
+}> {
+  const ownPool = !options.pool;
+  const pool = options.pool ?? createPgPool();
+
+  try {
+    await ensureScraplingConfigTable(pool);
+
+    // 1. Sync Schedules
+    let dbSchedules = await getDbSchedules(pool);
+    if (dbSchedules.length === 0) {
+      for (const sch of options.initialSchedules) {
+        await upsertDbSchedule(sch, pool);
+      }
+      dbSchedules = await getDbSchedules(pool);
+      if (dbSchedules.length === 0) {
+        dbSchedules = [...options.initialSchedules];
+      }
+    } else {
+      if (!dbSchedules.some((s) => s.id === "default")) {
+        const def = options.initialSchedules.find((s) => s.id === "default") || {
+          id: "default",
+          name: "Primary Daily Schedule",
+          baseTime: "19:00",
+          jitterMinutes: 60,
+          enabled: true,
+        };
+        await upsertDbSchedule(def, pool);
+        dbSchedules = await getDbSchedules(pool);
+        if (!dbSchedules.some((s) => s.id === "default")) {
+          dbSchedules.unshift(def);
+        }
+      }
+    }
+
+    // 2. Sync Pages
+    let dbPages = await getDbPages(pool);
+    if (dbPages.length === 0) {
+      for (const page of options.initialPages) {
+        await upsertDbPage(page, pool);
+      }
+      dbPages = await getDbPages(pool);
+      if (dbPages.length === 0) {
+        dbPages = [...options.initialPages];
+      }
+    }
+
+    return { schedules: dbSchedules, pages: dbPages };
   } finally {
     if (ownPool) {
       await pool.end();
