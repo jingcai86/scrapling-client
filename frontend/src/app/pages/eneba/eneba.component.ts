@@ -95,7 +95,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
           <div class="kpi-top-bar"></div>
           <div class="kpi-card-inner">
             <div class="kpi-header-row">
-              <span class="kpi-eyebrow">Best {{ providerDisplayName }} Deals</span>
+              <span class="kpi-eyebrow">Best {{ providerDisplayName }} Deal</span>
               <div class="kpi-icon-pill" matTooltip="Top deals with the highest discounts">
                 <mat-icon>north_east</mat-icon>
               </div>
@@ -114,11 +114,12 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                 [title]="deal.title"
               >
                 <div class="kpi-deal-row-left">
-                  <span class="badge badge-discount-peak kpi-deal-badge">-{{ deal.discountPct.toFixed(1) }}%</span>
+                  <span class="badge badge-discount-peak kpi-deal-badge" *ngIf="deal.discountPct > 0">-{{ deal.discountPct.toFixed(1) }}%</span>
+                  <span class="badge badge-muted kpi-deal-badge" *ngIf="!deal.discountPct || deal.discountPct <= 0">Top Deal</span>
                   <span class="kpi-deal-row-title truncate">{{ deal.title }}</span>
                 </div>
                 <div class="kpi-deal-row-right">
-                  <span class="kpi-deal-price" *ngIf="deal.sellingPrice">\${{ deal.sellingPrice.toFixed(2) }}</span>
+                  <span class="kpi-deal-price" *ngIf="deal.sellingPrice && deal.sellingPrice > 0">\${{ deal.sellingPrice.toFixed(2) }}</span>
                   <mat-icon class="kpi-deal-arrow">north_east</mat-icon>
                 </div>
               </a>
@@ -1172,8 +1173,17 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     const allStatuses = data.statuses || [];
     const statuses = allStatuses.filter((s) => {
       const cat = (s.category || '').toLowerCase();
+      const prov = ((s as any).provider || '').toLowerCase();
       const url = (s.pageUrl || '').toLowerCase();
-      return cat === this.provider || url.includes(this.provider);
+      const name = (s.targetName || s.name || '').toLowerCase();
+      return (
+        cat === this.provider ||
+        prov === this.provider ||
+        url.includes(this.provider) ||
+        name.includes(`(${this.provider})`) ||
+        name.includes(` ${this.provider}`) ||
+        name.startsWith(`${this.provider} `)
+      );
     });
 
     // Deduplicate by target ID, target name, or URL within this provider
@@ -1265,6 +1275,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     const seenUrls = new Set<string>();
     const seenTitles = new Set<string>();
 
+    // 1. Gather all deals from allDeals with discountPct > 0
     for (const deal of this.allDeals) {
       if (!deal || deal.discountPct <= 0) continue;
       const urlKey = (deal.url || '').trim().toLowerCase();
@@ -1278,6 +1289,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       if (list.length >= 3) break;
     }
 
+    // 2. Check candidate bestDeal or bestEffectiveDeal from sortedCategories
     if (list.length < 3) {
       for (const st of this.sortedCategories) {
         const candidate = st.bestDeal || st.bestEffectiveDeal;
@@ -1294,7 +1306,73 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }
 
-    list.sort((a, b) => b.discountPct - a.discountPct);
+    // 3. Include any other active deals even if discountPct <= 0
+    if (list.length < 3) {
+      for (const deal of this.allDeals) {
+        if (!deal) continue;
+        const urlKey = (deal.url || '').trim().toLowerCase();
+        const titleKey = (deal.title || '').trim().toLowerCase();
+        if (urlKey && seenUrls.has(urlKey)) continue;
+        if (titleKey && seenTitles.has(titleKey)) continue;
+
+        if (urlKey) seenUrls.add(urlKey);
+        if (titleKey) seenTitles.add(titleKey);
+        list.push(deal);
+        if (list.length >= 3) break;
+      }
+    }
+
+    // 4. Check category listings if still fewer than 3
+    if (list.length < 3) {
+      for (const st of this.sortedCategories) {
+        const candidates = [st.bestDeal, st.bestEffectiveDeal, ...(st.rankedDeals || []), ...(st.topDeals || [])];
+        for (const candidate of candidates) {
+          if (!candidate) continue;
+          const urlKey = (candidate.url || '').trim().toLowerCase();
+          const titleKey = (candidate.title || '').trim().toLowerCase();
+          if (urlKey && seenUrls.has(urlKey)) continue;
+          if (titleKey && seenTitles.has(titleKey)) continue;
+
+          if (urlKey) seenUrls.add(urlKey);
+          if (titleKey) seenTitles.add(titleKey);
+          list.push({ ...candidate, scrapedAt: st.scrapedAt });
+          if (list.length >= 3) break;
+        }
+        if (list.length >= 3) break;
+      }
+    }
+
+    // 5. Fallback to configured target pages if no scrape results exist yet
+    if (list.length < 3) {
+      const pages = this.enebaPages;
+      for (const p of pages) {
+        const urlKey = (p.url || '').trim().toLowerCase();
+        const titleKey = (p.name || p.categoryName || '').trim().toLowerCase();
+        if (urlKey && seenUrls.has(urlKey)) continue;
+        if (titleKey && seenTitles.has(titleKey)) continue;
+
+        if (urlKey) seenUrls.add(urlKey);
+        if (titleKey) seenTitles.add(titleKey);
+        list.push({
+          category: this.provider,
+          title: p.name || p.categoryName || `${this.providerDisplayName} Gift Card`,
+          url: p.url,
+          region: 'UNITED STATES',
+          sellingPrice: 0,
+          originalPrice: 0,
+          faceValue: 0,
+          cashbackPct: 0,
+          inStock: true,
+          discountPct: 0,
+          effectiveDiscountPct: 0,
+          effectivePrice: 0,
+          savingsAmount: 0,
+        });
+        if (list.length >= 3) break;
+      }
+    }
+
+    list.sort((a, b) => (b.discountPct || 0) - (a.discountPct || 0));
     return list;
   }
 
@@ -1398,7 +1476,9 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       (p) =>
         (p.provider || '').toLowerCase() === this.provider ||
         (p.category || '').toLowerCase() === this.provider ||
-        p.url.toLowerCase().includes(this.provider)
+        p.url.toLowerCase().includes(this.provider) ||
+        (p.name || '').toLowerCase().includes(this.provider) ||
+        (p.categoryName || '').toLowerCase().includes(this.provider)
     );
   }
 
