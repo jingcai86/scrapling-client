@@ -1,12 +1,14 @@
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
-import type { ScrapePageConfig } from '../core/models/dashboard.model';
+import { ApiService } from '../core/services/api.service';
+import type { ScrapePageConfig, CatalogProduct } from '../core/models/dashboard.model';
 
 @Component({
   selector: 'app-page-form-dialog',
@@ -17,31 +19,42 @@ import type { ScrapePageConfig } from '../core/models/dashboard.model';
     MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MatCheckboxModule,
     MatButtonModule,
   ],
   template: `
-    <h2 mat-dialog-title>{{ data.page?.id ? 'Edit Scraping Page' : 'Add Scraping Page' }}</h2>
+    <h2 mat-dialog-title>{{ data.page?.id ? 'Edit Scraping Target' : 'Add Scraping Target' }}</h2>
     <form (ngSubmit)="save()" #pageForm="ngForm">
       <div mat-dialog-content class="form-content">
+        <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
+          <mat-label>Catalog Product</mat-label>
+          <mat-select [(ngModel)]="productId" name="productId" (selectionChange)="onProductSelected($event.value)">
+            <mat-option [value]="null">-- Select a catalog product --</mat-option>
+            <mat-option *ngFor="let prod of products" [value]="prod.id">
+              [{{ prod.slug }}] {{ prod.title }} ({{ prod.provider }})
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
           <mat-label>Provider</mat-label>
           <input matInput [(ngModel)]="provider" name="provider" required placeholder="eneba" />
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-          <mat-label>Category Name (Optional)</mat-label>
+          <mat-label>Target Name / Title</mat-label>
           <input matInput [(ngModel)]="categoryName" name="categoryName" placeholder="Xbox Gift Cards" />
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-          <mat-label>Category Store URL</mat-label>
-          <input matInput [(ngModel)]="url" name="url" type="url" required placeholder="https://www.eneba.com/us/store/xbox-gift-cards" />
+          <mat-label>Target URL (Derived from Product)</mat-label>
+          <input matInput [(ngModel)]="url" name="url" type="url" placeholder="https://www.eneba.com/us/..." />
         </mat-form-field>
 
         <div class="checkbox-group">
           <mat-checkbox [(ngModel)]="enabled" name="enabled">
-            Page Enabled for Scheduled &amp; Batch Scrapes
+            Target Enabled for Scheduled &amp; Batch Scrapes
           </mat-checkbox>
         </div>
       </div>
@@ -49,7 +62,7 @@ import type { ScrapePageConfig } from '../core/models/dashboard.model';
       <div mat-dialog-actions align="end">
         <button mat-button type="button" mat-dialog-close>Cancel</button>
         <button mat-flat-button color="primary" type="submit" [disabled]="!pageForm.valid">
-          Save Page
+          Save Target
         </button>
       </div>
     </form>
@@ -109,17 +122,25 @@ import type { ScrapePageConfig } from '../core/models/dashboard.model';
     }
   `],
 })
-export class PageFormDialogComponent {
+export class PageFormDialogComponent implements OnInit {
+  productId: string | null = null;
+  productSlug = '';
+  productTitle = '';
   provider = 'eneba';
   categoryName = '';
   url = '';
   enabled = true;
+  products: CatalogProduct[] = [];
 
   constructor(
     public dialogRef: MatDialogRef<PageFormDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: { page?: ScrapePageConfig },
+    private apiService: ApiService,
   ) {
     if (data.page) {
+      this.productId = data.page.productId ?? null;
+      this.productSlug = data.page.productSlug ?? '';
+      this.productTitle = data.page.productTitle ?? '';
       this.provider = data.page.provider;
       this.categoryName = data.page.categoryName || data.page.name || '';
       this.url = data.page.url;
@@ -127,9 +148,39 @@ export class PageFormDialogComponent {
     }
   }
 
+  ngOnInit(): void {
+    this.apiService.getProducts().subscribe({
+      next: (res) => {
+        this.products = res.products || [];
+      },
+    });
+  }
+
+  onProductSelected(selectedId: string | null): void {
+    if (!selectedId) return;
+    const found = this.products.find((p) => p.id === selectedId);
+    if (found) {
+      this.productId = found.id;
+      this.productSlug = found.slug;
+      this.productTitle = found.title;
+      if (!this.categoryName) {
+        this.categoryName = found.title;
+      }
+      if (found.provider) {
+        this.provider = found.provider;
+      }
+      if (found.url) {
+        this.url = found.url;
+      }
+    }
+  }
+
   save() {
     this.dialogRef.close({
       id: this.data.page?.id,
+      productId: this.productId,
+      productSlug: this.productSlug,
+      productTitle: this.productTitle,
       provider: this.provider,
       categoryName: this.categoryName,
       name: this.categoryName,

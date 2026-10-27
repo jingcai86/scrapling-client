@@ -80,20 +80,54 @@ function createInMemoryConfigPool(): {
         }
       }
 
+      // Products table queries
+      if (lower.includes("scrapling.products") && !lower.includes("scrape_targets")) {
+        return { rows: [], rowCount: 0 };
+      }
+
       // Scraping Targets table queries (scrapling.scrape_targets / scrapling.target_pages / scrapling.targets)
       if (lower.includes("scrapling.scrape_targets") || lower.includes("scrapling.target_pages") || lower.includes("scrapling.targets") || lower.includes("scrapling.scrape_pages")) {
         if (lower.includes("insert into") || lower.includes("on conflict")) {
           const id = String(sqlParams[0] ?? "");
-          const category = String(sqlParams[1] ?? "eneba");
-          const name = String(sqlParams[2] ?? "");
-          const url = String(sqlParams[3] ?? "");
-          const enabled = Boolean(sqlParams[4]);
-          const schedule_id = sqlParams.length >= 8 ? String(sqlParams[6] ?? "default") : String(sqlParams[5] ?? "default");
-          const created_at = (sqlParams.length >= 8 ? sqlParams[7] : sqlParams[6])
-            ? new Date(String(sqlParams.length >= 8 ? sqlParams[7] : sqlParams[6]))
-            : new Date();
+          let product_id: string | null = null;
+          let provider = "eneba";
+          let name = "";
+          let enabled = true;
+          let schedule_id = "default";
+          let created_at = new Date();
+
+          if (sqlParams.length === 7) {
+            product_id = sqlParams[1] ? String(sqlParams[1]) : null;
+            provider = String(sqlParams[2] ?? "eneba");
+            name = String(sqlParams[3] ?? "");
+            enabled = Boolean(sqlParams[4]);
+            schedule_id = String(sqlParams[5] ?? "default");
+            created_at = sqlParams[6] ? new Date(String(sqlParams[6])) : new Date();
+          } else {
+            provider = String(sqlParams[1] ?? "eneba");
+            name = String(sqlParams[2] ?? "");
+            enabled = Boolean(sqlParams[4]);
+            schedule_id = sqlParams.length >= 8 ? String(sqlParams[6] ?? "default") : String(sqlParams[5] ?? "default");
+            created_at = (sqlParams.length >= 8 ? sqlParams[7] : sqlParams[6])
+              ? new Date(String(sqlParams.length >= 8 ? sqlParams[7] : sqlParams[6]))
+              : new Date();
+          }
+
           if (id) {
-            pageRows.set(id, { id, category, provider: category, name, url, enabled, schedule_id, created_at });
+            pageRows.set(id, {
+              id,
+              product_id,
+              product_slug: "test-slug",
+              product_title: name,
+              product_url: "https://www.eneba.com/store/gift-cards",
+              url: "https://www.eneba.com/store/gift-cards",
+              category: provider,
+              provider,
+              name,
+              enabled,
+              schedule_id,
+              created_at,
+            });
           }
           return { rows: [], rowCount: 1 };
         }

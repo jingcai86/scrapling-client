@@ -153,9 +153,12 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
           <div class="table-wrapper" [class.table-loading-dimmed]="isLoading">
             <table mat-table [dataSource]="sortedPages" matSort (matSortChange)="sortPages($event)" class="data-table">
               <ng-container matColumnDef="categoryName">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Category Name</th>
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Target Name / Product</th>
                 <td mat-cell *matCellDef="let page">
-                  <strong class="cat-title">{{ page.categoryName }}</strong>
+                  <strong class="cat-title">{{ page.categoryName || page.name }}</strong>
+                  <span *ngIf="page.productSlug" class="badge" style="margin-left: 6px; font-size: 0.72rem; opacity: 0.85;">
+                    {{ page.productSlug }}
+                  </span>
                 </td>
               </ng-container>
 
@@ -167,11 +170,12 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
               </ng-container>
 
               <ng-container matColumnDef="url">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Store Page URL</th>
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Product / Store URL</th>
                 <td mat-cell *matCellDef="let page" class="url-cell">
-                  <a [href]="page.url" target="_blank" rel="noopener" class="store-link" [title]="page.url">
+                  <a *ngIf="page.url" [href]="page.url" target="_blank" rel="noopener" class="store-link" [title]="page.url">
                     <span class="url-text">{{ page.url }}</span> ↗
                   </a>
+                  <span *ngIf="!page.url" class="muted">No URL linked</span>
                 </td>
               </ng-container>
 

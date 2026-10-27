@@ -2,7 +2,7 @@ import { Injectable, Inject, PLATFORM_ID, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
-import type { DashboardData, ScrapePageConfig, SellerOffer, SchedulerState } from '../models/dashboard.model';
+import type { DashboardData, ScrapePageConfig, SellerOffer, SchedulerState, CatalogProduct } from '../models/dashboard.model';
 
 @Injectable({
   providedIn: 'root',
@@ -68,6 +68,10 @@ export class ApiService {
     return this.http.delete<{ deleted: boolean }>(`/api/pages/${encodeURIComponent(id)}`).pipe(
       tap(() => this.loadDashboard(false)),
     );
+  }
+
+  getProducts(): Observable<{ products: CatalogProduct[] }> {
+    return this.http.get<{ products: CatalogProduct[] }>('/api/pages/products');
   }
 
   // System & Database Config

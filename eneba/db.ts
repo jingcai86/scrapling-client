@@ -101,6 +101,8 @@ BEGIN
     ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS with_offers;
     ALTER TABLE scrapling.scrape_targets ALTER COLUMN name DROP NOT NULL;
     ALTER TABLE scrapling.scrape_targets ALTER COLUMN name SET DEFAULT '';
+    ALTER TABLE scrapling.scrape_targets ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES scrapling.products(id) ON DELETE CASCADE;
+    ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS url;
   END IF;
 
   -- Ensure products.id and records.product_id are UUID
@@ -601,14 +603,11 @@ export async function savePageDealsToDb(
           .select()
           .from(scraplingTargets)
           .where(
-            status.targetId
-              ? eq(scraplingTargets.id, status.targetId)
-              : or(
-                  eq(scraplingTargets.url, status.pageUrl),
-                  eq(
-                    scraplingTargets.name,
-                    status.targetName || status.name || status.category,
-                  ),
+            status.targetId || (status as any).scrapeTargetId
+              ? eq(scraplingTargets.id, (status.targetId || (status as any).scrapeTargetId)!)
+              : eq(
+                  scraplingTargets.name,
+                  status.targetName || status.name || status.category,
                 ),
           )
           .limit(1);
@@ -1143,7 +1142,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
 
       const provider = target?.provider || records[0]?.record.provider || "eneba";
       const targetTitle = target?.name || provider;
-      const targetUrl = target?.url || records[0]?.record.url || "";
+      const targetUrl = records[0]?.record.url || "";
       const totalListings = records.length;
       const inStockCount = records.filter(({ record: r }) => r.inStock).length;
       const discountedCount = records.filter(

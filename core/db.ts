@@ -104,16 +104,30 @@ CREATE TABLE IF NOT EXISTS scrapling.schedulers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS scrapling.products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  region TEXT NOT NULL DEFAULT 'GLOBAL',
+  face_value NUMERIC(10, 2),
+  face_value_currency TEXT,
+  url TEXT,
+  provider TEXT,
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS scrapling.scrape_targets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID REFERENCES scrapling.products(id) ON DELETE CASCADE,
   provider TEXT NOT NULL DEFAULT 'eneba',
   name TEXT DEFAULT '',
-  url TEXT NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   schedule_id TEXT NOT NULL DEFAULT 'default',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_targets_product_id ON scrapling.scrape_targets(product_id);
 
 DO $$
 BEGIN
@@ -147,6 +161,8 @@ BEGIN
     ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS with_offers;
     ALTER TABLE scrapling.scrape_targets ALTER COLUMN name DROP NOT NULL;
     ALTER TABLE scrapling.scrape_targets ALTER COLUMN name SET DEFAULT '';
+    ALTER TABLE scrapling.scrape_targets ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES scrapling.products(id) ON DELETE CASCADE;
+    ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS url;
   END IF;
 
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets' AND column_name = 'category')
@@ -427,10 +443,13 @@ export interface ScheduleDbItem {
 
 export interface TargetDbItem {
   id: string;
+  productId?: string | null;
+  productSlug?: string | null;
+  productTitle?: string | null;
   provider?: string;
   category?: string; // backward-compat alias
   name?: string;
-  url: string;
+  url?: string; // derived from products.url
   enabled: boolean;
   withOffers?: boolean;
   scheduleId?: string;
@@ -536,19 +555,40 @@ export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
     await ensureScraplingConfigTable(p);
     const res = await p.query<{
       id: string;
+      product_id: string | null;
+      product_slug: string | null;
+      product_title: string | null;
+      product_url: string | null;
       provider: string;
       name: string | null;
-      url: string;
       enabled: boolean;
       schedule_id: string;
       created_at: Date;
-    }>("SELECT id, provider, name, url, enabled, schedule_id, created_at FROM scrapling.scrape_targets ORDER BY created_at ASC");
+    }>(`
+      SELECT 
+        t.id, 
+        t.product_id,
+        p.slug AS product_slug,
+        p.title AS product_title,
+        p.url AS product_url,
+        t.provider, 
+        t.name, 
+        t.enabled, 
+        t.schedule_id, 
+        t.created_at 
+      FROM scrapling.scrape_targets t
+      LEFT JOIN scrapling.products p ON p.id = t.product_id
+      ORDER BY t.created_at ASC
+    `);
     return res.rows.map((r) => ({
       id: r.id,
+      productId: r.product_id,
+      productSlug: r.product_slug,
+      productTitle: r.product_title,
       provider: r.provider || "eneba",
       category: r.provider || "eneba",
-      name: r.name || "",
-      url: r.url,
+      name: r.name || r.product_title || "",
+      url: r.product_url || "",
       enabled: Boolean(r.enabled),
       withOffers: true,
       scheduleId: r.schedule_id || "default",
@@ -561,7 +601,7 @@ export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
 export const getDbTargetPages = getDbTargets;
 
 /**
- * Upserts a scrape target page into `scrapling.scrape_targets`.
+ * Upserts a scrape target into `scrapling.scrape_targets`.
  */
 export async function upsertDbTarget(
   target: TargetDbItem,
@@ -572,21 +612,34 @@ export async function upsertDbTarget(
   try {
     await ensureScraplingConfigTable(p);
     const provider = target.provider || target.category || "eneba";
+    let productId = target.productId || null;
+
+    // If productId wasn't provided, try to find product by url or name
+    if (!productId && target.url) {
+      const prodRes = await p.query<{ id: string }>(
+        "SELECT id FROM scrapling.products WHERE url = $1 LIMIT 1",
+        [target.url],
+      );
+      if (prodRes.rows.length > 0) {
+        productId = prodRes.rows[0].id;
+      }
+    }
+
     await p.query(
-      `INSERT INTO scrapling.scrape_targets (id, provider, name, url, enabled, schedule_id, created_at, updated_at)
-       VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, COALESCE($3, ''), $4, $5, $6, COALESCE($7::timestamptz, NOW()), NOW())
+      `INSERT INTO scrapling.scrape_targets (id, product_id, provider, name, enabled, schedule_id, created_at, updated_at)
+       VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, COALESCE($4, ''), $5, $6, COALESCE($7::timestamptz, NOW()), NOW())
        ON CONFLICT (id) DO UPDATE SET
+         product_id = COALESCE(EXCLUDED.product_id, scrapling.scrape_targets.product_id),
          provider = EXCLUDED.provider,
          name = EXCLUDED.name,
-         url = EXCLUDED.url,
          enabled = EXCLUDED.enabled,
          schedule_id = EXCLUDED.schedule_id,
          updated_at = NOW()`,
       [
         target.id,
+        productId,
         provider,
         target.name || "",
-        target.url,
         target.enabled,
         target.scheduleId || "default",
         target.createdAt || new Date().toISOString(),
@@ -619,64 +672,64 @@ export const deleteDbTargetPage = deleteDbTarget;
 const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
   {
     id: "a1000000-0000-4000-8000-000000000001",
+    productId: "0cbae1f0-59b3-4ac3-bcd1-3b7bbde05686",
     provider: "eneba",
     category: "eneba",
     name: "PlayStation (PSN) Gift Cards",
-    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network",
     enabled: true,
     scheduleId: "default",
   },
   {
     id: "a1000000-0000-4000-8000-000000000002",
+    productId: "c56cb9eb-0773-472e-a530-ee72d5863c3a",
     provider: "eneba",
     category: "eneba",
     name: "Apple iTunes / App Store Gift Cards",
-    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes",
     enabled: true,
     scheduleId: "default",
   },
   {
     id: "a1000000-0000-4000-8000-000000000003",
+    productId: "3a8bd30c-620d-48a3-aa66-f976f9ecaa50",
     provider: "eneba",
     category: "eneba",
     name: "Google Play Gift Cards",
-    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=google_play",
     enabled: true,
     scheduleId: "default",
   },
   {
     id: "a1000000-0000-4000-8000-000000000004",
+    productId: "b1000000-0000-4000-8000-000000000004",
     provider: "eneba",
     category: "eneba",
     name: "Steam Gift Cards & Wallet Codes",
-    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam",
     enabled: true,
     scheduleId: "default",
   },
   {
     id: "a1000000-0000-4000-8000-000000000005",
+    productId: "f700d89a-919a-4e82-9eb6-c92f7853c2a2",
     provider: "eneba",
     category: "eneba",
     name: "Nintendo eShop Cards",
-    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=nintendo_eshop",
     enabled: true,
     scheduleId: "default",
   },
   {
     id: "a1000000-0000-4000-8000-000000000006",
+    productId: "28519d1d-0742-4e92-b28f-f8e34cd60630",
     provider: "eneba",
     category: "eneba",
     name: "Amazon Gift Cards",
-    url: "https://www.eneba.com/us/store/amazon-gift-cards",
     enabled: true,
     scheduleId: "default",
   },
   {
     id: "a1000000-0000-4000-8000-000000000007",
+    productId: "ad69d4d6-a0fd-49dd-a439-e983f3af32b3",
     provider: "g2a",
     category: "g2a",
     name: "Amazon Gift Cards (G2A)",
-    url: "https://www.g2a.com/category/gift-cards-c6",
     enabled: true,
     scheduleId: "default",
   },

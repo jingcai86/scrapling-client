@@ -129,6 +129,8 @@ BEGIN
     ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS with_offers;
     ALTER TABLE scrapling.scrape_targets ALTER COLUMN name DROP NOT NULL;
     ALTER TABLE scrapling.scrape_targets ALTER COLUMN name SET DEFAULT '';
+    ALTER TABLE scrapling.scrape_targets ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES scrapling.products(id) ON DELETE CASCADE;
+    ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS url;
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs' AND column_name = 'category') THEN
     UPDATE scrapling.scrape_runs SET provider = category WHERE (provider IS NULL OR provider = '') AND category IS NOT NULL;
@@ -324,33 +326,7 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
--- 3. Monitored Scraping Targets Table
--- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS scrapling.scrape_targets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  provider TEXT NOT NULL DEFAULT 'eneba',
-  name TEXT DEFAULT '',
-  url TEXT NOT NULL,
-  enabled BOOLEAN NOT NULL DEFAULT true,
-  schedule_id TEXT NOT NULL DEFAULT 'default',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Seed default initial scrape targets
-INSERT INTO scrapling.scrape_targets (id, provider, name, url, enabled, schedule_id, created_at, updated_at)
-VALUES
-  ('a1000000-0000-4000-8000-000000000001'::uuid, 'eneba', 'PlayStation (PSN) Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000002'::uuid, 'eneba', 'Apple iTunes / App Store Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000003'::uuid, 'eneba', 'Google Play Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=google_play', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000004'::uuid, 'eneba', 'Steam Gift Cards & Wallet Codes', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000005'::uuid, 'eneba', 'Nintendo eShop Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=nintendo_eshop', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000006'::uuid, 'eneba', 'Amazon Gift Cards', 'https://www.eneba.com/us/store/amazon-gift-cards', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000007'::uuid, 'g2a', 'Amazon Gift Cards (G2A)', 'https://www.g2a.com/category/gift-cards-c6', true, 'default', NOW(), NOW())
-ON CONFLICT (id) DO NOTHING;
-
--- ----------------------------------------------------------------------------
--- 4. Normalized Product Catalog (Unique Gift Cards)
+-- 3. Normalized Product Catalog (Unique Gift Cards)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -364,6 +340,50 @@ CREATE TABLE IF NOT EXISTS scrapling.products (
   first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Seed initial products
+INSERT INTO scrapling.products (id, slug, title, region, face_value, face_value_currency, url, provider, first_seen_at, last_seen_at)
+VALUES
+  ('0cbae1f0-59b3-4ac3-bcd1-3b7bbde05686'::uuid, 'psn-40', 'PlayStation Network Card 40 USD (USA) PSN Key UNITED STATES', 'UNITED STATES', 40.00, 'USD', 'https://www.eneba.com/us/psn-playstation-network-card-40-usd-usa-psn-key-united-states', 'eneba', NOW(), NOW()),
+  ('c56cb9eb-0773-472e-a530-ee72d5863c3a'::uuid, 'apple-10', 'Apple Gift Card 10 USD Key UNITED STATES', 'UNITED STATES', 10.00, 'USD', 'https://www.eneba.com/us/other-apple-gift-card-10-usd-key-united-states', 'eneba', NOW(), NOW()),
+  ('3a8bd30c-620d-48a3-aa66-f976f9ecaa50'::uuid, 'google-play-10', 'Google Play Gift Card 10 USD Key UNITED STATES', 'UNITED STATES', 10.00, 'USD', 'https://www.eneba.com/us/google-play-google-play-gift-card-10-usd-key-united-states', 'eneba', NOW(), NOW()),
+  ('b1000000-0000-4000-8000-000000000004'::uuid, 'steam-20', 'Steam Gift Card 20 USD Key GLOBAL', 'GLOBAL', 20.00, 'USD', 'https://www.eneba.com/us/steam-steam-gift-card-20-usd-key-global', 'eneba', NOW(), NOW()),
+  ('f700d89a-919a-4e82-9eb6-c92f7853c2a2'::uuid, 'nintendo-10', 'Nintendo eShop Card 10 USD Key UNITED STATES', 'UNITED STATES', 10.00, 'USD', 'https://www.eneba.com/us/nintendo-eshop-card-10-usd-key-united-states', 'eneba', NOW(), NOW()),
+  ('28519d1d-0742-4e92-b28f-f8e34cd60630'::uuid, 'amazon-10', 'Amazon Gift Card 10 USD UNITED STATES', 'UNITED STATES', 10.00, 'USD', 'https://www.eneba.com/us/amazon-amazon-gift-card-10-usd-united-states', 'eneba', NOW(), NOW()),
+  ('ad69d4d6-a0fd-49dd-a439-e983f3af32b3'::uuid, 'apple-50', 'Apple iTunes Gift Card 50 USD Key GLOBAL', 'GLOBAL', 50.00, 'USD', 'https://www.g2a.com/apple-itunes-gift-card-50-usd-key-global-i10000000002002', 'g2a', NOW(), NOW())
+ON CONFLICT (slug) DO UPDATE SET url = EXCLUDED.url;
+
+-- ----------------------------------------------------------------------------
+-- 4. Monitored Scraping Targets Table
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS scrapling.scrape_targets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID REFERENCES scrapling.products(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL DEFAULT 'eneba',
+  name TEXT DEFAULT '',
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  schedule_id TEXT NOT NULL DEFAULT 'default',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_targets_product_id ON scrapling.scrape_targets(product_id);
+
+-- Seed default initial scrape targets
+INSERT INTO scrapling.scrape_targets (id, product_id, provider, name, enabled, schedule_id, created_at, updated_at)
+VALUES
+  ('a1000000-0000-4000-8000-000000000001'::uuid, '0cbae1f0-59b3-4ac3-bcd1-3b7bbde05686'::uuid, 'eneba', 'PlayStation (PSN) Gift Cards', true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000002'::uuid, 'c56cb9eb-0773-472e-a530-ee72d5863c3a'::uuid, 'eneba', 'Apple iTunes / App Store Gift Cards', true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000003'::uuid, '3a8bd30c-620d-48a3-aa66-f976f9ecaa50'::uuid, 'eneba', 'Google Play Gift Cards', true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000004'::uuid, 'b1000000-0000-4000-8000-000000000004'::uuid, 'eneba', 'Steam Gift Cards & Wallet Codes', true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000005'::uuid, 'f700d89a-919a-4e82-9eb6-c92f7853c2a2'::uuid, 'eneba', 'Nintendo eShop Cards', true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000006'::uuid, '28519d1d-0742-4e92-b28f-f8e34cd60630'::uuid, 'eneba', 'Amazon Gift Cards', true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000007'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b3'::uuid, 'g2a', 'Amazon Gift Cards (G2A)', true, 'default', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET
+  product_id = EXCLUDED.product_id,
+  provider = EXCLUDED.provider,
+  name = EXCLUDED.name,
+  enabled = EXCLUDED.enabled,
+  schedule_id = EXCLUDED.schedule_id;
 
 -- ----------------------------------------------------------------------------
 -- 5. Page-Level Scrape Runs (One record per category page scrape)

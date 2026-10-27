@@ -1,5 +1,8 @@
 export interface ScrapePageConfig {
   id: string;
+  productId?: string | null;
+  productSlug?: string | null;
+  productTitle?: string | null;
   category?: string;
   provider: string;
   categoryName?: string;
@@ -9,6 +12,14 @@ export interface ScrapePageConfig {
   withOffers?: boolean;
   createdAt: string;
   scheduleId?: string;
+}
+
+export interface CatalogProduct {
+  id: string;
+  slug: string;
+  title: string;
+  url: string | null;
+  provider: string | null;
 }
 
 export interface SellerOffer {

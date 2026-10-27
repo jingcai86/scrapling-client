@@ -74,11 +74,14 @@ export async function createDashboardServer(options: {
           const provider = t.provider || t.category || "eneba";
           return {
             id: t.id,
+            productId: t.productId,
+            productSlug: t.productSlug,
+            productTitle: t.productTitle,
             category: provider,
             provider,
             categoryName: t.name,
             name: t.name,
-            url: t.url,
+            url: t.url || "",
             enabled: t.enabled,
             withOffers: t.withOffers,
             scheduleId: t.scheduleId || "default",

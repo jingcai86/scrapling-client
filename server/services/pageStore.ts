@@ -15,11 +15,14 @@ const DEFAULT_DATA_DIR = path.resolve(REPO_ROOT, "data");
 
 export interface ScrapePageConfig {
   id: string;
+  productId?: string | null;
+  productSlug?: string | null;
+  productTitle?: string | null;
   category: string; // e.g. "eneba", "g2a" (scraper provider/category)
   provider?: string; // alias for category
   categoryName?: string; // e.g. "PlayStation (PSN) Gift Cards"
   name?: string; // alias for categoryName
-  url: string;
+  url: string; // derived from products.url
   enabled: boolean;
   withOffers?: boolean;
   createdAt: string;
@@ -68,6 +71,8 @@ export const DEFAULT_SCHEDULES: ScheduleConfigItem[] = [
 export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   {
     id: "a1000000-0000-4000-8000-000000000001",
+    productId: "0cbae1f0-59b3-4ac3-bcd1-3b7bbde05686",
+    productSlug: "psn-40",
     category: "eneba",
     provider: "eneba",
     categoryName: "PlayStation (PSN) Gift Cards",
@@ -80,6 +85,8 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "a1000000-0000-4000-8000-000000000005",
+    productId: "f700d89a-919a-4e82-9eb6-c92f7853c2a2",
+    productSlug: "nintendo-10",
     category: "eneba",
     provider: "eneba",
     categoryName: "Nintendo eShop Gift Cards",
@@ -92,6 +99,8 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "a1000000-0000-4000-8000-000000000003",
+    productId: "3a8bd30c-620d-48a3-aa66-f976f9ecaa50",
+    productSlug: "google-play-10",
     category: "eneba",
     provider: "eneba",
     categoryName: "Android (Google Play) Gift Cards",
@@ -104,6 +113,8 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "a1000000-0000-4000-8000-000000000006",
+    productId: "28519d1d-0742-4e92-b28f-f8e34cd60630",
+    productSlug: "amazon-10",
     category: "eneba",
     provider: "eneba",
     categoryName: "Amazon Gift Cards",
@@ -116,6 +127,8 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "a1000000-0000-4000-8000-000000000002",
+    productId: "c56cb9eb-0773-472e-a530-ee72d5863c3a",
+    productSlug: "apple-10",
     category: "eneba",
     provider: "eneba",
     categoryName: "Apple Gift Cards",
@@ -127,6 +140,8 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "a1000000-0000-4000-8000-000000000004",
+    productId: "b1000000-0000-4000-8000-000000000004",
+    productSlug: "steam-20",
     category: "eneba",
     provider: "eneba",
     categoryName: "Steam Gift Cards & Wallet Codes",
@@ -138,6 +153,8 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "a1000000-0000-4000-8000-000000000007",
+    productId: "ad69d4d6-a0fd-49dd-a439-e983f3af32b3",
+    productSlug: "apple-50",
     category: "g2a",
     provider: "g2a",
     categoryName: "Amazon Gift Cards (G2A)",
@@ -324,41 +341,49 @@ export class PageStore {
    * Adds a new scraping page to the store.
    */
   addPage(input: {
+    productId?: string | null;
+    productSlug?: string | null;
+    productTitle?: string | null;
     provider?: string;
     category?: string;
     categoryName?: string;
     name?: string;
-    url: string;
+    url?: string;
     enabled?: boolean;
     withOffers?: boolean;
     scheduleId?: string;
   }): ScrapePageConfig {
     const pages = this.listPages();
     const category = (input.category || input.provider || "eneba").trim().toLowerCase();
-    let categoryName = (input.categoryName || input.name || "").trim();
-    const url = input.url.trim();
+    let categoryName = (input.categoryName || input.name || input.productTitle || "").trim();
+    const rawUrl = (input.url || "").trim();
 
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-    } catch {
-      throw new Error("A valid full URL (https://...) is required.");
-    }
-
-    if (!categoryName) {
-      const segments = parsedUrl.pathname.split("/").filter(Boolean);
-      categoryName = segments.length > 0 ? segments[segments.length - 1].replace(/[-_]/g, " ") : parsedUrl.hostname;
+    let finalUrl = rawUrl;
+    if (rawUrl) {
+      try {
+        const parsed = new URL(rawUrl);
+        finalUrl = parsed.toString();
+        if (!categoryName) {
+          const segments = parsed.pathname.split("/").filter(Boolean);
+          categoryName = segments.length > 0 ? segments[segments.length - 1].replace(/[-_]/g, " ") : parsed.hostname;
+        }
+      } catch {
+        // Ignore invalid URL formatting if it's a slug or placeholder
+      }
     }
 
     const id = crypto.randomUUID();
 
     const newPage: ScrapePageConfig = {
       id,
+      productId: input.productId ?? null,
+      productSlug: input.productSlug ?? null,
+      productTitle: input.productTitle ?? null,
       category,
       provider: category,
-      categoryName,
-      name: categoryName,
-      url: parsedUrl.toString(),
+      categoryName: categoryName || "Scraping Target",
+      name: categoryName || "Scraping Target",
+      url: finalUrl,
       enabled: input.enabled ?? true,
       withOffers: input.withOffers ?? true,
       createdAt: new Date().toISOString(),
@@ -378,6 +403,9 @@ export class PageStore {
     patch: Partial<
       Pick<
         ScrapePageConfig,
+        | "productId"
+        | "productSlug"
+        | "productTitle"
         | "categoryName"
         | "name"
         | "url"
@@ -401,32 +429,30 @@ export class PageStore {
           ? patch.provider.trim().toLowerCase() || current.category || "eneba"
           : current.category || "eneba";
     const categoryName =
-      patch.categoryName !== undefined
-        ? patch.categoryName.trim() || current.categoryName
-        : patch.name !== undefined
-          ? patch.name.trim() || current.categoryName
-          : current.categoryName;
+      patch.categoryName !== undefined && patch.categoryName.trim()
+        ? patch.categoryName.trim()
+        : patch.name !== undefined && patch.name.trim()
+          ? patch.name.trim()
+          : current.categoryName || current.name;
+
+    const url =
+      patch.url !== undefined
+        ? patch.url.trim()
+        : current.url;
 
     const updated: ScrapePageConfig = {
       ...current,
+      productId: patch.productId !== undefined ? patch.productId : current.productId,
+      productSlug: patch.productSlug !== undefined ? patch.productSlug : current.productSlug,
+      productTitle: patch.productTitle !== undefined ? patch.productTitle : current.productTitle,
       category,
       provider: category,
       categoryName,
       name: categoryName,
-      url:
-        patch.url !== undefined
-          ? new URL(patch.url.trim()).toString()
-          : current.url,
-      enabled:
-        patch.enabled !== undefined ? Boolean(patch.enabled) : current.enabled,
-      withOffers:
-        patch.withOffers !== undefined
-          ? Boolean(patch.withOffers)
-          : current.withOffers,
-      scheduleId:
-        patch.scheduleId !== undefined
-          ? patch.scheduleId.trim() || "default"
-          : current.scheduleId || "default",
+      url,
+      enabled: patch.enabled !== undefined ? Boolean(patch.enabled) : current.enabled,
+      withOffers: patch.withOffers !== undefined ? Boolean(patch.withOffers) : current.withOffers,
+      scheduleId: patch.scheduleId !== undefined ? patch.scheduleId.trim() || "default" : current.scheduleId,
     };
 
     pages[idx] = updated;

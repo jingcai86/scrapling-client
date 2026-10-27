@@ -9,15 +9,63 @@ export function createPagesRouter(ctx: ServerContext): Router {
     res.json({ pages: ctx.pageStore.listPages() });
   });
 
+  router.get("/products", async (_req, res, next) => {
+    try {
+      if (ctx.pool) {
+        const prodRes = await ctx.pool.query<{
+          id: string;
+          slug: string;
+          title: string;
+          url: string | null;
+          provider: string | null;
+        }>(
+          "SELECT id, slug, title, url, provider FROM scrapling.products ORDER BY title ASC",
+        );
+        res.json({ products: prodRes.rows });
+        return;
+      }
+      res.json({ products: [] });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.post("/", async (req, res, next) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
+      let productId = body.productId ? String(body.productId) : undefined;
+      let url = String(body.url ?? "");
+      let categoryName = String(body.categoryName ?? body.name ?? "");
+      let productSlug: string | undefined = body.productSlug ? String(body.productSlug) : undefined;
+      let productTitle: string | undefined = body.productTitle ? String(body.productTitle) : undefined;
+
+      if (ctx.pool && productId) {
+        try {
+          const prodRes = await ctx.pool.query<{ id: string; slug: string; title: string; url: string | null; provider: string | null }>(
+            "SELECT id, slug, title, url, provider FROM scrapling.products WHERE id = $1 LIMIT 1",
+            [productId],
+          );
+          if (prodRes.rows.length > 0) {
+            const p = prodRes.rows[0];
+            productSlug = p.slug;
+            productTitle = p.title;
+            if (!url && p.url) url = p.url;
+            if (!categoryName) categoryName = p.title;
+          }
+        } catch {
+          // fallback
+        }
+      }
+
       const page = ctx.pageStore.addPage({
+        productId,
+        productSlug,
+        productTitle,
         category: String(body.category ?? body.provider ?? "eneba"),
         provider: String(body.provider ?? body.category ?? "eneba"),
-        categoryName: String(body.categoryName ?? body.name ?? ""),
-        name: String(body.name ?? body.categoryName ?? ""),
-        url: String(body.url ?? ""),
+        categoryName,
+        name: categoryName,
+        url,
         enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
         withOffers:
           body.withOffers !== undefined ? Boolean(body.withOffers) : true,
@@ -29,6 +77,9 @@ export function createPagesRouter(ctx: ServerContext): Router {
           await upsertDbTarget(
             {
               id: page.id,
+              productId: page.productId,
+              productSlug: page.productSlug,
+              productTitle: page.productTitle,
               provider: page.provider || page.category || "eneba",
               category: page.category || page.provider || "eneba",
               name: page.categoryName || page.name || page.id,
@@ -54,7 +105,32 @@ export function createPagesRouter(ctx: ServerContext): Router {
     try {
       const id = req.params.id;
       const body = (req.body ?? {}) as Record<string, unknown>;
+      let productId = body.productId !== undefined ? (body.productId ? String(body.productId) : null) : undefined;
+      let url = body.url !== undefined ? String(body.url) : undefined;
+      let productSlug = body.productSlug !== undefined ? String(body.productSlug) : undefined;
+      let productTitle = body.productTitle !== undefined ? String(body.productTitle) : undefined;
+
+      if (ctx.pool && productId) {
+        try {
+          const prodRes = await ctx.pool.query<{ id: string; slug: string; title: string; url: string | null }>(
+            "SELECT id, slug, title, url FROM scrapling.products WHERE id = $1 LIMIT 1",
+            [productId],
+          );
+          if (prodRes.rows.length > 0) {
+            const p = prodRes.rows[0];
+            productSlug = p.slug;
+            productTitle = p.title;
+            if (!url && p.url) url = p.url;
+          }
+        } catch {
+          // fallback
+        }
+      }
+
       const updated = ctx.pageStore.updatePage(id, {
+        productId,
+        productSlug,
+        productTitle,
         category:
           body.category !== undefined
             ? String(body.category)
@@ -79,7 +155,7 @@ export function createPagesRouter(ctx: ServerContext): Router {
             : body.categoryName !== undefined
               ? String(body.categoryName)
               : undefined,
-        url: body.url !== undefined ? String(body.url) : undefined,
+        url,
         enabled:
           body.enabled !== undefined ? Boolean(body.enabled) : undefined,
         withOffers:
@@ -98,6 +174,9 @@ export function createPagesRouter(ctx: ServerContext): Router {
           await upsertDbTarget(
             {
               id: updated.id,
+              productId: updated.productId,
+              productSlug: updated.productSlug,
+              productTitle: updated.productTitle,
               provider: updated.provider || updated.category || "eneba",
               category: updated.category || updated.provider || "eneba",
               name: updated.categoryName || updated.name || updated.id,

@@ -54,20 +54,28 @@ export const scraplingSchedulers = scraplingSchema.table("schedulers", {
 /**
  * 2c. Monitored Scraping Targets and Provider Mappings (`scrapling.scrape_targets`)
  */
-export const scraplingScrapeTargets = scraplingSchema.table("scrape_targets", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  provider: text("provider").notNull().default("eneba"), // scraper provider (e.g. 'eneba', 'g2a')
-  name: text("name").default(""), // display title (e.g. 'PlayStation (PSN) Gift Cards')
-  url: text("url").notNull(),
-  enabled: boolean("enabled").notNull().default(true),
-  scheduleId: text("schedule_id").notNull().default("default"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const scraplingScrapeTargets = scraplingSchema.table(
+  "scrape_targets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id").references(() => scraplingProducts.id, {
+      onDelete: "cascade",
+    }),
+    provider: text("provider").notNull().default("eneba"), // scraper provider (e.g. 'eneba', 'g2a')
+    name: text("name").default(""), // display title (e.g. 'PlayStation (PSN) Gift Cards')
+    enabled: boolean("enabled").notNull().default(true),
+    scheduleId: text("schedule_id").notNull().default("default"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_scrapling_scrape_targets_product_id").on(table.productId),
+  ],
+);
 
 export const scraplingTargetPages = scraplingScrapeTargets; // backward-compatibility alias
 export const scraplingTargets = scraplingScrapeTargets; // backward-compatibility alias
@@ -259,10 +267,24 @@ export const scraplingProductsRelations = relations(
   scraplingProducts,
   ({ many }) => ({
     records: many(scraplingRecords),
+    targets: many(scraplingScrapeTargets),
   }),
 );
 
 export const enebaProductsRelations = scraplingProductsRelations;
+
+export const scraplingScrapeTargetsRelations = relations(
+  scraplingScrapeTargets,
+  ({ one, many }) => ({
+    product: one(scraplingProducts, {
+      fields: [scraplingScrapeTargets.productId],
+      references: [scraplingProducts.id],
+    }),
+    records: many(scraplingRecords),
+  }),
+);
+
+export const scraplingTargetsRelations = scraplingScrapeTargetsRelations;
 
 export const scraplingRecordsRelations = relations(
   scraplingRecords,
@@ -312,6 +334,8 @@ export const schema = {
   scraplingProductOffers,
   scraplingScrapeRunsRelations,
   scraplingProductsRelations,
+  scraplingScrapeTargetsRelations,
+  scraplingTargetsRelations,
   scraplingRecordsRelations,
   scraplingTopDealsRelations,
   scraplingSellersRelations,
