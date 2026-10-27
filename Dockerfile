@@ -18,8 +18,10 @@ RUN npm run build:ui
 COPY tsconfig.json .env.example drizzle.config.ts ./
 COPY core ./core
 COPY eneba ./eneba
+COPY g2a ./g2a
 COPY server ./server
 COPY drizzle ./drizzle
+COPY scripts ./scripts
 
 RUN mkdir -p /app/data
 
