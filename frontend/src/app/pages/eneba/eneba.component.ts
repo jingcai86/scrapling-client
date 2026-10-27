@@ -1157,6 +1157,56 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  getCanonicalProvider(s: {
+    provider?: string;
+    category?: string;
+    pageUrl?: string;
+    url?: string;
+    name?: string;
+    targetName?: string;
+    categoryName?: string;
+  }): string {
+    const url = (s.pageUrl || s.url || '').toLowerCase();
+    const name = (s.targetName || s.name || s.categoryName || '').toLowerCase();
+    const rawProv = (s.provider || s.category || '').toLowerCase().trim();
+
+    if (url.includes('g2a.com') || name.includes('(g2a)') || name.includes(' g2a') || rawProv === 'g2a') {
+      return 'g2a';
+    }
+    if (url.includes('eneba.com') || name.includes('(eneba)') || name.includes(' eneba') || rawProv === 'eneba') {
+      return 'eneba';
+    }
+    return rawProv || 'eneba';
+  }
+
+  getCanonicalTargetKey(s: Partial<PageDealStatus> | any): string {
+    if (!s) return '';
+    const prov = this.getCanonicalProvider(s);
+    const raw = `${s.scrapeTargetId || ''} ${s.targetId || ''} ${s.targetName || ''} ${s.name || ''} ${s.categoryName || ''} ${s.pageUrl || ''} ${s.url || ''}`.toLowerCase();
+
+    if (raw.includes('playstation') || raw.includes('psn')) return `${prov}:psn`;
+    if (raw.includes('nintendo') || raw.includes('eshop')) return `${prov}:nintendo`;
+    if (raw.includes('google') || raw.includes('android') || raw.includes('play store')) return `${prov}:google-play`;
+    if (raw.includes('amazon')) return `${prov}:amazon`;
+    if (raw.includes('apple') || raw.includes('itunes') || raw.includes('app store')) return `${prov}:apple`;
+    if (raw.includes('steam')) return `${prov}:steam`;
+
+    const fallback = (
+      s.targetName ||
+      s.name ||
+      s.categoryName ||
+      s.scrapeTargetId ||
+      s.targetId ||
+      s.pageUrl ||
+      s.category ||
+      ''
+    )
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+
+    return `${prov}:${fallback}`;
+  }
+
   private syncData() {
     const data = this.apiService.dashboardData();
     if (!data) return;
@@ -1172,28 +1222,22 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const allStatuses = data.statuses || [];
     const statuses = allStatuses.filter((s) => {
-      const cat = (s.category || '').toLowerCase();
-      const prov = ((s as any).provider || '').toLowerCase();
-      const url = (s.pageUrl || '').toLowerCase();
-      const name = (s.targetName || s.name || '').toLowerCase();
-      return (
-        cat === this.provider ||
-        prov === this.provider ||
-        url.includes(this.provider) ||
-        name.includes(`(${this.provider})`) ||
-        name.includes(` ${this.provider}`) ||
-        name.startsWith(`${this.provider} `)
-      );
+      const resolvedProvider = this.getCanonicalProvider(s);
+      return resolvedProvider === this.provider;
     });
 
-    // Deduplicate by target ID, target name, or URL within this provider
+    // Deduplicate by canonical target key, target ID, target name, or URL within this provider
     const deduplicatedStatuses: PageDealStatus[] = [];
     for (const st of statuses) {
+      const stKey = this.getCanonicalTargetKey(st);
       const stId = (st.scrapeTargetId || st.targetId || '').trim();
       const stName = (st.targetName || st.name || st.category || '').trim().toLowerCase();
       const stUrl = (st.pageUrl || '').trim().toLowerCase();
 
       const exIdx = deduplicatedStatuses.findIndex((ex) => {
+        const exKey = this.getCanonicalTargetKey(ex);
+        if (stKey && exKey && stKey === exKey) return true;
+
         const exId = (ex.scrapeTargetId || ex.targetId || '').trim();
         if (stId && exId && stId === exId) return true;
 
@@ -1211,14 +1255,35 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       } else {
         const exTime = new Date(deduplicatedStatuses[exIdx].scrapedAt || 0).getTime();
         const stTime = new Date(st.scrapedAt || 0).getTime();
+        const preferStName =
+          Boolean(st.targetName || st.name) &&
+          !(st.targetName || st.name)!.toLowerCase().startsWith('http');
+        const preferExName =
+          Boolean(deduplicatedStatuses[exIdx].targetName || deduplicatedStatuses[exIdx].name) &&
+          !(deduplicatedStatuses[exIdx].targetName || deduplicatedStatuses[exIdx].name)!.toLowerCase().startsWith('http');
+        const bestName = preferStName
+          ? (st.targetName || st.name)
+          : preferExName
+            ? (deduplicatedStatuses[exIdx].targetName || deduplicatedStatuses[exIdx].name)
+            : (st.targetName || deduplicatedStatuses[exIdx].targetName);
+
         if (stTime >= exTime) {
           deduplicatedStatuses[exIdx] = {
             ...deduplicatedStatuses[exIdx],
             ...st,
             scrapeTargetId: st.scrapeTargetId || deduplicatedStatuses[exIdx].scrapeTargetId,
             targetId: st.targetId || deduplicatedStatuses[exIdx].targetId,
-            targetName: st.targetName || st.name || deduplicatedStatuses[exIdx].targetName,
-            name: st.name || st.targetName || deduplicatedStatuses[exIdx].name,
+            targetName: bestName || st.targetName || deduplicatedStatuses[exIdx].targetName,
+            name: bestName || st.name || deduplicatedStatuses[exIdx].name,
+          };
+        } else {
+          deduplicatedStatuses[exIdx] = {
+            ...st,
+            ...deduplicatedStatuses[exIdx],
+            scrapeTargetId: deduplicatedStatuses[exIdx].scrapeTargetId || st.scrapeTargetId,
+            targetId: deduplicatedStatuses[exIdx].targetId || st.targetId,
+            targetName: bestName || deduplicatedStatuses[exIdx].targetName || st.targetName,
+            name: bestName || deduplicatedStatuses[exIdx].name || st.name,
           };
         }
       }

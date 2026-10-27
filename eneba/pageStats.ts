@@ -252,6 +252,64 @@ export function formatPageStatusReport(
 }
 
 /**
+ * Resolves the canonical provider ('eneba' | 'g2a') from a status or config object.
+ */
+export function getCanonicalProvider(s: {
+  provider?: string;
+  category?: string;
+  pageUrl?: string;
+  url?: string;
+  name?: string;
+  targetName?: string;
+  categoryName?: string;
+}): string {
+  const url = (s.pageUrl || s.url || "").toLowerCase();
+  const name = (s.targetName || s.name || s.categoryName || "").toLowerCase();
+  const rawProv = (s.provider || s.category || "").toLowerCase().trim();
+
+  if (url.includes("g2a.com") || name.includes("(g2a)") || name.includes(" g2a") || rawProv === "g2a") {
+    return "g2a";
+  }
+  if (url.includes("eneba.com") || name.includes("(eneba)") || name.includes(" eneba") || rawProv === "eneba") {
+    return "eneba";
+  }
+  return rawProv || "eneba";
+}
+
+/**
+ * Generates a normalized, canonical target key (e.g. 'eneba:psn', 'g2a:google-play')
+ * to robustly detect duplicate category status records even when URLs, IDs, or display
+ * strings vary slightly across scrape batches.
+ */
+export function getCanonicalTargetKey(s: Partial<PageDealStatus> | any): string {
+  if (!s) return "";
+  const prov = getCanonicalProvider(s);
+  const raw = `${s.scrapeTargetId || ""} ${s.targetId || ""} ${s.targetName || ""} ${s.name || ""} ${s.categoryName || ""} ${s.pageUrl || ""} ${s.url || ""}`.toLowerCase();
+
+  if (raw.includes("playstation") || raw.includes("psn")) return `${prov}:psn`;
+  if (raw.includes("nintendo") || raw.includes("eshop")) return `${prov}:nintendo`;
+  if (raw.includes("google") || raw.includes("android") || raw.includes("play store")) return `${prov}:google-play`;
+  if (raw.includes("amazon")) return `${prov}:amazon`;
+  if (raw.includes("apple") || raw.includes("itunes") || raw.includes("app store")) return `${prov}:apple`;
+  if (raw.includes("steam")) return `${prov}:steam`;
+
+  const fallback = (
+    s.targetName ||
+    s.name ||
+    s.categoryName ||
+    s.scrapeTargetId ||
+    s.targetId ||
+    s.pageUrl ||
+    s.category ||
+    ""
+  )
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+  return `${prov}:${fallback}`;
+}
+
+/**
  * Normalizes and deduplicates an array of PageDealStatus objects so that each distinct
  * scrape target appears at most once (keeping the latest scrape result when duplicate
  * snapshots or keys exist).
@@ -263,13 +321,18 @@ export function deduplicatePageDealStatuses(
 
   for (const st of statuses) {
     if (!st) continue;
-    const stProvider = (st.provider || st.category || "eneba").toLowerCase().trim();
+    const stKey = getCanonicalTargetKey(st);
+    const stProvider = getCanonicalProvider(st);
     const stId = (st.scrapeTargetId || st.targetId || "").trim();
     const stName = (st.targetName || st.name || "").trim().toLowerCase();
     const stUrl = (st.pageUrl || "").trim().toLowerCase();
 
     const existingIdx = result.findIndex((existing) => {
-      const exProvider = (existing.provider || existing.category || "eneba").toLowerCase().trim();
+      const exKey = getCanonicalTargetKey(existing);
+      if (stKey && exKey && stKey === exKey) {
+        return true;
+      }
+      const exProvider = getCanonicalProvider(existing);
       if (stProvider !== exProvider) {
         return false;
       }
@@ -289,18 +352,47 @@ export function deduplicatePageDealStatuses(
     });
 
     if (existingIdx === -1) {
-      result.push(st);
+      result.push({
+        ...st,
+        provider: stProvider,
+        category: stProvider,
+      });
     } else {
       const exTime = new Date(result[existingIdx].scrapedAt || 0).getTime();
       const stTime = new Date(st.scrapedAt || 0).getTime();
+      const preferStName =
+        Boolean(st.targetName || st.name) &&
+        !(st.targetName || st.name)!.toLowerCase().startsWith("http");
+      const preferExName =
+        Boolean(result[existingIdx].targetName || result[existingIdx].name) &&
+        !(result[existingIdx].targetName || result[existingIdx].name)!.toLowerCase().startsWith("http");
+      const bestName = preferStName
+        ? (st.targetName || st.name)
+        : preferExName
+          ? (result[existingIdx].targetName || result[existingIdx].name)
+          : (st.targetName || result[existingIdx].targetName);
+
       if (stTime >= exTime) {
         result[existingIdx] = {
           ...result[existingIdx],
           ...st,
           scrapeTargetId: st.scrapeTargetId || result[existingIdx].scrapeTargetId,
           targetId: st.targetId || result[existingIdx].targetId,
-          targetName: st.targetName || st.name || result[existingIdx].targetName,
-          name: st.name || st.targetName || result[existingIdx].name,
+          targetName: bestName || st.targetName || result[existingIdx].targetName,
+          name: bestName || st.name || result[existingIdx].name,
+          provider: stProvider,
+          category: stProvider,
+        };
+      } else {
+        result[existingIdx] = {
+          ...st,
+          ...result[existingIdx],
+          scrapeTargetId: result[existingIdx].scrapeTargetId || st.scrapeTargetId,
+          targetId: result[existingIdx].targetId || st.targetId,
+          targetName: bestName || result[existingIdx].targetName || st.targetName,
+          name: bestName || result[existingIdx].name || st.name,
+          provider: stProvider,
+          category: stProvider,
         };
       }
     }

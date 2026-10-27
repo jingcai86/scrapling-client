@@ -18,6 +18,8 @@ import {
 } from "../../eneba/db.js";
 import {
   deduplicatePageDealStatuses,
+  getCanonicalProvider,
+  getCanonicalTargetKey,
   type PageDealStatus,
 } from "../../eneba/pageStats.js";
 import type { PageStore, ScrapePageConfig, ScrapeHistoryItem } from "./pageStore.js";
@@ -102,14 +104,16 @@ export class ScrapeRunner {
 
   private setStatus(status: PageDealStatus): void {
     if (!status) return;
-    const stProvider = (status.provider || status.category || "eneba").toLowerCase().trim();
+    const stKey = getCanonicalTargetKey(status);
+    const stProvider = getCanonicalProvider(status);
     const stId = (status.scrapeTargetId || status.targetId || "").trim();
     const stName = (status.targetName || status.name || "").trim().toLowerCase();
     const stUrl = (status.pageUrl || "").trim().toLowerCase();
 
     // Check if an existing status entry represents the same target
     for (const [key, existing] of this.statusesByCategory.entries()) {
-      const exProvider = (existing.provider || existing.category || "eneba").toLowerCase().trim();
+      const exKey = getCanonicalTargetKey(existing);
+      const exProvider = getCanonicalProvider(existing);
       if (stProvider !== exProvider) continue;
 
       const exId = (existing.scrapeTargetId || existing.targetId || "").trim();
@@ -117,6 +121,7 @@ export class ScrapeRunner {
       const exUrl = (existing.pageUrl || "").trim().toLowerCase();
 
       const isMatch =
+        (stKey && exKey && stKey === exKey) ||
         (stId && exId && stId === exId) ||
         (stName && exName && stName === exName) ||
         (stUrl && exUrl && (stUrl === exUrl || stUrl.split("?")[0] === exUrl.split("?")[0]));
@@ -125,14 +130,28 @@ export class ScrapeRunner {
         const exTime = new Date(existing.scrapedAt || 0).getTime();
         const stTime = new Date(status.scrapedAt || 0).getTime();
         this.statusesByCategory.delete(key);
+        const preferStName =
+          Boolean(status.targetName || status.name) &&
+          !(status.targetName || status.name)!.toLowerCase().startsWith("http");
+        const preferExName =
+          Boolean(existing.targetName || existing.name) &&
+          !(existing.targetName || existing.name)!.toLowerCase().startsWith("http");
+        const bestName = preferStName
+          ? (status.targetName || status.name)
+          : preferExName
+            ? (existing.targetName || existing.name)
+            : (status.targetName || existing.targetName);
+
         if (stTime < exTime) {
           status = {
             ...status,
             ...existing,
             scrapeTargetId: status.scrapeTargetId || existing.scrapeTargetId,
             targetId: status.targetId || existing.targetId,
-            targetName: status.targetName || status.name || existing.targetName,
-            name: status.name || status.targetName || existing.name,
+            targetName: bestName || status.targetName || existing.targetName,
+            name: bestName || status.name || existing.name,
+            provider: stProvider,
+            category: stProvider,
           };
         } else {
           status = {
@@ -140,14 +159,17 @@ export class ScrapeRunner {
             ...status,
             scrapeTargetId: status.scrapeTargetId || existing.scrapeTargetId,
             targetId: status.targetId || existing.targetId,
-            targetName: status.targetName || status.name || existing.targetName,
-            name: status.name || status.targetName || existing.name,
+            targetName: bestName || status.targetName || existing.targetName,
+            name: bestName || status.name || existing.name,
+            provider: stProvider,
+            category: stProvider,
           };
         }
       }
     }
 
     const key =
+      stKey ||
       status.scrapeTargetId ||
       status.targetId ||
       (status.targetName ? `${stProvider}:${status.targetName}` : null) ||

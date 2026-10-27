@@ -300,4 +300,91 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
     assert.ok(g2aPsn);
     assert.equal(g2aPsn.scrapeTargetId, "a1000000-0000-4000-8000-000000000009");
   });
+
+  it("collapses PlayStation (PSN) category variations with differing URLs, IDs, and name slugs into 1 entry", () => {
+    const rawStatuses: PageDealStatus[] = [
+      {
+        scrapedAt: "2026-10-25T10:00:00.000Z",
+        category: "eneba",
+        provider: "eneba",
+        scrapeTargetId: "uuid-old-psn-1",
+        targetId: "uuid-old-psn-1",
+        targetName: "PlayStation Network Cards",
+        name: "PlayStation Network Cards",
+        pageUrl: "https://www.eneba.com/store/gift-cards?platforms[]=playstation-network-psn",
+        pageNumber: 1,
+        totalListings: 10,
+        inStockCount: 8,
+        outOfStockCount: 2,
+        discountedCount: 5,
+        averageDiscountPctOnDiscounted: 10,
+        averageDiscountPctAllInStock: 8,
+        averageEffectiveDiscountPct: 8,
+        maxDiscountPct: 15,
+        maxEffectiveDiscountPct: 15,
+        bestDeal: null,
+        bestEffectiveDeal: null,
+        bestDealOffers: [],
+        topDeals: [],
+        rankedDeals: [],
+      },
+      {
+        scrapedAt: "2026-10-26T12:00:00.000Z",
+        category: "eneba",
+        provider: "eneba",
+        scrapeTargetId: "uuid-old-psn-2",
+        targetId: "uuid-old-psn-2",
+        targetName: "playstation-network-psn",
+        name: "playstation-network-psn",
+        pageUrl: "https://www.eneba.com/us/psn-playstation-network-card-40-usd-usa-psn-key-united-states",
+        pageNumber: 1,
+        totalListings: 12,
+        inStockCount: 10,
+        outOfStockCount: 2,
+        discountedCount: 6,
+        averageDiscountPctOnDiscounted: 12,
+        averageDiscountPctAllInStock: 9,
+        averageEffectiveDiscountPct: 9,
+        maxDiscountPct: 18,
+        maxEffectiveDiscountPct: 18,
+        bestDeal: null,
+        bestEffectiveDeal: null,
+        bestDealOffers: [],
+        topDeals: [],
+        rankedDeals: [],
+      },
+      {
+        scrapedAt: "2026-10-27T08:00:00.000Z",
+        category: "eneba",
+        provider: "eneba",
+        scrapeTargetId: "a1000000-0000-4000-8000-000000000001",
+        targetId: "a1000000-0000-4000-8000-000000000001",
+        targetName: "PlayStation (PSN) Gift Cards",
+        name: "PlayStation (PSN) Gift Cards",
+        pageUrl: "https://www.eneba.com/us/store/psn-gift-cards",
+        pageNumber: 1,
+        totalListings: 18,
+        inStockCount: 16,
+        outOfStockCount: 2,
+        discountedCount: 9,
+        averageDiscountPctOnDiscounted: 15,
+        averageDiscountPctAllInStock: 12,
+        averageEffectiveDiscountPct: 12,
+        maxDiscountPct: 22,
+        maxEffectiveDiscountPct: 22,
+        bestDeal: null,
+        bestEffectiveDeal: null,
+        bestDealOffers: [],
+        topDeals: [],
+        rankedDeals: [],
+      },
+    ];
+
+    const deduplicated = deduplicatePageDealStatuses(rawStatuses);
+    assert.equal(deduplicated.length, 1, "All 3 PlayStation variations must collapse into exactly 1 row");
+    assert.equal(deduplicated[0].targetName, "PlayStation (PSN) Gift Cards");
+    assert.equal(deduplicated[0].totalListings, 18);
+    assert.equal(deduplicated[0].inStockCount, 16);
+    assert.equal(deduplicated[0].scrapeTargetId, "a1000000-0000-4000-8000-000000000001");
+  });
 });
