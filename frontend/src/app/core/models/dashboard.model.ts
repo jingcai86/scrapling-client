@@ -23,6 +23,9 @@ export interface SellerOffer {
 
 export interface RankedDeal {
   category: string;
+  targetId?: string;
+  targetName?: string;
+  name?: string;
   title: string;
   url: string;
   region: string;
@@ -43,6 +46,9 @@ export interface RankedDeal {
 
 export interface PageDealStatus {
   category: string;
+  targetId?: string;
+  targetName?: string;
+  name?: string;
   pageUrl: string;
   pageNumber: number;
   scrapedAt: string;

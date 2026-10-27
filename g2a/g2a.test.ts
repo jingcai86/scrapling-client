@@ -46,7 +46,8 @@ describe("G2aGiftCardScraper", () => {
     assert.equal(amazonListing?.sellingPrice, 92.50);
     assert.equal(amazonListing?.region, "UNITED STATES");
     assert.ok(amazonListing?.discountPct && amazonListing.discountPct > 0);
-    assert.equal(amazonListing?.category, scraper.categoryName);
+    assert.equal(amazonListing?.category, scraper.siteCategory);
+    assert.equal(amazonListing?.targetName, scraper.targetName);
 
     const itunesListing = listings.find((l) => l.title.includes("Apple"));
     assert.ok(itunesListing, "Apple listing should be present");

@@ -7,7 +7,10 @@ export interface RankedGiftCardListing extends GiftCardListing {
 
 export interface PageDealStatus {
   scrapedAt: string;
-  category: string;
+  category: string; // site name: "eneba", "g2a"
+  targetId?: string;
+  targetName?: string;
+  name?: string; // alias for targetName
   pageUrl: string;
   pageNumber: number;
   totalListings: number;
@@ -35,6 +38,9 @@ export interface PageDealStatus {
 
 export interface AnalyzePageOptions {
   category?: string;
+  targetId?: string;
+  targetName?: string;
+  name?: string;
   pageUrl?: string;
   pageNumber?: number;
   scrapedAt?: Date | string;
@@ -60,7 +66,10 @@ function mean(values: number[]): number {
 export function analyzePageDeals(
   listings: GiftCardListing[],
   {
-    category = "Eneba Gift Cards",
+    category = "eneba",
+    targetId,
+    targetName,
+    name,
     pageUrl = "",
     pageNumber = 1,
     scrapedAt = new Date(),
@@ -119,9 +128,14 @@ export function analyzePageDeals(
       ...deal,
     }));
 
+  const resolvedTargetName = targetName || name || "";
+
   return {
     scrapedAt: scrapedAtIso,
     category,
+    targetId,
+    targetName: resolvedTargetName,
+    name: resolvedTargetName,
     pageUrl,
     pageNumber,
     totalListings,

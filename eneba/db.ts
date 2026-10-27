@@ -1,15 +1,18 @@
 import crypto from "node:crypto";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import {
   createDrizzleDb,
   createPgPool,
   enebaConfig,
-  enebaProductOffers,
   enebaProducts,
   enebaScrapeRuns,
   enebaSellers,
-  enebaTopDeals,
+  scraplingProducts,
+  scraplingRecords,
+  scraplingScrapeRuns,
+  scraplingSellers,
+  scraplingTargets,
   TerminalSpinner,
   type ScraplingDb,
 } from "../core/index.js";
@@ -44,27 +47,19 @@ BEGIN
     ALTER TABLE scrapling.eneba_scrape_runs RENAME TO scrape_runs;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_top_deals')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'top_deals') THEN
-    ALTER TABLE scrapling.eneba_top_deals RENAME TO top_deals;
-  END IF;
-
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_sellers')
      AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'sellers') THEN
     ALTER TABLE scrapling.eneba_sellers RENAME TO sellers;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_product_offers')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'product_offers') THEN
-    ALTER TABLE scrapling.eneba_product_offers RENAME TO product_offers;
-  END IF;
-
-  -- Clean up empty legacy eneba_* tables
+  -- Clean up legacy empty tables
   DROP TABLE IF EXISTS scrapling.eneba_product_offers CASCADE;
   DROP TABLE IF EXISTS scrapling.eneba_top_deals CASCADE;
   DROP TABLE IF EXISTS scrapling.eneba_scrape_runs CASCADE;
   DROP TABLE IF EXISTS scrapling.eneba_sellers CASCADE;
   DROP TABLE IF EXISTS scrapling.eneba_products CASCADE;
+  DROP TABLE IF EXISTS scrapling.top_deals CASCADE;
+  DROP TABLE IF EXISTS scrapling.product_offers CASCADE;
 END $$;
 
 -- 2. Generic Products Catalog Table
@@ -89,6 +84,8 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   provider TEXT NOT NULL DEFAULT 'eneba',
   category TEXT NOT NULL,
+  target_id TEXT,
+  target_name TEXT NOT NULL DEFAULT '',
   page_url TEXT NOT NULL,
   page_number SMALLINT NOT NULL DEFAULT 1,
   total_listings SMALLINT NOT NULL,
@@ -102,33 +99,7 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   max_effective_discount_pct NUMERIC(6, 2) NOT NULL
 );
 
--- 4. Generic Top Ranked Deals Table
-CREATE TABLE IF NOT EXISTS scrapling.top_deals (
-  id BIGSERIAL PRIMARY KEY,
-  scrape_run_id BIGINT NOT NULL REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
-  product_id BIGINT NOT NULL REFERENCES scrapling.products(id) ON DELETE CASCADE,
-  scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  provider TEXT NOT NULL DEFAULT 'eneba',
-  rank SMALLINT NOT NULL CHECK (rank >= 1),
-  category TEXT NOT NULL,
-  title TEXT NOT NULL,
-  url TEXT NOT NULL,
-  region TEXT NOT NULL,
-  selling_price NUMERIC(10, 2),
-  original_price NUMERIC(10, 2),
-  face_value NUMERIC(10, 2),
-  face_value_currency TEXT,
-  listed_discount_pct NUMERIC(6, 2),
-  cashback_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
-  in_stock BOOLEAN NOT NULL DEFAULT TRUE,
-  discount_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
-  effective_discount_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
-  effective_price NUMERIC(10, 2),
-  savings_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
-  UNIQUE (scrape_run_id, rank)
-);
-
--- 5. Generic Sellers / Merchants Table
+-- 4. Generic Sellers / Merchants Table
 CREATE TABLE IF NOT EXISTS scrapling.sellers (
   id BIGSERIAL PRIMARY KEY,
   provider TEXT NOT NULL DEFAULT 'eneba',
@@ -143,17 +114,36 @@ CREATE TABLE IF NOT EXISTS scrapling.sellers (
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 6. Generic Product Offers Table
-CREATE TABLE IF NOT EXISTS scrapling.product_offers (
+-- 5. Consolidated Scraped Records & Listings Table
+CREATE TABLE IF NOT EXISTS scrapling.records (
   id BIGSERIAL PRIMARY KEY,
-  product_id BIGINT NOT NULL REFERENCES scrapling.products(id) ON DELETE CASCADE,
+  batch_id UUID NOT NULL,
+  scrape_run_id BIGINT REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
+  target_id TEXT,
+  target_name TEXT NOT NULL DEFAULT '',
+  target_url TEXT NOT NULL DEFAULT '',
+  product_id BIGINT REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
-  scrape_run_id BIGINT REFERENCES scrapling.scrape_runs(id) ON DELETE SET NULL,
-  scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  price NUMERIC(10, 2) NOT NULL,
+  category TEXT NOT NULL DEFAULT 'eneba',
+  title TEXT NOT NULL,
+  url TEXT NOT NULL,
+  region TEXT NOT NULL DEFAULT 'GLOBAL',
+  selling_price NUMERIC(10, 2),
+  original_price NUMERIC(10, 2),
+  face_value NUMERIC(10, 2),
+  face_value_currency TEXT,
+  listed_discount_pct NUMERIC(6, 2),
   cashback_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
+  in_stock BOOLEAN NOT NULL DEFAULT TRUE,
+  discount_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
+  effective_discount_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
+  effective_price NUMERIC(10, 2),
+  savings_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  rank SMALLINT,
   is_lowest_price BOOLEAN NOT NULL DEFAULT FALSE,
-  is_featured_offer BOOLEAN NOT NULL DEFAULT FALSE
+  is_featured_offer BOOLEAN NOT NULL DEFAULT FALSE,
+  scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Performance Indexes
@@ -163,27 +153,40 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_scraped_at
 CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_category_time
   ON scrapling.scrape_runs (category, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_top_deals_scraped_rank
-  ON scrapling.top_deals (category, scraped_at DESC, rank ASC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_target_time
+  ON scrapling.scrape_runs (target_id, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_top_deals_product_time
-  ON scrapling.top_deals (product_id, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_category_time
+  ON scrapling.records (category, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_product_offers_product_time
-  ON scrapling.product_offers (product_id, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_target_time
+  ON scrapling.records (target_id, scraped_at DESC);
 
--- Ensure provider columns exist on upgraded tables
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_batch_id
+  ON scrapling.records (batch_id);
+
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_product_time
+  ON scrapling.records (product_id, scraped_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_seller_id
+  ON scrapling.records (seller_id);
+
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_discount
+  ON scrapling.records (discount_pct DESC, effective_discount_pct DESC);
+
 ALTER TABLE scrapling.products ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
-ALTER TABLE scrapling.top_deals ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 ALTER TABLE scrapling.sellers ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS target_id TEXT;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT '';
 `;
 
 export interface SaveDealsResult {
   batchId: string;
   scrapedAt: string;
   scrapeRunsInserted: number;
-  topDealsInserted: number;
+  recordsInserted: number;
+  topDealsInserted?: number;
 }
 
 export interface SaveDealsOptions {
@@ -199,6 +202,7 @@ export interface DbPersistenceStatus {
   batchId?: string;
   scrapedAt?: string;
   scrapeRunsInserted?: number;
+  recordsInserted?: number;
   topDealsInserted?: number;
   sellersUpserted?: number;
   offersInserted?: number;
@@ -344,8 +348,8 @@ export async function updateEnebaConfig(
 }
 
 /**
- * Saves page scrape run metadata (`scrapling.eneba_scrape_runs`), upserts unique products (`scrapling.eneba_products`),
- * and inserts the top ranked deals (`rank` 1..N) into `scrapling.eneba_top_deals`.
+ * Saves page scrape run metadata (`scrapling.scrape_runs`), upserts unique products (`scrapling.products`),
+ * upserts merchants (`scrapling.sellers`), and persists all scraped listings and offers into `scrapling.records`.
  */
 export async function savePageDealsToDb(
   statuses: PageDealStatus | PageDealStatus[],
@@ -356,7 +360,6 @@ export async function savePageDealsToDb(
   const pool = options.pool ?? createPgPool();
   const db: ScraplingDb = createDrizzleDb(pool);
   const batchId = options.batchId ?? crypto.randomUUID();
-  const maxRank = Math.min(100, Math.max(1, options.maxRank ?? 10));
   const batchDate =
     options.scrapedAt instanceof Date
       ? options.scrapedAt
@@ -370,17 +373,48 @@ export async function savePageDealsToDb(
   try {
     await ensureEnebaSchema(pool);
     let scrapeRunsInserted = 0;
-    let topDealsInserted = 0;
+    let recordsInserted = 0;
 
     await db.transaction(async (tx) => {
       for (const status of statusList) {
-        // 1. Insert the page-level scrape run into scrapling.eneba_scrape_runs
+        // Find matching target if any
+        const targetRes = await tx
+          .select()
+          .from(scraplingTargets)
+          .where(
+            status.targetId
+              ? eq(scraplingTargets.id, status.targetId)
+              : or(
+                  eq(scraplingTargets.url, status.pageUrl),
+                  eq(
+                    scraplingTargets.name,
+                    status.targetName || status.name || status.category,
+                  ),
+                ),
+          )
+          .limit(1);
+
+        const target = targetRes[0];
+        const targetId = target?.id ?? status.targetId ?? null;
+        const targetName =
+          target?.name ??
+          status.targetName ??
+          status.name ??
+          status.category;
+        const siteCategory =
+          target?.category ??
+          (status.category?.toLowerCase() === "g2a" ? "g2a" : "eneba");
+
+        // 1. Insert the page-level scrape run into scrapling.scrape_runs
         const runRes = await tx
-          .insert(enebaScrapeRuns)
+          .insert(scraplingScrapeRuns)
           .values({
             batchId,
             scrapedAt: batchDate,
-            category: status.category,
+            provider: siteCategory,
+            category: siteCategory, // site name!
+            targetId,
+            targetName,
             pageUrl: status.pageUrl,
             pageNumber: status.pageNumber ?? 1,
             totalListings: status.totalListings,
@@ -399,24 +433,74 @@ export async function savePageDealsToDb(
             maxDiscountPct: String(status.maxDiscountPct),
             maxEffectiveDiscountPct: String(status.maxEffectiveDiscountPct),
           })
-          .returning({ id: enebaScrapeRuns.id });
+          .returning({ id: scraplingScrapeRuns.id });
 
         const scrapeRunId = runRes[0].id;
         scrapeRunsInserted++;
 
-        // 2. Upsert each top 1..N product into scrapling.eneba_products and insert the ranked deal into scrapling.eneba_top_deals
-        const topDeals = status.rankedDeals.slice(0, maxRank);
-        for (let i = 0; i < topDeals.length; i++) {
-          const deal = topDeals[i];
+        // 2. Pre-upsert sellers from bestDealOffers or listing offers
+        const sellerIdByName = new Map<string, number>();
+        const allOffers = [...(status.bestDealOffers || [])];
+        for (const deal of status.rankedDeals) {
+          if (deal.offers) {
+            allOffers.push(...deal.offers);
+          }
+        }
+
+        for (const offer of allOffers) {
+          if (!offer.sellerName) continue;
+          if (sellerIdByName.has(offer.sellerName)) continue;
+
+          const sellerRes = await tx
+            .insert(scraplingSellers)
+            .values({
+              provider: siteCategory,
+              sellerName: offer.sellerName,
+              sellerSlug: offer.sellerSlug || null,
+              sellerUrl: offer.sellerUrl || null,
+              ratingPct:
+                offer.ratingScore != null ? String(offer.ratingScore) : null,
+              ratingLabel: offer.ratingLabel || null,
+              firstSeenAt: batchDate,
+              lastSeenAt: batchDate,
+            })
+            .onConflictDoUpdate({
+              target: scraplingSellers.sellerName,
+              set: {
+                sellerUrl:
+                  offer.sellerUrl ||
+                  sql`COALESCE(${scraplingSellers.sellerUrl}, NULL)`,
+                ratingPct:
+                  offer.ratingScore != null
+                    ? String(offer.ratingScore)
+                    : sql`COALESCE(${scraplingSellers.ratingPct}, NULL)`,
+                ratingLabel:
+                  offer.ratingLabel ||
+                  sql`COALESCE(${scraplingSellers.ratingLabel}, NULL)`,
+                lastSeenAt: batchDate,
+              },
+            })
+            .returning({ id: scraplingSellers.id });
+
+          if (sellerRes[0]?.id) {
+            sellerIdByName.set(offer.sellerName, sellerRes[0].id);
+          }
+        }
+
+        // 3. Upsert products and insert all listings into scrapling.records
+        const allDeals = status.rankedDeals;
+        for (let i = 0; i < allDeals.length; i++) {
+          const deal = allDeals[i];
           const rank = i + 1;
           const slug = extractProductSlug(deal.url);
 
           const prodRes = await tx
-            .insert(enebaProducts)
+            .insert(scraplingProducts)
             .values({
+              provider: siteCategory,
               slug,
               url: deal.url,
-              category: status.category,
+              category: siteCategory,
               title: deal.title,
               region: deal.region,
               faceValue:
@@ -426,54 +510,111 @@ export async function savePageDealsToDb(
               lastSeenAt: batchDate,
             })
             .onConflictDoUpdate({
-              target: enebaProducts.url,
+              target: scraplingProducts.url,
               set: {
                 title: deal.title,
                 region: deal.region,
                 faceValue:
                   deal.faceValue != null
                     ? String(deal.faceValue)
-                    : sql`COALESCE(${enebaProducts.faceValue}, NULL)`,
+                    : sql`COALESCE(${scraplingProducts.faceValue}, NULL)`,
                 faceValueCurrency:
                   deal.faceValueCurrency != null
                     ? deal.faceValueCurrency
-                    : sql`COALESCE(${enebaProducts.faceValueCurrency}, NULL)`,
+                    : sql`COALESCE(${scraplingProducts.faceValueCurrency}, NULL)`,
                 lastSeenAt: batchDate,
               },
             })
-            .returning({ id: enebaProducts.id });
+            .returning({ id: scraplingProducts.id });
 
           const productId = prodRes[0].id;
 
-          await tx.insert(enebaTopDeals).values({
-            scrapeRunId,
-            productId,
-            scrapedAt: batchDate,
-            rank,
-            category: status.category,
-            title: deal.title,
-            url: deal.url,
-            region: deal.region,
-            sellingPrice:
-              deal.sellingPrice != null ? String(deal.sellingPrice) : null,
-            originalPrice:
-              deal.originalPrice != null ? String(deal.originalPrice) : null,
-            faceValue:
-              deal.faceValue != null ? String(deal.faceValue) : null,
-            faceValueCurrency: deal.faceValueCurrency,
-            listedDiscountPct:
-              deal.listedDiscountPct != null
-                ? String(deal.listedDiscountPct)
-                : null,
-            cashbackPct: String(deal.cashbackPct ?? 0),
-            inStock: deal.inStock ?? true,
-            discountPct: String(deal.discountPct ?? 0),
-            effectiveDiscountPct: String(deal.effectiveDiscountPct ?? 0),
-            effectivePrice:
-              deal.effectivePrice != null ? String(deal.effectivePrice) : null,
-            savingsAmount: String(deal.savingsAmount ?? 0),
-          });
-          topDealsInserted++;
+          const isBestDeal =
+            status.bestDeal?.url === deal.url ||
+            status.bestEffectiveDeal?.url === deal.url;
+          const offersForDeal =
+            deal.offers || (isBestDeal ? status.bestDealOffers : []);
+
+          if (offersForDeal && offersForDeal.length > 0) {
+            for (const offer of offersForDeal) {
+              const sellerId = sellerIdByName.get(offer.sellerName) ?? null;
+              await tx.insert(scraplingRecords).values({
+                batchId,
+                scrapeRunId,
+                targetId,
+                targetName,
+                targetUrl: status.pageUrl,
+                productId,
+                sellerId,
+                category: siteCategory,
+                title: deal.title,
+                url: deal.url,
+                region: deal.region,
+                sellingPrice: String(offer.price),
+                originalPrice:
+                  deal.originalPrice != null
+                    ? String(deal.originalPrice)
+                    : null,
+                faceValue:
+                  deal.faceValue != null ? String(deal.faceValue) : null,
+                faceValueCurrency: deal.faceValueCurrency,
+                listedDiscountPct:
+                  deal.listedDiscountPct != null
+                    ? String(deal.listedDiscountPct)
+                    : null,
+                cashbackPct: String(offer.cashbackPct ?? deal.cashbackPct ?? 0),
+                inStock: true,
+                discountPct: String(deal.discountPct ?? 0),
+                effectiveDiscountPct: String(deal.effectiveDiscountPct ?? 0),
+                effectivePrice: String(offer.price),
+                savingsAmount: String(deal.savingsAmount ?? 0),
+                rank,
+                isLowestPrice: offer.isLowestPrice ?? false,
+                isFeaturedOffer: offer.isFeaturedOffer ?? false,
+                scrapedAt: batchDate,
+              });
+              recordsInserted++;
+            }
+          } else {
+            await tx.insert(scraplingRecords).values({
+              batchId,
+              scrapeRunId,
+              targetId,
+              targetName,
+              targetUrl: status.pageUrl,
+              productId,
+              sellerId: null,
+              category: siteCategory,
+              title: deal.title,
+              url: deal.url,
+              region: deal.region,
+              sellingPrice:
+                deal.sellingPrice != null ? String(deal.sellingPrice) : null,
+              originalPrice:
+                deal.originalPrice != null ? String(deal.originalPrice) : null,
+              faceValue:
+                deal.faceValue != null ? String(deal.faceValue) : null,
+              faceValueCurrency: deal.faceValueCurrency,
+              listedDiscountPct:
+                deal.listedDiscountPct != null
+                  ? String(deal.listedDiscountPct)
+                  : null,
+              cashbackPct: String(deal.cashbackPct ?? 0),
+              inStock: deal.inStock ?? true,
+              discountPct: String(deal.discountPct ?? 0),
+              effectiveDiscountPct: String(deal.effectiveDiscountPct ?? 0),
+              effectivePrice:
+                deal.effectivePrice != null
+                  ? String(deal.effectivePrice)
+                  : null,
+              savingsAmount: String(deal.savingsAmount ?? 0),
+              rank,
+              isLowestPrice: true,
+              isFeaturedOffer: false,
+              scrapedAt: batchDate,
+            });
+            recordsInserted++;
+          }
         }
       }
     });
@@ -482,7 +623,8 @@ export async function savePageDealsToDb(
       batchId,
       scrapedAt: batchTimestamp,
       scrapeRunsInserted,
-      topDealsInserted,
+      recordsInserted,
+      topDealsInserted: recordsInserted,
     };
   } finally {
     if (ownPool) {
@@ -497,7 +639,7 @@ export interface SaveProductOffersResult {
 }
 
 /**
- * Persists scraped vendor offers for a given product URL into `scrapling.eneba_sellers` and `scrapling.eneba_product_offers`.
+ * Persists scraped vendor offers for a given product URL into `scrapling.sellers` and `scrapling.records`.
  */
 export async function saveProductOffersToDb(
   productUrl: string,
@@ -528,29 +670,31 @@ export async function saveProductOffersToDb(
 
     await db.transaction(async (tx) => {
       const prodRows = await tx
-        .select({ id: enebaProducts.id })
-        .from(enebaProducts)
-        .where(eq(enebaProducts.url, productUrl))
+        .select()
+        .from(scraplingProducts)
+        .where(eq(scraplingProducts.url, productUrl))
         .limit(1);
 
       if (prodRows.length === 0) {
         return;
       }
-      const productId = prodRows[0].id;
+      const product = prodRows[0];
+      const productId = product.id;
 
-      const latestDealRows = await tx
-        .select({ scrapeRunId: enebaTopDeals.scrapeRunId })
-        .from(enebaTopDeals)
-        .where(eq(enebaTopDeals.productId, productId))
-        .orderBy(desc(enebaTopDeals.scrapedAt))
+      const latestRecordRows = await tx
+        .select()
+        .from(scraplingRecords)
+        .where(eq(scraplingRecords.productId, productId))
+        .orderBy(desc(scraplingRecords.scrapedAt))
         .limit(1);
 
-      const scrapeRunId = latestDealRows[0]?.scrapeRunId ?? null;
+      const latestRecord = latestRecordRows[0];
 
       for (const offer of offers) {
         const sellerRows = await tx
-          .insert(enebaSellers)
+          .insert(scraplingSellers)
           .values({
+            provider: product.provider || "eneba",
             sellerName: offer.sellerName,
             sellerSlug: offer.sellerSlug,
             sellerUrl: offer.sellerUrl,
@@ -561,43 +705,63 @@ export async function saveProductOffersToDb(
             lastSeenAt: scrapedDate,
           })
           .onConflictDoUpdate({
-            target: enebaSellers.sellerName,
+            target: scraplingSellers.sellerName,
             set: {
               sellerSlug:
                 offer.sellerSlug != null
                   ? offer.sellerSlug
-                  : sql`COALESCE(${enebaSellers.sellerSlug}, NULL)`,
+                  : sql`COALESCE(${scraplingSellers.sellerSlug}, NULL)`,
               sellerUrl:
                 offer.sellerUrl != null
                   ? offer.sellerUrl
-                  : sql`COALESCE(${enebaSellers.sellerUrl}, NULL)`,
+                  : sql`COALESCE(${scraplingSellers.sellerUrl}, NULL)`,
               ratingPct:
                 offer.ratingScore != null
                   ? String(offer.ratingScore)
-                  : sql`COALESCE(${enebaSellers.ratingPct}, NULL)`,
+                  : sql`COALESCE(${scraplingSellers.ratingPct}, NULL)`,
               ratingLabel:
                 offer.ratingLabel != null
                   ? offer.ratingLabel
-                  : sql`COALESCE(${enebaSellers.ratingLabel}, NULL)`,
+                  : sql`COALESCE(${scraplingSellers.ratingLabel}, NULL)`,
               lastSeenAt: scrapedDate,
             },
           })
-          .returning({ id: enebaSellers.id });
+          .returning({ id: scraplingSellers.id });
 
-        const sellerId = sellerRows[0].id;
+        const sellerId = sellerRows[0]?.id;
         sellersUpserted++;
 
-        await tx.insert(enebaProductOffers).values({
-          productId,
-          sellerId,
-          scrapeRunId,
-          scrapedAt: scrapedDate,
-          price: String(offer.price),
-          cashbackPct: String(offer.cashbackPct ?? 0),
-          isLowestPrice: offer.isLowestPrice ?? false,
-          isFeaturedOffer: offer.isFeaturedOffer ?? false,
-        });
-        offersInserted++;
+        if (latestRecord) {
+          await tx.insert(scraplingRecords).values({
+            batchId: latestRecord.batchId,
+            scrapeRunId: latestRecord.scrapeRunId,
+            targetId: latestRecord.targetId,
+            targetName: latestRecord.targetName,
+            targetUrl: latestRecord.targetUrl,
+            productId,
+            sellerId,
+            category: latestRecord.category,
+            title: latestRecord.title,
+            url: latestRecord.url,
+            region: latestRecord.region,
+            sellingPrice: String(offer.price),
+            originalPrice: latestRecord.originalPrice,
+            faceValue: latestRecord.faceValue,
+            faceValueCurrency: latestRecord.faceValueCurrency,
+            listedDiscountPct: latestRecord.listedDiscountPct,
+            cashbackPct: String(offer.cashbackPct ?? 0),
+            inStock: true,
+            discountPct: latestRecord.discountPct,
+            effectiveDiscountPct: latestRecord.effectiveDiscountPct,
+            effectivePrice: String(offer.price),
+            savingsAmount: latestRecord.savingsAmount,
+            rank: latestRecord.rank,
+            isLowestPrice: offer.isLowestPrice ?? false,
+            isFeaturedOffer: offer.isFeaturedOffer ?? false,
+            scrapedAt: scrapedDate,
+          });
+          offersInserted++;
+        }
       }
     });
 
@@ -671,7 +835,7 @@ export async function tryPersistScrapeResult(
     }
 
     spinner.succeed(
-      `[PostgreSQL] Saved ${savedDeals.topDealsInserted} top deals & ${totalOffers} seller offers into schema "scrapling"`,
+      `[PostgreSQL] Saved ${savedDeals.recordsInserted} records into schema "scrapling"`,
     );
 
     const dbStatus: DbPersistenceStatus = {
@@ -680,7 +844,8 @@ export async function tryPersistScrapeResult(
       batchId: savedDeals.batchId,
       scrapedAt: savedDeals.scrapedAt,
       scrapeRunsInserted: savedDeals.scrapeRunsInserted,
-      topDealsInserted: savedDeals.topDealsInserted,
+      recordsInserted: savedDeals.recordsInserted,
+      topDealsInserted: savedDeals.recordsInserted,
       sellersUpserted: totalSellers,
       offersInserted: totalOffers,
     };
@@ -710,7 +875,7 @@ export async function tryPersistScrapeResult(
 }
 
 /**
- * Loads the most recent `PageDealStatus` for each category from PostgreSQL (`scrapling` schema tables).
+ * Loads the most recent `PageDealStatus` for each target from PostgreSQL (`scrapling` schema tables).
  */
 export async function fetchLatestEnebaStatusesFromDb(): Promise<
   PageDealStatus[]
@@ -726,22 +891,28 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
     const db: ScraplingDb = createDrizzleDb(pool);
 
     const runs = await db
-      .selectDistinctOn([enebaScrapeRuns.category])
-      .from(enebaScrapeRuns)
-      .orderBy(enebaScrapeRuns.category, desc(enebaScrapeRuns.scrapedAt));
+      .selectDistinctOn([sql`COALESCE(${scraplingScrapeRuns.targetId}, ${scraplingScrapeRuns.pageUrl})`])
+      .from(scraplingScrapeRuns)
+      .orderBy(sql`COALESCE(${scraplingScrapeRuns.targetId}, ${scraplingScrapeRuns.pageUrl})`, desc(scraplingScrapeRuns.scrapedAt));
 
     const statuses: PageDealStatus[] = [];
 
     for (const run of runs) {
-      const deals = await db
-        .select()
-        .from(enebaTopDeals)
-        .where(eq(enebaTopDeals.scrapeRunId, run.id))
-        .orderBy(asc(enebaTopDeals.rank));
+      const records = await db
+        .select({
+          record: scraplingRecords,
+          seller: scraplingSellers,
+        })
+        .from(scraplingRecords)
+        .leftJoin(scraplingSellers, eq(scraplingRecords.sellerId, scraplingSellers.id))
+        .where(eq(scraplingRecords.scrapeRunId, run.id))
+        .orderBy(asc(scraplingRecords.rank));
 
-      const rankedDeals = deals.map((d) => ({
-        rank: Number(d.rank),
+      const rankedDeals = records.map(({ record: d }) => ({
+        rank: Number(d.rank ?? 1),
         category: d.category,
+        targetId: d.targetId ?? run.targetId ?? undefined,
+        targetName: d.targetName ?? run.targetName ?? undefined,
         title: d.title,
         url: d.url,
         region: d.region,
@@ -762,37 +933,19 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         savingsAmount: Number(d.savingsAmount),
       }));
 
-      const offers = await db
-        .select({
-          sellerName: enebaSellers.sellerName,
-          sellerSlug: enebaSellers.sellerSlug,
-          sellerUrl: enebaSellers.sellerUrl,
-          ratingPct: enebaSellers.ratingPct,
-          ratingLabel: enebaSellers.ratingLabel,
-          price: enebaProductOffers.price,
-          cashbackPct: enebaProductOffers.cashbackPct,
-          isLowestPrice: enebaProductOffers.isLowestPrice,
-          isFeaturedOffer: enebaProductOffers.isFeaturedOffer,
-        })
-        .from(enebaProductOffers)
-        .innerJoin(
-          enebaSellers,
-          eq(enebaSellers.id, enebaProductOffers.sellerId),
-        )
-        .where(eq(enebaProductOffers.scrapeRunId, run.id))
-        .orderBy(asc(enebaProductOffers.price));
-
-      const bestDealOffers: SellerOffer[] = offers.map((o) => ({
-        sellerName: o.sellerName,
-        sellerSlug: o.sellerSlug ?? o.sellerName,
-        sellerUrl: o.sellerUrl ?? "",
-        ratingScore: o.ratingPct !== null ? Number(o.ratingPct) : null,
-        ratingLabel: o.ratingLabel,
-        price: Number(o.price),
-        cashbackPct: Number(o.cashbackPct),
-        isLowestPrice: o.isLowestPrice,
-        isFeaturedOffer: o.isFeaturedOffer,
-      }));
+      const bestDealOffers: SellerOffer[] = records
+        .filter(({ record: r, seller: s }) => s != null && (r.isLowestPrice || r.isFeaturedOffer || r.sellerId != null))
+        .map(({ record: r, seller: s }) => ({
+          sellerName: s!.sellerName,
+          sellerSlug: s!.sellerSlug ?? s!.sellerName,
+          sellerUrl: s!.sellerUrl ?? "",
+          ratingScore: s!.ratingPct !== null ? Number(s!.ratingPct) : null,
+          ratingLabel: s!.ratingLabel,
+          price: Number(r.sellingPrice ?? 0),
+          cashbackPct: Number(r.cashbackPct),
+          isLowestPrice: r.isLowestPrice,
+          isFeaturedOffer: r.isFeaturedOffer,
+        }));
 
       const bestEffectiveDeal = rankedDeals[0] ?? null;
       const bestDirectDeal =
@@ -801,6 +954,9 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
 
       statuses.push({
         category: run.category,
+        targetId: run.targetId ?? undefined,
+        targetName: run.targetName || run.category,
+        name: run.targetName || run.category,
         pageUrl: run.pageUrl,
         pageNumber: run.pageNumber,
         scrapedAt: new Date(run.scrapedAt).toISOString(),
@@ -818,7 +974,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         bestDeal: bestDirectDeal,
         bestEffectiveDeal,
         bestDealOffers,
-        topDeals: rankedDeals,
+        topDeals: rankedDeals.slice(0, 10),
         rankedDeals,
       });
     }
@@ -896,40 +1052,30 @@ export async function fetchScrapeHistoryFromDb(
     if (batchIds.length > 0) {
       try {
         const topDealsRes = await db
-          .selectDistinctOn([enebaScrapeRuns.batchId], {
-            batchId: enebaScrapeRuns.batchId,
-            title: enebaTopDeals.title,
-            category: enebaTopDeals.category,
-            sellingPrice: enebaTopDeals.sellingPrice,
-            faceValue: enebaTopDeals.faceValue,
-            originalPrice: enebaTopDeals.originalPrice,
-            discountPct: enebaTopDeals.discountPct,
-            url: enebaTopDeals.url,
-            sellerName: sql<string>`COALESCE(${enebaSellers.sellerName}, 'Top Merchant')`,
+          .selectDistinctOn([scraplingRecords.batchId], {
+            batchId: scraplingRecords.batchId,
+            title: scraplingRecords.title,
+            category: scraplingRecords.category,
+            targetName: scraplingRecords.targetName,
+            sellingPrice: scraplingRecords.sellingPrice,
+            faceValue: scraplingRecords.faceValue,
+            originalPrice: scraplingRecords.originalPrice,
+            discountPct: scraplingRecords.discountPct,
+            url: scraplingRecords.url,
+            sellerName: sql<string>`COALESCE(${scraplingSellers.sellerName}, 'Top Merchant')`,
           })
-          .from(enebaTopDeals)
-          .innerJoin(
-            enebaScrapeRuns,
-            eq(enebaTopDeals.scrapeRunId, enebaScrapeRuns.id),
-          )
+          .from(scraplingRecords)
           .leftJoin(
-            enebaProductOffers,
-            and(
-              eq(enebaProductOffers.productId, enebaTopDeals.productId),
-              eq(enebaProductOffers.isLowestPrice, true),
-            ),
+            scraplingSellers,
+            eq(scraplingRecords.sellerId, scraplingSellers.id),
           )
-          .leftJoin(
-            enebaSellers,
-            eq(enebaProductOffers.sellerId, enebaSellers.id),
-          )
-          .where(inArray(enebaScrapeRuns.batchId, batchIds))
-          .orderBy(enebaScrapeRuns.batchId, desc(enebaTopDeals.discountPct));
+          .where(inArray(scraplingRecords.batchId, batchIds))
+          .orderBy(scraplingRecords.batchId, desc(scraplingRecords.discountPct));
 
         for (const dr of topDealsRes) {
           dealsByBatch.set(dr.batchId, {
             title: dr.title,
-            category: dr.category,
+            category: dr.targetName || dr.category,
             sellerName: dr.sellerName || "Top Merchant",
             cost: Number(dr.sellingPrice) || 0,
             faceValue: Number(dr.faceValue) || Number(dr.originalPrice) || 0,

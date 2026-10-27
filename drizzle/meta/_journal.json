@@ -22,6 +22,13 @@
       "when": 1793075645788,
       "tag": "0002_make_tables_generic",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793077645788,
+      "tag": "0003_create_records_table",
+      "breakpoints": true
     }
   ]
 }

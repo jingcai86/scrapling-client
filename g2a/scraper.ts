@@ -13,6 +13,9 @@ import {
 } from "../eneba/pageStats.js";
 
 export interface G2aGiftCardScraperOptions {
+  category?: string; // site name: "g2a"
+  targetId?: string;
+  targetName?: string;
   categoryName?: string;
   categoryUrl?: string;
   client?: ScraplingClient;
@@ -25,16 +28,25 @@ const G2A_PRODUCT_CARD_SELECTOR = "div[class*='indexes__StyledCard'], li[class*=
  * Uses Scrapling multi-tier fetching with graceful Akamai fallback.
  */
 export class G2aGiftCardScraper {
+  public readonly siteCategory: string;
+  public readonly targetId: string;
+  public readonly targetName: string;
   public readonly categoryName: string;
   public readonly categoryUrl: string;
   public readonly client: ScraplingClient;
 
   constructor({
+    category = "g2a",
+    targetId = "g2a-amazon-gift-cards",
+    targetName,
     categoryName = "Amazon Gift Cards (G2A)",
     categoryUrl = "https://www.g2a.com/category/gift-cards-c6",
     client,
   }: G2aGiftCardScraperOptions = {}) {
-    this.categoryName = categoryName;
+    this.siteCategory = category;
+    this.targetId = targetId;
+    this.targetName = targetName ?? categoryName;
+    this.categoryName = this.targetName;
     this.categoryUrl = categoryUrl;
     this.client = client ?? new ScraplingClient();
   }
@@ -106,7 +118,9 @@ export class G2aGiftCardScraper {
         const region = regionMatch ? regionMatch[1].toUpperCase() : "GLOBAL";
 
         listings.push({
-          category: this.categoryName,
+          category: this.siteCategory,
+          targetId: this.targetId,
+          targetName: this.targetName,
           title,
           url,
           region,
@@ -218,7 +232,9 @@ export class G2aGiftCardScraper {
 
     const listings = await this.scrapePage({ page, useStealth });
     const status = analyzePageDeals(listings, {
-      category: this.categoryName,
+      category: this.siteCategory,
+      targetId: this.targetId,
+      targetName: this.targetName,
       pageUrl: this.categoryUrl,
       pageNumber: page,
     });

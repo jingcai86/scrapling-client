@@ -183,7 +183,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                 <ng-container matColumnDef="category">
                   <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-cat">Category</th>
                   <td mat-cell *matCellDef="let s" class="col-cat">
-                    <span class="cat-title">{{ s.category }}</span>
+                    <span class="cat-title">{{ s.targetName || s.name || s.category }}</span>
                   </td>
                 </ng-container>
 
@@ -196,11 +196,11 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                       type="button"
                       class="schedule-trigger-btn"
                       [matMenuTriggerFor]="scheduleMenu"
-                      [matMenuTriggerData]="{ category: s.category }"
-                      matTooltip="Click to change scraping schedule for {{ s.category }}"
+                      [matMenuTriggerData]="{ category: s.targetId || s.targetName || s.name || s.category }"
+                      matTooltip="Click to change scraping schedule for {{ s.targetName || s.name || s.category }}"
                     >
                       <mat-icon class="schedule-btn-icon">alarm</mat-icon>
-                      <span class="schedule-btn-label">{{ getScheduleNameForCategory(s.category) }}</span>
+                      <span class="schedule-btn-label">{{ getScheduleNameForCategory(s.targetId || s.targetName || s.name || s.category) }}</span>
                       <mat-icon class="schedule-chevron-icon">arrow_drop_down</mat-icon>
                     </button>
                   </td>
@@ -280,7 +280,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
             >
               <!-- Row 1: Category Header Eyebrow & Scrape Timestamp (0.72rem) -->
               <div class="hover-card-header">
-                <span class="hover-cat-badge">{{ hoveredRow.category }}</span>
+                <span class="hover-cat-badge">{{ hoveredRow.targetName || hoveredRow.name || hoveredRow.category }}</span>
                 <span class="hover-time">
                   <mat-icon class="hover-time-icon">schedule</mat-icon>
                   {{ formatDate(hoveredRow.scrapedAt) }}
@@ -426,7 +426,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
               <ng-container matColumnDef="category">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Category</th>
                 <td mat-cell *matCellDef="let deal">
-                  <span class="badge badge-muted">{{ deal.category }}</span>
+                  <span class="badge badge-muted">{{ deal.targetName || deal.category }}</span>
                 </td>
               </ng-container>
 
@@ -1299,10 +1299,11 @@ export class EnebaComponent implements AfterViewInit, OnDestroy {
   getPageForCategory(category: string): ScrapePageConfig | undefined {
     const pages = this.enebaPages;
     return (
-      pages.find((p) => p.categoryName === category) ||
       pages.find((p) => p.id === category) ||
-      pages.find((p) => category.toLowerCase().includes(p.categoryName.toLowerCase())) ||
-      pages.find((p) => p.categoryName.toLowerCase().includes(category.toLowerCase()))
+      pages.find((p) => p.name === category) ||
+      pages.find((p) => p.categoryName === category) ||
+      pages.find((p) => category.toLowerCase().includes((p.name || p.categoryName || '').toLowerCase())) ||
+      pages.find((p) => (p.name || p.categoryName || '').toLowerCase().includes(category.toLowerCase()))
     );
   }
 

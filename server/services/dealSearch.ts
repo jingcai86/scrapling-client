@@ -249,28 +249,28 @@ export async function searchDeals(
 
       if (from) {
         values.push(from.toISOString());
-        conditions.push(`td.scraped_at >= $${values.length}`);
+        conditions.push(`r.scraped_at >= $${values.length}`);
       }
       if (to) {
         values.push(to.toISOString());
-        conditions.push(`td.scraped_at <= $${values.length}`);
+        conditions.push(`r.scraped_at <= $${values.length}`);
       }
       if (categoryFilter) {
         values.push(`%${categoryFilter}%`);
-        conditions.push(`td.category ILIKE $${values.length}`);
+        conditions.push(`(r.category ILIKE $${values.length} OR r.target_name ILIKE $${values.length})`);
       }
       if (minDiscount !== null) {
         values.push(minDiscount);
         conditions.push(
-          `GREATEST(td.discount_pct, td.effective_discount_pct) >= $${values.length}`,
+          `GREATEST(r.discount_pct, r.effective_discount_pct) >= $${values.length}`,
         );
       }
       if (maxPrice !== null) {
         values.push(maxPrice);
-        conditions.push(`td.selling_price <= $${values.length}`);
+        conditions.push(`r.selling_price <= $${values.length}`);
       }
 
-      // If no time range is specified, only search the latest scrape run per category so we don't return duplicate historical rows
+      // If no time range is specified, only search the latest scrape run per target so we don't return duplicate historical rows
       const whereClause =
         conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -278,55 +278,75 @@ export async function searchDeals(
         !from && !to
           ? `
           WITH latest_runs AS (
-            SELECT DISTINCT ON (category) id
+            SELECT DISTINCT ON (COALESCE(target_id, page_url)) id
             FROM scrapling.scrape_runs
-            ORDER BY category, scraped_at DESC
+            ORDER BY COALESCE(target_id, page_url), scraped_at DESC
           )
           SELECT
-            td.scrape_run_id,
-            td.product_id,
-            td.scraped_at,
-            td.rank,
-            td.category,
-            td.title,
-            td.url,
-            td.region,
-            td.selling_price,
-            td.original_price,
-            td.face_value,
-            td.face_value_currency,
-            td.cashback_pct,
-            td.discount_pct,
-            td.effective_discount_pct,
-            td.effective_price,
-            td.savings_amount
-          FROM scrapling.top_deals td
-          JOIN latest_runs lr ON lr.id = td.scrape_run_id
+            r.scrape_run_id,
+            r.product_id,
+            r.scraped_at,
+            r.rank,
+            r.category,
+            r.target_id,
+            r.target_name,
+            r.title,
+            r.url,
+            r.region,
+            r.selling_price,
+            r.original_price,
+            r.face_value,
+            r.face_value_currency,
+            r.cashback_pct,
+            r.discount_pct,
+            r.effective_discount_pct,
+            r.effective_price,
+            r.savings_amount,
+            s.seller_name,
+            s.seller_slug,
+            s.seller_url,
+            s.rating_pct,
+            s.rating_label,
+            r.is_lowest_price,
+            r.is_featured_offer
+          FROM scrapling.records r
+          JOIN latest_runs lr ON lr.id = r.scrape_run_id
+          LEFT JOIN scrapling.sellers s ON s.id = r.seller_id
           ${whereClause}
-          ORDER BY td.discount_pct DESC, td.savings_amount DESC, td.scraped_at DESC
+          ORDER BY r.discount_pct DESC, r.savings_amount DESC, r.scraped_at DESC
         `
           : `
           SELECT
-            td.scrape_run_id,
-            td.product_id,
-            td.scraped_at,
-            td.rank,
-            td.category,
-            td.title,
-            td.url,
-            td.region,
-            td.selling_price,
-            td.original_price,
-            td.face_value,
-            td.face_value_currency,
-            td.cashback_pct,
-            td.discount_pct,
-            td.effective_discount_pct,
-            td.effective_price,
-            td.savings_amount
-          FROM scrapling.top_deals td
+            r.scrape_run_id,
+            r.product_id,
+            r.scraped_at,
+            r.rank,
+            r.category,
+            r.target_id,
+            r.target_name,
+            r.title,
+            r.url,
+            r.region,
+            r.selling_price,
+            r.original_price,
+            r.face_value,
+            r.face_value_currency,
+            r.cashback_pct,
+            r.discount_pct,
+            r.effective_discount_pct,
+            r.effective_price,
+            r.savings_amount,
+            s.seller_name,
+            s.seller_slug,
+            s.seller_url,
+            s.rating_pct,
+            s.rating_label,
+            r.is_lowest_price,
+            r.is_featured_offer
+          FROM scrapling.records r
+          LEFT JOIN scrapling.sellers s ON s.id = r.seller_id
           ${whereClause}
-          ORDER BY td.discount_pct DESC, td.savings_amount DESC, td.scraped_at DESC
+          ORDER BY r.discount_pct DESC, r.savings_amount DESC, r.scraped_at DESC
           LIMIT 500
         `;
 
@@ -336,6 +356,8 @@ export async function searchDeals(
         scraped_at: Date;
         rank: number;
         category: string;
+        target_id: string | null;
+        target_name: string;
         title: string;
         url: string;
         region: string;
@@ -348,11 +370,18 @@ export async function searchDeals(
         effective_discount_pct: string;
         effective_price: string | null;
         savings_amount: string;
+        seller_name: string | null;
+        seller_slug: string | null;
+        seller_url: string | null;
+        rating_pct: string | null;
+        rating_label: string | null;
+        is_lowest_price: boolean;
+        is_featured_offer: boolean;
       }>(sql, values);
 
       const matchedRows = res.rows.filter((row) => {
-        if (providerFilter && providerFilter !== "eneba") return false;
-        const haystack = `${row.title} ${row.category} ${row.region} eneba`;
+        if (providerFilter && providerFilter !== row.category) return false;
+        const haystack = `${row.title} ${row.category} ${row.target_name || ""} ${row.region} ${row.seller_name || ""}`;
         return matchesSearchTokens(haystack, searchText);
       });
 
@@ -361,52 +390,27 @@ export async function searchDeals(
         const deals: SearchedDealItem[] = [];
 
         for (const row of sliced) {
-          const offersRes = await pool.query<{
-            seller_name: string;
-            seller_slug: string | null;
-            seller_url: string | null;
-            rating_pct: string | null;
-            rating_label: string | null;
-            price: string;
-            cashback_pct: string;
-            is_lowest_price: boolean;
-            is_featured_offer: boolean;
-          }>(
-            `
-            SELECT
-              s.seller_name,
-              s.seller_slug,
-              s.seller_url,
-              s.rating_pct,
-              s.rating_label,
-              po.price,
-              po.cashback_pct,
-              po.is_lowest_price,
-              po.is_featured_offer
-            FROM scrapling.product_offers po
-            JOIN scrapling.sellers s ON s.id = po.seller_id
-            WHERE po.product_id = $1 AND po.scrape_run_id = $2
-            ORDER BY po.price ASC
-            `,
-            [row.product_id, row.scrape_run_id],
-          );
-
-          const competingOffers: SellerOffer[] = offersRes.rows.map((o) => ({
-            sellerName: o.seller_name,
-            sellerSlug: o.seller_slug ?? o.seller_name,
-            sellerUrl: o.seller_url ?? "",
-            ratingScore: o.rating_pct !== null ? Number(o.rating_pct) : null,
-            ratingLabel: o.rating_label,
-            price: Number(o.price),
-            cashbackPct: Number(o.cashback_pct),
-            isLowestPrice: o.is_lowest_price,
-            isFeaturedOffer: o.is_featured_offer,
-          }));
+          const competingOffers: SellerOffer[] = row.seller_name
+            ? [
+                {
+                  sellerName: row.seller_name,
+                  sellerSlug: row.seller_slug ?? row.seller_name,
+                  sellerUrl: row.seller_url ?? "",
+                  ratingScore:
+                    row.rating_pct !== null ? Number(row.rating_pct) : null,
+                  ratingLabel: row.rating_label,
+                  price: Number(row.selling_price || 0),
+                  cashbackPct: Number(row.cashback_pct || 0),
+                  isLowestPrice: row.is_lowest_price,
+                  isFeaturedOffer: row.is_featured_offer,
+                },
+              ]
+            : [];
 
           deals.push({
-            provider: "eneba",
-            category: row.category,
-            rank: Number(row.rank),
+            provider: row.category,
+            category: row.target_name || row.category,
+            rank: Number(row.rank ?? 1),
             title: row.title,
             url: row.url,
             region: row.region,

@@ -133,7 +133,8 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
       .filter((item): item is NonNullable<typeof item> => item !== null);
 
     const status = analyzePageDeals(listings, {
-      category: scraper.categoryName,
+      category: scraper.siteCategory,
+      targetName: scraper.targetName,
       pageUrl: scraper.categoryUrl,
     });
 

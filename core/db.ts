@@ -620,6 +620,15 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     scheduleId: "default",
   },
   {
+    id: "eneba-amazon-gift-cards",
+    category: "eneba",
+    name: "Amazon Gift Cards",
+    url: "https://www.eneba.com/us/store/amazon-gift-cards",
+    enabled: true,
+    withOffers: true,
+    scheduleId: "default",
+  },
+  {
     id: "g2a-amazon-gift-cards",
     category: "g2a",
     name: "Amazon Gift Cards (G2A)",

@@ -258,7 +258,9 @@ export class ScrapeRunner {
         switch (scraperCategory) {
           case "g2a":
             scraper = new G2aGiftCardScraper({
-              categoryName: pageCfg.categoryName || pageCfg.name,
+              category: "g2a",
+              targetId: pageCfg.id,
+              targetName: pageCfg.name || pageCfg.categoryName,
               categoryUrl: pageCfg.url,
               client,
             });
@@ -266,7 +268,9 @@ export class ScrapeRunner {
           case "eneba":
           default:
             scraper = new EnebaGiftCardScraper({
-              categoryName: pageCfg.categoryName,
+              category: "eneba",
+              targetId: pageCfg.id,
+              targetName: pageCfg.name || pageCfg.categoryName,
               categoryUrl: pageCfg.url,
               client,
             });
@@ -280,12 +284,12 @@ export class ScrapeRunner {
         });
 
         scrapedResults.push(status);
-        this.statusesByCategory.set(status.category, status);
+        this.statusesByCategory.set(status.targetId || status.targetName || status.category, status);
         this.completedPages = i + 1;
 
         const best = status.bestEffectiveDeal || status.bestDeal;
         this.addLog(
-          `Finished ${pageCfg.categoryName}: ${status.inStockCount}/${status.totalListings} in stock, best effective discount ${best ? best.effectiveDiscountPct.toFixed(2) + "%" : "0%"} (${status.bestDealOffers?.length ?? 0} competing offers).`,
+          `Finished ${pageCfg.name || pageCfg.categoryName}: ${status.inStockCount}/${status.totalListings} in stock, best effective discount ${best ? best.effectiveDiscountPct.toFixed(2) + "%" : "0%"} (${status.bestDealOffers?.length ?? 0} competing offers).`,
         );
       }
 
@@ -293,7 +297,7 @@ export class ScrapeRunner {
       this.pageStore.saveLatestStatuses(scrapedResults);
 
       // Persist to PostgreSQL (fault-tolerant)
-      this.currentStep = `Saving ${scrapedResults.length} page run(s) to PostgreSQL (scrapling schema tables)...`;
+      this.currentStep = `Saving ${scrapedResults.length} page run(s) to PostgreSQL (scrapling.records)...`;
       const enebaLimit = await getEnebaTopDealsLimit().catch(() => 10);
       const dbStatus = await tryPersistScrapeResult(scrapedResults, {
         maxRank: enebaLimit,
@@ -302,7 +306,7 @@ export class ScrapeRunner {
       this.lastDbStatus = dbStatus;
       if (dbStatus.saved) {
         this.addLog(
-          `PostgreSQL: Saved ${dbStatus.topDealsInserted} top deals & ${dbStatus.offersInserted ?? 0} seller offers (batch ${dbStatus.batchId?.slice(0, 8)}).`,
+          `PostgreSQL: Saved ${dbStatus.recordsInserted ?? dbStatus.topDealsInserted} records (batch ${dbStatus.batchId?.slice(0, 8)}).`,
         );
       } else if (dbStatus.error) {
         this.addLog(`PostgreSQL Warning (skipped): ${dbStatus.error}`);

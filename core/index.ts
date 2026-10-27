@@ -48,6 +48,7 @@ export {
   scraplingConfig,
   scraplingProductOffers,
   scraplingProducts,
+  scraplingRecords,
   scraplingSchedulers,
   scraplingScrapeRuns,
   scraplingSellers,
