@@ -11,8 +11,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatDividerModule } from '@angular/material/divider';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -39,8 +37,6 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatMenuModule,
-    MatDividerModule,
     MatDialogModule,
     MatSnackBarModule,
     MatTooltipModule,
@@ -185,22 +181,11 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                   </td>
                 </ng-container>
 
-                <!-- Schedule Column -->
-                <ng-container matColumnDef="schedule">
-                  <th mat-header-cell *matHeaderCellDef class="col-sched">Schedule</th>
-                  <td mat-cell *matCellDef="let s" class="col-sched" (click)="$event.stopPropagation()">
-                    <button
-                      mat-stroked-button
-                      type="button"
-                      class="schedule-trigger-btn"
-                      [matMenuTriggerFor]="scheduleMenu"
-                      [matMenuTriggerData]="{ category: s.scrapeTargetId || s.targetId || s.targetName || s.name || s.category }"
-                      matTooltip="Click to change scraping schedule for {{ s.targetName || s.name || s.category }}"
-                    >
-                      <mat-icon class="schedule-btn-icon">alarm</mat-icon>
-                      <span class="schedule-btn-label">{{ getScheduleNameForCategory(s.scrapeTargetId || s.targetId || s.targetName || s.name || s.category) }}</span>
-                      <mat-icon class="schedule-chevron-icon">arrow_drop_down</mat-icon>
-                    </button>
+                <!-- In Stock Column -->
+                <ng-container matColumnDef="inStockCount">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-instock">In Stock</th>
+                  <td mat-cell *matCellDef="let s" class="col-instock">
+                    <span class="badge badge-muted">{{ s.inStockCount }} / {{ s.totalListings }}</span>
                   </td>
                 </ng-container>
 
@@ -215,14 +200,42 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                   </td>
                 </ng-container>
 
-                <!-- Best Discount Seen Column -->
-                <ng-container matColumnDef="bestDiscountSeen">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-deal">Best Discount Seen</th>
-                  <td mat-cell *matCellDef="let s" class="col-best-deal">
-                    <span class="badge badge-discount-peak" *ngIf="s.bestDeal && s.bestDeal.discountPct > 0">
-                      -{{ s.bestDeal.discountPct.toFixed(1) }}%
-                    </span>
+                <!-- Latest Discount Column -->
+                <ng-container matColumnDef="latestDiscount">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-latest-deal">Latest Discount</th>
+                  <td mat-cell *matCellDef="let s" class="col-latest-deal">
+                    <a
+                      *ngIf="s.bestDeal && s.bestDeal.discountPct > 0"
+                      [href]="s.bestDeal.url"
+                      target="_blank"
+                      rel="noopener"
+                      class="deal-cell-link"
+                      [title]="s.bestDeal.title"
+                      (click)="$event.stopPropagation()"
+                    >
+                      <span class="badge badge-discount-peak">-{{ s.bestDeal.discountPct.toFixed(1) }}%</span>
+                      <strong class="deal-price-text" *ngIf="s.bestDeal.sellingPrice">(\${{ s.bestDeal.sellingPrice.toFixed(2) }})</strong>
+                    </a>
                     <span class="muted" *ngIf="!s.bestDeal || s.bestDeal.discountPct <= 0">—</span>
+                  </td>
+                </ng-container>
+
+                <!-- Seller Offers Column -->
+                <ng-container matColumnDef="offersCount">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-offers">Seller Offers</th>
+                  <td mat-cell *matCellDef="let s" class="col-offers">
+                    <button
+                      *ngIf="s.bestDealOffers && s.bestDealOffers.length > 0"
+                      mat-stroked-button
+                      type="button"
+                      class="offers-badge-btn"
+                      (click)="$event.stopPropagation(); openOffers(s)"
+                      matTooltip="View {{ s.bestDealOffers.length }} competing seller offers for {{ s.targetName || s.name || s.category }}"
+                    >
+                      <mat-icon class="offers-btn-icon">groups</mat-icon>
+                      <span>{{ s.bestDealOffers.length }} offers</span>
+                    </button>
+                    <span class="muted" *ngIf="!s.bestDealOffers || s.bestDealOffers.length === 0">—</span>
                   </td>
                 </ng-container>
 
@@ -238,36 +251,6 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                 ></tr>
               </table>
             </div>
-
-            <!-- Schedule Selection MatMenu -->
-            <mat-menu #scheduleMenu="matMenu" class="schedule-selection-menu">
-              <ng-template matMenuContent let-category="category">
-                <div class="menu-sched-header">
-                  <span class="menu-sched-eyebrow">Scraping Schedule</span>
-                  <span class="menu-sched-cat">{{ category }}</span>
-                </div>
-                <mat-divider></mat-divider>
-                <button
-                  mat-menu-item
-                  *ngFor="let sch of schedulersList"
-                  (click)="assignCategorySchedule(category, sch.id || 'default')"
-                  [class.active-schedule-item]="isScheduleAssigned(category, sch.id || 'default')"
-                >
-                  <mat-icon [color]="isScheduleAssigned(category, sch.id || 'default') ? 'primary' : ''">
-                    {{ isScheduleAssigned(category, sch.id || 'default') ? 'check_circle' : 'schedule' }}
-                  </mat-icon>
-                  <div class="menu-schedule-text">
-                    <span class="menu-schedule-name">{{ sch.name || sch.id || 'default' }}</span>
-                    <span class="menu-schedule-time">{{ sch.baseTime }} (+0..{{ sch.jitterMinutes }}m)</span>
-                  </div>
-                </button>
-                <mat-divider></mat-divider>
-                <a mat-menu-item routerLink="/schedulers">
-                  <mat-icon>tune</mat-icon>
-                  <span>Manage Schedulers &rarr;</span>
-                </a>
-              </ng-template>
-            </mat-menu>
 
             <!-- Rich Category Diagnostics Hover Card / Floating Tooltip -->
             <div
@@ -531,11 +514,11 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
     }
     .category-table {
       width: 100% !important;
-      min-width: 0 !important;
+      min-width: 520px !important;
       table-layout: auto !important;
     }
     .no-scroll-wrapper {
-      overflow-x: hidden !important;
+      overflow-x: auto !important;
       width: 100% !important;
     }
     .clickable-row {
@@ -550,106 +533,73 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
       min-width: 920px !important;
     }
     .col-cat {
-      width: 32% !important;
-      min-width: 110px !important;
+      width: 28% !important;
+      min-width: 120px !important;
       white-space: nowrap !important;
     }
-    .col-sched {
-      width: 28% !important;
-      min-width: 135px !important;
+    .col-instock {
+      width: 16% !important;
+      min-width: 80px !important;
       white-space: nowrap !important;
     }
     .col-avg {
-      width: 20% !important;
-      min-width: 75px !important;
+      width: 18% !important;
+      min-width: 80px !important;
       white-space: nowrap !important;
     }
-    .col-best-deal {
-      width: 20% !important;
-      min-width: 75px !important;
+    .col-latest-deal {
+      width: 22% !important;
+      min-width: 125px !important;
       white-space: nowrap !important;
     }
-    .schedule-trigger-btn {
+    .col-offers {
+      width: 16% !important;
+      min-width: 95px !important;
+      white-space: nowrap !important;
+    }
+    .deal-cell-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      text-decoration: none;
+      color: var(--mat-sys-on-surface);
+      white-space: nowrap !important;
+      line-height: 1.3;
+
+      &:hover {
+        .deal-price-text {
+          text-decoration: underline;
+        }
+      }
+    }
+    .offers-badge-btn {
       display: inline-flex !important;
       align-items: center !important;
-      gap: 0.35rem !important;
-      padding: 0.2rem 0.55rem !important;
-      height: 28px !important;
-      line-height: 28px !important;
-      font-size: 0.78rem !important;
+      gap: 0.3rem !important;
+      padding: 0.15rem 0.5rem !important;
+      height: 26px !important;
+      line-height: 26px !important;
+      font-size: 0.76rem !important;
       font-weight: 600 !important;
       border-radius: 6px !important;
-      background: var(--mat-sys-surface-container-high, rgba(99, 102, 241, 0.08)) !important;
-      border: 1px solid var(--mat-sys-outline-variant, rgba(99, 102, 241, 0.2)) !important;
-      color: var(--mat-sys-on-surface) !important;
+      background: rgba(99, 102, 241, 0.08) !important;
+      border: 1px solid rgba(99, 102, 241, 0.22) !important;
+      color: var(--mat-sys-primary) !important;
       cursor: pointer !important;
       transition: all 0.15s ease !important;
 
       &:hover {
-        background: rgba(99, 102, 241, 0.16) !important;
+        background: rgba(99, 102, 241, 0.18) !important;
         border-color: var(--mat-sys-primary) !important;
       }
 
-      .schedule-btn-icon {
+      .offers-btn-icon {
         font-size: 14px !important;
         width: 14px !important;
         height: 14px !important;
         line-height: 14px !important;
         color: var(--mat-sys-primary) !important;
       }
-
-      .schedule-btn-label {
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        max-width: 120px !important;
-      }
-
-      .schedule-chevron-icon {
-        font-size: 16px !important;
-        width: 16px !important;
-        height: 16px !important;
-        line-height: 16px !important;
-        color: var(--mat-sys-on-surface-variant) !important;
-        margin-left: -2px !important;
-      }
-    }
-    .menu-sched-header {
-      padding: 0.5rem 1rem 0.4rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.15rem;
-
-      .menu-sched-eyebrow {
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--mat-sys-on-surface-variant);
-        font-weight: 600;
-      }
-      .menu-sched-cat {
-        font-size: 0.84rem;
-        font-weight: 700;
-        color: var(--mat-sys-on-surface);
-      }
-    }
-    .menu-schedule-text {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.25;
-
-      .menu-schedule-name {
-        font-weight: 600;
-        font-size: 0.84rem;
-      }
-
-      .menu-schedule-time {
-        font-size: 0.72rem;
-        color: var(--mat-sys-on-surface-variant);
-      }
-    }
-    .active-schedule-item {
-      background: rgba(99, 102, 241, 0.12) !important;
     }
     .badge-discount-peak {
       background: rgba(16, 185, 129, 0.16);
@@ -1041,9 +991,10 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
 
   categoryColumns: string[] = [
     'category',
-    'schedule',
+    'inStockCount',
     'averageDiscountPctAllInStock',
-    'bestDiscountSeen',
+    'latestDiscount',
+    'offersCount',
   ];
 
   dealColumns: string[] = [
@@ -1380,61 +1331,6 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
-  getPageForCategory(category: string): ScrapePageConfig | undefined {
-    const pages = this.enebaPages;
-    return (
-      pages.find((p) => p.id === category) ||
-      pages.find((p) => p.name === category) ||
-      pages.find((p) => p.categoryName === category) ||
-      pages.find((p) => category.toLowerCase().includes((p.name || p.categoryName || '').toLowerCase())) ||
-      pages.find((p) => (p.name || p.categoryName || '').toLowerCase().includes(category.toLowerCase()))
-    );
-  }
-
-  getScheduleForCategory(category: string): SchedulerState | undefined {
-    const page = this.getPageForCategory(category);
-    const schedId = page?.scheduleId || 'default';
-    return this.schedulersList.find((s) => s.id === schedId);
-  }
-
-  getScheduleNameForCategory(category: string): string {
-    const sched = this.getScheduleForCategory(category);
-    return sched?.name || sched?.id || 'Default Daily';
-  }
-
-  isScheduleAssigned(category: string, scheduleId: string): boolean {
-    const page = this.getPageForCategory(category);
-    return (page?.scheduleId || 'default') === scheduleId;
-  }
-
-  getScheduleNameById(id: string): string {
-    const sched = this.schedulersList.find((s) => s.id === id);
-    return sched?.name || id;
-  }
-
-  assignCategorySchedule(category: string, scheduleId: string): void {
-    const page = this.getPageForCategory(category);
-    if (!page) {
-      this.snackBar.open(`Could not find configured page for ${category}`, 'Dismiss', { duration: 3000 });
-      return;
-    }
-    if (page.scheduleId === scheduleId) {
-      return;
-    }
-    this.apiService.assignPageSchedule(page.id, scheduleId).subscribe({
-      next: () => {
-        this.snackBar.open(
-          `Reassigned ${category} to schedule "${this.getScheduleNameById(scheduleId)}"`,
-          'OK',
-          { duration: 3000 }
-        );
-      },
-      error: (err) => {
-        this.snackBar.open(`Failed to reassign schedule: ${err.message}`, 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
   openEnebaConfigModal() {
     const dialogRef = this.dialog.open(EnebaConfigDialogComponent, {
       data: {
@@ -1527,8 +1423,10 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     this.sortedCategories = data.sort((a, b) => {
       const isAsc = sort.direction === 'asc';
       switch (sort.active) {
-        case 'category': return compare(a.category, b.category, isAsc);
+        case 'category': return compare(a.targetName || a.name || a.category, b.targetName || b.name || b.category, isAsc);
+        case 'inStockCount': return compare(a.inStockCount, b.inStockCount, isAsc);
         case 'averageDiscountPctAllInStock': return compare(a.averageDiscountPctAllInStock, b.averageDiscountPctAllInStock, isAsc);
+        case 'latestDiscount':
         case 'bestDiscountSeen':
         case 'bestEffectiveDeal': {
           const aPct = a.bestDeal?.discountPct ?? -1;
