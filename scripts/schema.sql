@@ -24,17 +24,65 @@ VALUES
   ('SCRAPLING_MCP_URL', '', 'scrapling', 'Streamable HTTP endpoint for the Scrapling MCP server.', NOW()),
   ('SCRAPLING_TIMEOUT_MS', '60000', 'scrapling', 'Request timeout in milliseconds per Scrapling fetch call.', NOW()),
   ('TZ', 'America/Los_Angeles', 'scrapling', 'Server timezone for cron scheduling, logs, and email timestamps.', NOW()),
-  ('CRON_ENABLED', 'true', 'scheduler', 'Whether the daily randomized cron job is active (true/false).', NOW()),
-  ('CRON_BASE_TIME', '19:00', 'scheduler', 'Base start time of the daily scrape window in 24-hour format (e.g., 19:00 for 7:00 PM).', NOW()),
-  ('CRON_JITTER_MINUTES', '60', 'scheduler', 'Random delay added to CRON_BASE_TIME each day (e.g., 60 means a random offset between 0 and 60 minutes).', NOW()),
   ('EMAIL_ENABLED', 'false', 'email', 'Enable or disable sending automated email notifications via Resend.', NOW()),
   ('RESEND_API_KEY', '', 'email', 'Your Resend API key (starts with re_...).', NOW()),
   ('ALERT_EMAIL_FROM', 'Notifications <onboarding@resend.dev>', 'email', 'Verified sender address in Resend (use onboarding@resend.dev for testing).', NOW()),
   ('ALERT_EMAIL_TO', '', 'email', 'Default recipient email address(es) for notifications.', NOW())
 ON CONFLICT (key) DO NOTHING;
 
+-- Cleanup legacy CRON keys from config table as schedules are now rows in scrapling.schedulers
+DELETE FROM scrapling.config WHERE key IN ('CRON_ENABLED', 'CRON_BASE_TIME', 'CRON_JITTER_MINUTES');
+
+-- Drop legacy table names if present
+DROP TABLE IF EXISTS scrapling.scrape_pages;
+DROP TABLE IF EXISTS scrapling.schedules;
+
 -- ----------------------------------------------------------------------------
--- 2. Store Configuration Table (Eneba Limits & Alert Thresholds)
+-- 2. Multi-Scheduler Configurations Table
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS scrapling.schedulers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  base_time TEXT NOT NULL DEFAULT '19:00',
+  jitter_minutes INTEGER NOT NULL DEFAULT 60,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed default primary scheduler
+INSERT INTO scrapling.schedulers (id, name, base_time, jitter_minutes, enabled, created_at, updated_at)
+VALUES
+  ('default', 'Primary Daily Schedule', '19:00', 60, true, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- 3. Monitored Scraping Targets Table
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS scrapling.targets (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL DEFAULT 'eneba',
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  with_offers BOOLEAN NOT NULL DEFAULT true,
+  schedule_id TEXT NOT NULL DEFAULT 'default',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed default initial target pages
+INSERT INTO scrapling.targets (id, category, name, url, enabled, with_offers, schedule_id, created_at, updated_at)
+VALUES
+  ('playstation-network-psn', 'eneba', 'PlayStation (PSN) Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network', true, true, 'default', NOW(), NOW()),
+  ('apple-itunes', 'eneba', 'Apple iTunes / App Store Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes', true, true, 'default', NOW(), NOW()),
+  ('google-play', 'eneba', 'Google Play Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=google_play', true, true, 'default', NOW(), NOW()),
+  ('steam', 'eneba', 'Steam Gift Cards & Wallet Codes', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam', true, true, 'default', NOW(), NOW()),
+  ('nintendo-eshop', 'eneba', 'Nintendo eShop Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=nintendo_eshop', true, true, 'default', NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- 4. Store Configuration Table (Eneba Limits & Alert Thresholds)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.eneba_config (
   key TEXT PRIMARY KEY,
@@ -50,7 +98,7 @@ VALUES
 ON CONFLICT (key) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
--- 3. Normalized Product Catalog (Unique Gift Cards)
+-- 5. Normalized Product Catalog (Unique Gift Cards)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.eneba_products (
   id BIGSERIAL PRIMARY KEY,
@@ -66,7 +114,7 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_products (
 );
 
 -- ----------------------------------------------------------------------------
--- 4. Page-Level Scrape Runs (One record per category page scrape)
+-- 6. Page-Level Scrape Runs (One record per category page scrape)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.eneba_scrape_runs (
   id BIGSERIAL PRIMARY KEY,
@@ -87,7 +135,7 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_scrape_runs (
 );
 
 -- ----------------------------------------------------------------------------
--- 5. Top Ranked Deals (Rank 1..N per page scrape)
+-- 7. Top Ranked Deals (Rank 1..N per page scrape)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.eneba_top_deals (
   id BIGSERIAL PRIMARY KEY,
@@ -114,7 +162,7 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_top_deals (
 );
 
 -- ----------------------------------------------------------------------------
--- 6. Merchant / Seller Registry
+-- 8. Merchant / Seller Registry
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.eneba_sellers (
   id BIGSERIAL PRIMARY KEY,
@@ -130,7 +178,7 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_sellers (
 );
 
 -- ----------------------------------------------------------------------------
--- 7. Competing Third-Party Seller Offers
+-- 9. Competing Third-Party Seller Offers
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.eneba_product_offers (
   id BIGSERIAL PRIMARY KEY,

@@ -80,7 +80,7 @@ export async function createDashboardServer(options: {
           enabled: t.enabled,
           withOffers: t.withOffers,
           scheduleId: t.scheduleId || "default",
-          createdAt: t.createdAt,
+          createdAt: t.createdAt || new Date().toISOString(),
         })),
       );
     } catch (syncErr) {

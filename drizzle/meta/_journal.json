@@ -8,6 +8,13 @@
       "when": 1793007699531,
       "tag": "0000_clumsy_maestro",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793071784832,
+      "tag": "0001_curly_starjammers",
+      "breakpoints": true
     }
   ]
 }

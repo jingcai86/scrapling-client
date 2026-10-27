@@ -6,6 +6,7 @@ import {
   loadEnv,
   ensureScraplingConfigTable,
   initScraplingConfigOnStartup,
+  syncSchedulersAndTargetsOnStartup,
   createPgPool,
 } from "../core/index.js";
 import { ensureEnebaSchema } from "../eneba/db.js";
@@ -62,6 +63,10 @@ async function main() {
     console.log("⏳ Seeding configuration variables from environment...");
     await initScraplingConfigOnStartup({ pool });
     console.log("✔ Synced scrapling.config variables from .env");
+
+    console.log("⏳ Synchronizing schedulers and scraping targets...");
+    await syncSchedulersAndTargetsOnStartup({ pool });
+    console.log("✔ Synced scrapling.schedulers and scrapling.targets in PostgreSQL");
 
     const tablesRes = await pool.query<{
       table_name: string;

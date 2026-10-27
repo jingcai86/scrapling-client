@@ -343,7 +343,7 @@ export interface TargetDbItem {
   enabled: boolean;
   withOffers: boolean;
   scheduleId?: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 // Backward-compatible alias
@@ -522,19 +522,85 @@ export async function deleteDbTarget(
   }
 }
 
+const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
+  {
+    id: "playstation-network-psn",
+    category: "eneba",
+    name: "PlayStation (PSN) Gift Cards",
+    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network",
+    enabled: true,
+    withOffers: true,
+    scheduleId: "default",
+  },
+  {
+    id: "apple-itunes",
+    category: "eneba",
+    name: "Apple iTunes / App Store Gift Cards",
+    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes",
+    enabled: true,
+    withOffers: true,
+    scheduleId: "default",
+  },
+  {
+    id: "google-play",
+    category: "eneba",
+    name: "Google Play Gift Cards",
+    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=google_play",
+    enabled: true,
+    withOffers: true,
+    scheduleId: "default",
+  },
+  {
+    id: "steam",
+    category: "eneba",
+    name: "Steam Gift Cards & Wallet Codes",
+    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam",
+    enabled: true,
+    withOffers: true,
+    scheduleId: "default",
+  },
+  {
+    id: "nintendo-eshop",
+    category: "eneba",
+    name: "Nintendo eShop Cards",
+    url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=nintendo_eshop",
+    enabled: true,
+    withOffers: true,
+    scheduleId: "default",
+  },
+];
+
+const DEFAULT_INITIAL_SCHEDULERS: ScheduleDbItem[] = [
+  {
+    id: "default",
+    name: "Primary Daily Schedule",
+    baseTime: "19:00",
+    jitterMinutes: 60,
+    enabled: true,
+  },
+];
+
 /**
  * Synchronizes schedulers and scrape targets between PostgreSQL and disk fallback on server boot.
  */
 export async function syncSchedulersAndTargetsOnStartup(options: {
   pool?: pg.Pool;
-  initialSchedulers: ScheduleDbItem[];
-  initialTargets: TargetDbItem[];
-}): Promise<{
+  initialSchedulers?: ScheduleDbItem[];
+  initialTargets?: TargetDbItem[];
+} = {}): Promise<{
   schedulers: ScheduleDbItem[];
   targets: TargetDbItem[];
 }> {
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
+  const initialSchedulers =
+    options.initialSchedulers && options.initialSchedulers.length > 0
+      ? options.initialSchedulers
+      : DEFAULT_INITIAL_SCHEDULERS;
+  const initialTargets =
+    options.initialTargets && options.initialTargets.length > 0
+      ? options.initialTargets
+      : DEFAULT_INITIAL_TARGETS;
 
   try {
     await ensureScraplingConfigTable(pool);
@@ -542,16 +608,16 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
     // 1. Sync Schedulers
     let dbSchedulers = await getDbSchedulers(pool);
     if (dbSchedulers.length === 0) {
-      for (const sch of options.initialSchedulers) {
+      for (const sch of initialSchedulers) {
         await upsertDbScheduler(sch, pool);
       }
       dbSchedulers = await getDbSchedulers(pool);
       if (dbSchedulers.length === 0) {
-        dbSchedulers = [...options.initialSchedulers];
+        dbSchedulers = [...initialSchedulers];
       }
     } else {
       if (!dbSchedulers.some((s) => s.id === "default")) {
-        const def = options.initialSchedulers.find((s) => s.id === "default") || {
+        const def = initialSchedulers.find((s) => s.id === "default") || {
           id: "default",
           name: "Primary Daily Schedule",
           baseTime: "19:00",
@@ -569,12 +635,12 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
     // 2. Sync Targets
     let dbTargets = await getDbTargets(pool);
     if (dbTargets.length === 0) {
-      for (const target of options.initialTargets) {
+      for (const target of initialTargets) {
         await upsertDbTarget(target, pool);
       }
       dbTargets = await getDbTargets(pool);
       if (dbTargets.length === 0) {
-        dbTargets = [...options.initialTargets];
+        dbTargets = [...initialTargets];
       }
     }
 
