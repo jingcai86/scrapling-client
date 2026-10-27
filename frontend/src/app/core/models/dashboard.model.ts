@@ -1,7 +1,9 @@
 export interface ScrapePageConfig {
   id: string;
+  category?: string;
   provider: string;
   categoryName: string;
+  name?: string;
   url: string;
   enabled: boolean;
   withOffers: boolean;

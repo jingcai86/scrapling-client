@@ -10,7 +10,7 @@ import {
   ensureDefaultEnvKeys,
   getEmailConfigStatus,
   initScraplingConfigOnStartup,
-  syncSchedulesAndPagesOnStartup,
+  syncSchedulersAndTargetsOnStartup,
   loadEnv,
 } from "../core/index.js";
 import { ensureEnebaSchema } from "../eneba/db.js";
@@ -50,17 +50,41 @@ export async function createDashboardServer(options: {
     });
     await ensureEnebaSchema(startupPool);
 
-    // Sync schedules and scraping page targets with PostgreSQL
+    // Sync schedulers and scrape targets with PostgreSQL
     try {
-      const synced = await syncSchedulesAndPagesOnStartup({
+      const initialPages = pageStore.listPages();
+      const initialTargets = initialPages.map((p) => ({
+        id: p.id,
+        category: p.category || p.provider || "eneba",
+        name: p.categoryName || p.name || p.id,
+        url: p.url,
+        enabled: p.enabled,
+        withOffers: p.withOffers,
+        scheduleId: p.scheduleId || "default",
+        createdAt: p.createdAt,
+      }));
+      const synced = await syncSchedulersAndTargetsOnStartup({
         pool: startupPool,
-        initialSchedules: pageStore.listSchedules(),
-        initialPages: pageStore.listPages(),
+        initialSchedulers: pageStore.listSchedules(),
+        initialTargets,
       });
-      pageStore.saveSchedules(synced.schedules);
-      pageStore.savePages(synced.pages);
+      pageStore.saveSchedules(synced.schedulers);
+      pageStore.savePages(
+        synced.targets.map((t) => ({
+          id: t.id,
+          category: t.category,
+          provider: t.category,
+          categoryName: t.name,
+          name: t.name,
+          url: t.url,
+          enabled: t.enabled,
+          withOffers: t.withOffers,
+          scheduleId: t.scheduleId || "default",
+          createdAt: t.createdAt,
+        })),
+      );
     } catch (syncErr) {
-      console.warn("[PostgreSQL Warn] Could not sync schedules/pages on startup:", syncErr);
+      console.warn("[PostgreSQL Warn] Could not sync schedulers/targets on startup:", syncErr);
     }
   } finally {
     if (!options.pool) {

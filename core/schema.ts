@@ -44,9 +44,9 @@ export const enebaConfig = scraplingSchema.table("eneba_config", {
 });
 
 /**
- * 2b. Multi-Scheduler Configurations (`scrapling.schedules`)
+ * 2b. Multi-Scheduler Configurations (`scrapling.schedulers`)
  */
-export const scraplingSchedules = scraplingSchema.table("schedules", {
+export const scraplingSchedulers = scraplingSchema.table("schedulers", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   baseTime: text("base_time").notNull().default("19:00"),
@@ -61,12 +61,12 @@ export const scraplingSchedules = scraplingSchema.table("schedules", {
 });
 
 /**
- * 2c. Monitored Scraping Pages and Category Target Mappings (`scrapling.scrape_pages`)
+ * 2c. Monitored Scraping Targets and Category Mappings (`scrapling.targets`)
  */
-export const scraplingScrapePages = scraplingSchema.table("scrape_pages", {
+export const scraplingTargets = scraplingSchema.table("targets", {
   id: text("id").primaryKey(),
-  provider: text("provider").notNull().default("eneba"),
-  categoryName: text("category_name").notNull(),
+  category: text("category").notNull().default("eneba"), // scraper type / site category (e.g. 'eneba', 'g2a')
+  name: text("name").notNull(), // display title (e.g. 'PlayStation (PSN) Gift Cards')
   url: text("url").notNull(),
   enabled: boolean("enabled").notNull().default(true),
   withOffers: boolean("with_offers").notNull().default(true),

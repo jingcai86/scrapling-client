@@ -36,7 +36,14 @@ CREATE TABLE IF NOT EXISTS scrapling.config (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS scrapling.schedules (
+-- Deprecate and remove CRON keys from scrapling.config as schedules are now stored as first-class rows in scrapling.schedulers
+DELETE FROM scrapling.config WHERE key IN ('CRON_ENABLED', 'CRON_BASE_TIME', 'CRON_JITTER_MINUTES');
+
+-- Drop legacy table names if present
+DROP TABLE IF EXISTS scrapling.scrape_pages;
+DROP TABLE IF EXISTS scrapling.schedules;
+
+CREATE TABLE IF NOT EXISTS scrapling.schedulers (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   base_time TEXT NOT NULL DEFAULT '19:00',
@@ -46,10 +53,10 @@ CREATE TABLE IF NOT EXISTS scrapling.schedules (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS scrapling.scrape_pages (
+CREATE TABLE IF NOT EXISTS scrapling.targets (
   id TEXT PRIMARY KEY,
-  provider TEXT NOT NULL DEFAULT 'eneba',
-  category_name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'eneba',
+  name TEXT NOT NULL,
   url TEXT NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   with_offers BOOLEAN NOT NULL DEFAULT TRUE,
@@ -328,10 +335,10 @@ export interface ScheduleDbItem {
   createdAt?: string;
 }
 
-export interface ScrapePageDbItem {
+export interface TargetDbItem {
   id: string;
-  provider: string;
-  categoryName: string;
+  category: string;
+  name: string;
   url: string;
   enabled: boolean;
   withOffers: boolean;
@@ -339,10 +346,13 @@ export interface ScrapePageDbItem {
   createdAt: string;
 }
 
+// Backward-compatible alias
+export type ScrapePageDbItem = TargetDbItem;
+
 /**
- * Loads all configured schedules from `scrapling.schedules`.
+ * Loads all configured schedules from `scrapling.schedulers`.
  */
-export async function getDbSchedules(pool?: pg.Pool): Promise<ScheduleDbItem[]> {
+export async function getDbSchedulers(pool?: pg.Pool): Promise<ScheduleDbItem[]> {
   const ownPool = !pool;
   const p = pool ?? createPgPool();
   try {
@@ -354,7 +364,7 @@ export async function getDbSchedules(pool?: pg.Pool): Promise<ScheduleDbItem[]> 
       jitter_minutes: number;
       enabled: boolean;
       created_at: Date;
-    }>("SELECT id, name, base_time, jitter_minutes, enabled, created_at FROM scrapling.schedules ORDER BY created_at ASC");
+    }>("SELECT id, name, base_time, jitter_minutes, enabled, created_at FROM scrapling.schedulers ORDER BY created_at ASC");
     return res.rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -369,9 +379,9 @@ export async function getDbSchedules(pool?: pg.Pool): Promise<ScheduleDbItem[]> 
 }
 
 /**
- * Upserts a schedule into `scrapling.schedules`.
+ * Upserts a schedule into `scrapling.schedulers`.
  */
-export async function upsertDbSchedule(
+export async function upsertDbScheduler(
   item: ScheduleDbItem,
   pool?: pg.Pool,
 ): Promise<void> {
@@ -380,7 +390,7 @@ export async function upsertDbSchedule(
   try {
     await ensureScraplingConfigTable(p);
     await p.query(
-      `INSERT INTO scrapling.schedules (id, name, base_time, jitter_minutes, enabled, created_at, updated_at)
+      `INSERT INTO scrapling.schedulers (id, name, base_time, jitter_minutes, enabled, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW()), NOW())
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
@@ -403,9 +413,9 @@ export async function upsertDbSchedule(
 }
 
 /**
- * Deletes a schedule from `scrapling.schedules` and reassigns any orphaned pages to 'default'.
+ * Deletes a schedule from `scrapling.schedulers` and reassigns any orphaned targets to 'default'.
  */
-export async function deleteDbSchedule(
+export async function deleteDbScheduler(
   id: string,
   pool?: pg.Pool,
 ): Promise<void> {
@@ -414,9 +424,9 @@ export async function deleteDbSchedule(
   const p = pool ?? createPgPool();
   try {
     await ensureScraplingConfigTable(p);
-    await p.query("DELETE FROM scrapling.schedules WHERE id = $1", [id]);
+    await p.query("DELETE FROM scrapling.schedulers WHERE id = $1", [id]);
     await p.query(
-      "UPDATE scrapling.scrape_pages SET schedule_id = 'default', updated_at = NOW() WHERE schedule_id = $1",
+      "UPDATE scrapling.targets SET schedule_id = 'default', updated_at = NOW() WHERE schedule_id = $1",
       [id],
     );
   } finally {
@@ -425,27 +435,27 @@ export async function deleteDbSchedule(
 }
 
 /**
- * Loads all configured scrape pages from `scrapling.scrape_pages`.
+ * Loads all configured scrape targets from `scrapling.targets`.
  */
-export async function getDbPages(pool?: pg.Pool): Promise<ScrapePageDbItem[]> {
+export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
   const ownPool = !pool;
   const p = pool ?? createPgPool();
   try {
     await ensureScraplingConfigTable(p);
     const res = await p.query<{
       id: string;
-      provider: string;
-      category_name: string;
+      category: string;
+      name: string;
       url: string;
       enabled: boolean;
       with_offers: boolean;
       schedule_id: string;
       created_at: Date;
-    }>("SELECT id, provider, category_name, url, enabled, with_offers, schedule_id, created_at FROM scrapling.scrape_pages ORDER BY created_at ASC");
+    }>("SELECT id, category, name, url, enabled, with_offers, schedule_id, created_at FROM scrapling.targets ORDER BY created_at ASC");
     return res.rows.map((r) => ({
       id: r.id,
-      provider: r.provider,
-      categoryName: r.category_name,
+      category: r.category || "eneba",
+      name: r.name,
       url: r.url,
       enabled: Boolean(r.enabled),
       withOffers: Boolean(r.with_offers),
@@ -458,10 +468,10 @@ export async function getDbPages(pool?: pg.Pool): Promise<ScrapePageDbItem[]> {
 }
 
 /**
- * Upserts a scrape page target into `scrapling.scrape_pages`.
+ * Upserts a scrape target into `scrapling.targets`.
  */
-export async function upsertDbPage(
-  page: ScrapePageDbItem,
+export async function upsertDbTarget(
+  target: TargetDbItem,
   pool?: pg.Pool,
 ): Promise<void> {
   const ownPool = !pool;
@@ -469,25 +479,25 @@ export async function upsertDbPage(
   try {
     await ensureScraplingConfigTable(p);
     await p.query(
-      `INSERT INTO scrapling.scrape_pages (id, provider, category_name, url, enabled, with_offers, schedule_id, created_at, updated_at)
+      `INSERT INTO scrapling.targets (id, category, name, url, enabled, with_offers, schedule_id, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, NOW()), NOW())
        ON CONFLICT (id) DO UPDATE SET
-         provider = EXCLUDED.provider,
-         category_name = EXCLUDED.category_name,
+         category = EXCLUDED.category,
+         name = EXCLUDED.name,
          url = EXCLUDED.url,
          enabled = EXCLUDED.enabled,
          with_offers = EXCLUDED.with_offers,
          schedule_id = EXCLUDED.schedule_id,
          updated_at = NOW()`,
       [
-        page.id,
-        page.provider,
-        page.categoryName,
-        page.url,
-        page.enabled,
-        page.withOffers,
-        page.scheduleId || "default",
-        page.createdAt || new Date().toISOString(),
+        target.id,
+        target.category || "eneba",
+        target.name,
+        target.url,
+        target.enabled,
+        target.withOffers,
+        target.scheduleId || "default",
+        target.createdAt || new Date().toISOString(),
       ],
     );
   } finally {
@@ -496,9 +506,9 @@ export async function upsertDbPage(
 }
 
 /**
- * Deletes a scrape page target from `scrapling.scrape_pages`.
+ * Deletes a scrape target from `scrapling.targets`.
  */
-export async function deleteDbPage(
+export async function deleteDbTarget(
   id: string,
   pool?: pg.Pool,
 ): Promise<void> {
@@ -506,22 +516,22 @@ export async function deleteDbPage(
   const p = pool ?? createPgPool();
   try {
     await ensureScraplingConfigTable(p);
-    await p.query("DELETE FROM scrapling.scrape_pages WHERE id = $1", [id]);
+    await p.query("DELETE FROM scrapling.targets WHERE id = $1", [id]);
   } finally {
     if (ownPool) await p.end();
   }
 }
 
 /**
- * Synchronizes schedules and pages between PostgreSQL and disk fallback on server boot.
+ * Synchronizes schedulers and scrape targets between PostgreSQL and disk fallback on server boot.
  */
-export async function syncSchedulesAndPagesOnStartup(options: {
+export async function syncSchedulersAndTargetsOnStartup(options: {
   pool?: pg.Pool;
-  initialSchedules: ScheduleDbItem[];
-  initialPages: ScrapePageDbItem[];
+  initialSchedulers: ScheduleDbItem[];
+  initialTargets: TargetDbItem[];
 }): Promise<{
-  schedules: ScheduleDbItem[];
-  pages: ScrapePageDbItem[];
+  schedulers: ScheduleDbItem[];
+  targets: TargetDbItem[];
 }> {
   const ownPool = !options.pool;
   const pool = options.pool ?? createPgPool();
@@ -529,49 +539,58 @@ export async function syncSchedulesAndPagesOnStartup(options: {
   try {
     await ensureScraplingConfigTable(pool);
 
-    // 1. Sync Schedules
-    let dbSchedules = await getDbSchedules(pool);
-    if (dbSchedules.length === 0) {
-      for (const sch of options.initialSchedules) {
-        await upsertDbSchedule(sch, pool);
+    // 1. Sync Schedulers
+    let dbSchedulers = await getDbSchedulers(pool);
+    if (dbSchedulers.length === 0) {
+      for (const sch of options.initialSchedulers) {
+        await upsertDbScheduler(sch, pool);
       }
-      dbSchedules = await getDbSchedules(pool);
-      if (dbSchedules.length === 0) {
-        dbSchedules = [...options.initialSchedules];
+      dbSchedulers = await getDbSchedulers(pool);
+      if (dbSchedulers.length === 0) {
+        dbSchedulers = [...options.initialSchedulers];
       }
     } else {
-      if (!dbSchedules.some((s) => s.id === "default")) {
-        const def = options.initialSchedules.find((s) => s.id === "default") || {
+      if (!dbSchedulers.some((s) => s.id === "default")) {
+        const def = options.initialSchedulers.find((s) => s.id === "default") || {
           id: "default",
           name: "Primary Daily Schedule",
           baseTime: "19:00",
           jitterMinutes: 60,
           enabled: true,
         };
-        await upsertDbSchedule(def, pool);
-        dbSchedules = await getDbSchedules(pool);
-        if (!dbSchedules.some((s) => s.id === "default")) {
-          dbSchedules.unshift(def);
+        await upsertDbScheduler(def, pool);
+        dbSchedulers = await getDbSchedulers(pool);
+        if (!dbSchedulers.some((s) => s.id === "default")) {
+          dbSchedulers.unshift(def);
         }
       }
     }
 
-    // 2. Sync Pages
-    let dbPages = await getDbPages(pool);
-    if (dbPages.length === 0) {
-      for (const page of options.initialPages) {
-        await upsertDbPage(page, pool);
+    // 2. Sync Targets
+    let dbTargets = await getDbTargets(pool);
+    if (dbTargets.length === 0) {
+      for (const target of options.initialTargets) {
+        await upsertDbTarget(target, pool);
       }
-      dbPages = await getDbPages(pool);
-      if (dbPages.length === 0) {
-        dbPages = [...options.initialPages];
+      dbTargets = await getDbTargets(pool);
+      if (dbTargets.length === 0) {
+        dbTargets = [...options.initialTargets];
       }
     }
 
-    return { schedules: dbSchedules, pages: dbPages };
+    return { schedulers: dbSchedulers, targets: dbTargets };
   } finally {
     if (ownPool) {
       await pool.end();
     }
   }
 }
+
+// Backward compatibility re-exports
+export const getDbSchedules = getDbSchedulers;
+export const upsertDbSchedule = upsertDbScheduler;
+export const deleteDbSchedule = deleteDbScheduler;
+export const getDbPages = getDbTargets;
+export const upsertDbPage = upsertDbTarget;
+export const deleteDbPage = deleteDbTarget;
+export const syncSchedulesAndPagesOnStartup = syncSchedulersAndTargetsOnStartup;

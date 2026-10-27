@@ -20,13 +20,6 @@ export function createConfigRouter(ctx: ServerContext): Router {
         pool: ctx.pool,
         envPath: ctx.envPath,
       });
-      if (
-        "CRON_ENABLED" in cleanUpdates ||
-        "CRON_BASE_TIME" in cleanUpdates ||
-        "CRON_JITTER_MINUTES" in cleanUpdates
-      ) {
-        ctx.scheduler.reloadFromEnv();
-      }
       res.json({
         values,
         scheduler: ctx.scheduler.getState(),

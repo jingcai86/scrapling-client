@@ -116,58 +116,9 @@ interface ConfigRow {
               </div>
             </div>
 
-            <!-- Group 3: Cron Scheduler -->
+            <!-- Group 3: Email Notifications -->
             <div class="section-box">
-              <h3>3. Daily Randomized Cron Schedule</h3>
-              <p class="section-hint">Daily cron schedule, base start time, and random jitter delay window.</p>
-              <div class="fields-grid">
-                <!-- CRON_ENABLED as true/false dropdown -->
-                <div class="field-item">
-                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-                    <mat-label>CRON_ENABLED</mat-label>
-                    <mat-select [(ngModel)]="editFormValues['CRON_ENABLED']">
-                      <mat-option value="true">true</mat-option>
-                      <mat-option value="false">false</mat-option>
-                    </mat-select>
-                    <mat-hint>Whether the daily randomized cron job is active (true/false).</mat-hint>
-                  </mat-form-field>
-                </div>
-
-                <!-- CRON_BASE_TIME (disabled when CRON_ENABLED === false) -->
-                <div class="field-item" [class.field-disabled]="isCronDisabled()">
-                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-                    <mat-label>CRON_BASE_TIME</mat-label>
-                    <input
-                      matInput
-                      type="time"
-                      [(ngModel)]="editFormValues['CRON_BASE_TIME']"
-                      [disabled]="isCronDisabled()"
-                    />
-                    <mat-hint>Daily window start time (24h HH:MM, e.g. 19:00 = 7:00 PM).</mat-hint>
-                  </mat-form-field>
-                </div>
-
-                <!-- CRON_JITTER_MINUTES (disabled when CRON_ENABLED === false) -->
-                <div class="field-item" [class.field-disabled]="isCronDisabled()">
-                  <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-                    <mat-label>CRON_JITTER_MINUTES</mat-label>
-                    <input
-                      matInput
-                      type="number"
-                      [(ngModel)]="editFormValues['CRON_JITTER_MINUTES']"
-                      [disabled]="isCronDisabled()"
-                      min="0"
-                      max="720"
-                    />
-                    <mat-hint>Random delay window in minutes added to start time daily.</mat-hint>
-                  </mat-form-field>
-                </div>
-              </div>
-            </div>
-
-            <!-- Group 4: Email Notifications -->
-            <div class="section-box">
-              <h3>4. Resend Email Notifications</h3>
+              <h3>3. Resend Email Notifications</h3>
               <p class="section-hint">Email notification API key, sender address, and recipient settings.</p>
               <div class="fields-grid">
                 <!-- EMAIL_ENABLED as true/false dropdown -->
@@ -528,10 +479,6 @@ export class ConfigDialogComponent implements OnInit, OnDestroy {
       this.editFormValues = { ...values };
       this.initialized = true;
     }
-  }
-
-  isCronDisabled(): boolean {
-    return this.editFormValues['CRON_ENABLED'] === 'false';
   }
 
   isEmailDisabled(): boolean {

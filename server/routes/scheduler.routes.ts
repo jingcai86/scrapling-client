@@ -1,8 +1,7 @@
 import { Router } from "express";
 import {
-  updateDbConfigValues,
-  upsertDbSchedule,
-  deleteDbSchedule,
+  upsertDbScheduler,
+  deleteDbScheduler,
 } from "../../core/index.js";
 import type { ServerContext } from "../types.js";
 
@@ -29,7 +28,7 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
       const state = ctx.schedulerManager.addOrUpdateSchedule(created);
       if (ctx.pool) {
         try {
-          await upsertDbSchedule(created, ctx.pool);
+          await upsertDbScheduler(created, ctx.pool);
         } catch (dbErr) {
           console.warn("[PostgreSQL Warn] Failed to persist new schedule to database:", dbErr);
         }
@@ -71,7 +70,7 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
       ctx.schedulerManager.removeSchedule(id);
       if (ctx.pool) {
         try {
-          await deleteDbSchedule(id, ctx.pool);
+          await deleteDbScheduler(id, ctx.pool);
         } catch (dbErr) {
           console.warn("[PostgreSQL Warn] Failed to delete schedule from database:", dbErr);
         }
@@ -111,20 +110,10 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
       const state = ctx.schedulerManager.addOrUpdateSchedule(updated);
       if (ctx.pool) {
         try {
-          await upsertDbSchedule(updated, ctx.pool);
+          await upsertDbScheduler(updated, ctx.pool);
         } catch (dbErr) {
           console.warn("[PostgreSQL Warn] Failed to update schedule in database:", dbErr);
         }
-      }
-      if (id === "default") {
-        await updateDbConfigValues(
-          {
-            CRON_ENABLED: String(state.enabled),
-            CRON_BASE_TIME: state.baseTime,
-            CRON_JITTER_MINUTES: String(state.jitterMinutes),
-          },
-          { pool: ctx.pool, envPath: ctx.envPath },
-        );
       }
       res.json({ scheduler: state });
     } catch (err) {
@@ -166,20 +155,12 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
 
       if (updated && ctx.pool) {
         try {
-          await upsertDbSchedule(updated, ctx.pool);
+          await upsertDbScheduler(updated, ctx.pool);
         } catch (dbErr) {
           console.warn("[PostgreSQL Warn] Failed to update default schedule in database:", dbErr);
         }
       }
 
-      await updateDbConfigValues(
-        {
-          CRON_ENABLED: String(state.enabled),
-          CRON_BASE_TIME: state.baseTime,
-          CRON_JITTER_MINUTES: String(state.jitterMinutes),
-        },
-        { pool: ctx.pool, envPath: ctx.envPath },
-      );
       res.json({ scheduler: state });
     } catch (err) {
       next(err);
@@ -188,3 +169,4 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
 
   return router;
 }
+

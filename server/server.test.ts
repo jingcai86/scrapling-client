@@ -51,8 +51,8 @@ function createInMemoryConfigPool(): {
         .trim();
       const lower = normalized.toLowerCase();
 
-      // Schedules table queries
-      if (lower.includes("scrapling.schedules")) {
+      // Schedulers table queries (scrapling.schedulers)
+      if (lower.includes("scrapling.schedulers") || lower.includes("scrapling.schedules")) {
         if (lower.includes("insert into") || lower.includes("on conflict")) {
           const id = String(sqlParams[0] ?? "");
           const name = String(sqlParams[1] ?? "");
@@ -76,19 +76,19 @@ function createInMemoryConfigPool(): {
         }
       }
 
-      // Scrape Pages table queries
-      if (lower.includes("scrapling.scrape_pages")) {
+      // Scraping Targets table queries (scrapling.targets)
+      if (lower.includes("scrapling.targets") || lower.includes("scrapling.scrape_pages")) {
         if (lower.includes("insert into") || lower.includes("on conflict")) {
           const id = String(sqlParams[0] ?? "");
-          const provider = String(sqlParams[1] ?? "eneba");
-          const category_name = String(sqlParams[2] ?? "");
+          const category = String(sqlParams[1] ?? "eneba");
+          const name = String(sqlParams[2] ?? "");
           const url = String(sqlParams[3] ?? "");
           const enabled = Boolean(sqlParams[4]);
           const with_offers = Boolean(sqlParams[5]);
           const schedule_id = String(sqlParams[6] ?? "default");
           const created_at = sqlParams[7] ? new Date(String(sqlParams[7])) : new Date();
           if (id) {
-            pageRows.set(id, { id, provider, category_name, url, enabled, with_offers, schedule_id, created_at });
+            pageRows.set(id, { id, category, name, url, enabled, with_offers, schedule_id, created_at });
           }
           return { rows: [], rowCount: 1 };
         }
@@ -424,19 +424,14 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
             PORT: "9999",
             DATABASE_URL: "postgresql://hacked",
             ALERT_EMAIL_TO: "alerts@example.com",
-            CRON_BASE_TIME: "20:00",
-            CRON_JITTER_MINUTES: "45",
           },
         }),
       });
       assert.equal(envRes.status, 200);
       const envUpdated = (await envRes.json()) as {
         values: Record<string, string>;
-        scheduler: { baseTime: string; jitterMinutes: number };
       };
       assert.equal(envUpdated.values.ALERT_EMAIL_TO, "alerts@example.com");
-      assert.equal(envUpdated.scheduler.baseTime, "20:00");
-      assert.equal(envUpdated.scheduler.jitterMinutes, 45);
       // PORT and DATABASE_URL must remain unchanged from .env
       assert.equal(envUpdated.values.PORT, "80");
       assert.equal(
@@ -445,8 +440,24 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       );
       // Confirm updates went to scrapling.config
       assert.equal(configRows.get("ALERT_EMAIL_TO")?.value, "alerts@example.com");
-      assert.equal(configRows.get("CRON_BASE_TIME")?.value, "20:00");
-      assert.equal(configRows.get("CRON_JITTER_MINUTES")?.value, "45");
+
+      // 4b. PUT /api/scheduler/default (Update primary schedule stored in scrapling.schedulers)
+      const updateDefaultRes = await fetch(`${baseUrl}/api/scheduler/default`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseTime: "20:00",
+          jitterMinutes: 45,
+        }),
+      });
+      assert.equal(updateDefaultRes.status, 200);
+      const defData = (await updateDefaultRes.json()) as {
+        scheduler: { baseTime: string; jitterMinutes: number };
+      };
+      assert.equal(defData.scheduler.baseTime, "20:00");
+      assert.equal(defData.scheduler.jitterMinutes, 45);
+      assert.equal(scheduleRows.get("default")?.base_time, "20:00");
+      assert.equal(scheduleRows.get("default")?.jitter_minutes, 45);
 
       // 5. GET /api/email/preview
       const prevRes = await fetch(`${baseUrl}/api/email/preview`);

@@ -15,8 +15,10 @@ const DEFAULT_DATA_DIR = path.resolve(REPO_ROOT, "data");
 
 export interface ScrapePageConfig {
   id: string;
-  provider: string;
-  categoryName: string;
+  category: string; // e.g. "eneba", "g2a" (scraper provider/category)
+  provider?: string; // alias for category
+  categoryName: string; // e.g. "PlayStation (PSN) Gift Cards"
+  name?: string; // alias for categoryName
   url: string;
   enabled: boolean;
   withOffers: boolean;
@@ -66,8 +68,10 @@ export const DEFAULT_SCHEDULES: ScheduleConfigItem[] = [
 export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   {
     id: "eneba-psn",
+    category: "eneba",
     provider: "eneba",
     categoryName: "PlayStation (PSN) Gift Cards",
+    name: "PlayStation (PSN) Gift Cards",
     url: PLAYSTATION_GIFT_CARDS_URL,
     enabled: true,
     withOffers: true,
@@ -76,8 +80,10 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "eneba-nintendo",
+    category: "eneba",
     provider: "eneba",
     categoryName: "Nintendo eShop Gift Cards",
+    name: "Nintendo eShop Gift Cards",
     url: NINTENDO_GIFT_CARDS_URL,
     enabled: true,
     withOffers: true,
@@ -86,8 +92,10 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "eneba-android",
+    category: "eneba",
     provider: "eneba",
     categoryName: "Android (Google Play) Gift Cards",
+    name: "Android (Google Play) Gift Cards",
     url: ANDROID_GIFT_CARDS_URL,
     enabled: true,
     withOffers: true,
@@ -96,8 +104,10 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "eneba-amazon",
+    category: "eneba",
     provider: "eneba",
     categoryName: "Amazon Gift Cards",
+    name: "Amazon Gift Cards",
     url: AMAZON_GIFT_CARDS_URL,
     enabled: true,
     withOffers: true,
@@ -106,8 +116,10 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   },
   {
     id: "eneba-apple",
+    category: "eneba",
     provider: "eneba",
     categoryName: "Apple Gift Cards",
+    name: "Apple Gift Cards",
     url: APPLE_GIFT_CARDS_URL,
     enabled: true,
     withOffers: true,
@@ -292,15 +304,17 @@ export class PageStore {
    */
   addPage(input: {
     provider?: string;
-    categoryName: string;
+    category?: string;
+    categoryName?: string;
+    name?: string;
     url: string;
     enabled?: boolean;
     withOffers?: boolean;
     scheduleId?: string;
   }): ScrapePageConfig {
     const pages = this.listPages();
-    const provider = (input.provider || "eneba").trim().toLowerCase();
-    const categoryName = input.categoryName.trim();
+    const category = (input.category || input.provider || "eneba").trim().toLowerCase();
+    const categoryName = (input.categoryName || input.name || "").trim();
     const url = input.url.trim();
 
     if (!categoryName) {
@@ -318,12 +332,14 @@ export class PageStore {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 32);
-    const id = `${provider}-${slug || crypto.randomBytes(4).toString("hex")}-${Date.now().toString(36).slice(-4)}`;
+    const id = `${category}-${slug || crypto.randomBytes(4).toString("hex")}-${Date.now().toString(36).slice(-4)}`;
 
     const newPage: ScrapePageConfig = {
       id,
-      provider,
+      category,
+      provider: category,
       categoryName,
+      name: categoryName,
       url: parsedUrl.toString(),
       enabled: input.enabled ?? true,
       withOffers: input.withOffers ?? true,
@@ -344,7 +360,14 @@ export class PageStore {
     patch: Partial<
       Pick<
         ScrapePageConfig,
-        "categoryName" | "url" | "provider" | "enabled" | "withOffers" | "scheduleId"
+        | "categoryName"
+        | "name"
+        | "url"
+        | "provider"
+        | "category"
+        | "enabled"
+        | "withOffers"
+        | "scheduleId"
       >
     >,
   ): ScrapePageConfig | null {
@@ -353,20 +376,29 @@ export class PageStore {
     if (idx === -1) return null;
 
     const current = pages[idx];
+    const category =
+      patch.category !== undefined
+        ? patch.category.trim().toLowerCase() || current.category || "eneba"
+        : patch.provider !== undefined
+          ? patch.provider.trim().toLowerCase() || current.category || "eneba"
+          : current.category || "eneba";
+    const categoryName =
+      patch.categoryName !== undefined
+        ? patch.categoryName.trim() || current.categoryName
+        : patch.name !== undefined
+          ? patch.name.trim() || current.categoryName
+          : current.categoryName;
+
     const updated: ScrapePageConfig = {
       ...current,
-      categoryName:
-        patch.categoryName !== undefined
-          ? patch.categoryName.trim() || current.categoryName
-          : current.categoryName,
+      category,
+      provider: category,
+      categoryName,
+      name: categoryName,
       url:
         patch.url !== undefined
           ? new URL(patch.url.trim()).toString()
           : current.url,
-      provider:
-        patch.provider !== undefined
-          ? patch.provider.trim().toLowerCase() || current.provider
-          : current.provider,
       enabled:
         patch.enabled !== undefined ? Boolean(patch.enabled) : current.enabled,
       withOffers:

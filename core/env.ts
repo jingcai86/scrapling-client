@@ -67,33 +67,6 @@ export const ENV_SCHEMA: EnvFieldMeta[] = [
     inputType: "text",
   },
   {
-    key: "CRON_ENABLED",
-    label: "Enable Daily Cron Job",
-    group: "scheduler",
-    description:
-      "Whether the daily randomized cron job is active (true/false).",
-    defaultValue: "true",
-    inputType: "boolean",
-  },
-  {
-    key: "CRON_BASE_TIME",
-    label: "Daily Start Time (24h HH:MM)",
-    group: "scheduler",
-    description:
-      "Base start time of the daily scrape window in 24-hour format (e.g., 19:00 for 7:00 PM).",
-    defaultValue: "19:00",
-    inputType: "time",
-  },
-  {
-    key: "CRON_JITTER_MINUTES",
-    label: "Random Jitter Window (Minutes)",
-    group: "scheduler",
-    description:
-      "Random delay added to CRON_BASE_TIME each day (e.g., 60 means a random offset between 0 and 60 minutes).",
-    defaultValue: "60",
-    inputType: "number",
-  },
-  {
     key: "EMAIL_ENABLED",
     label: "Enable Email Notifications",
     group: "email",

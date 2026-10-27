@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { upsertDbPage, deleteDbPage } from "../../core/index.js";
+import { upsertDbTarget, deleteDbTarget } from "../../core/index.js";
 import type { ServerContext } from "../types.js";
 
 export function createPagesRouter(ctx: ServerContext): Router {
@@ -13,8 +13,10 @@ export function createPagesRouter(ctx: ServerContext): Router {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const page = ctx.pageStore.addPage({
-        provider: String(body.provider ?? "eneba"),
-        categoryName: String(body.categoryName ?? ""),
+        category: String(body.category ?? body.provider ?? "eneba"),
+        provider: String(body.provider ?? body.category ?? "eneba"),
+        categoryName: String(body.categoryName ?? body.name ?? ""),
+        name: String(body.name ?? body.categoryName ?? ""),
         url: String(body.url ?? ""),
         enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
         withOffers:
@@ -24,9 +26,21 @@ export function createPagesRouter(ctx: ServerContext): Router {
       });
       if (ctx.pool) {
         try {
-          await upsertDbPage(page, ctx.pool);
+          await upsertDbTarget(
+            {
+              id: page.id,
+              category: page.category || page.provider || "eneba",
+              name: page.categoryName || page.name || page.id,
+              url: page.url,
+              enabled: page.enabled,
+              withOffers: page.withOffers,
+              scheduleId: page.scheduleId || "default",
+              createdAt: page.createdAt,
+            },
+            ctx.pool,
+          );
         } catch (dbErr) {
-          console.warn("[PostgreSQL Warn] Failed to persist page to database:", dbErr);
+          console.warn("[PostgreSQL Warn] Failed to persist target to database:", dbErr);
         }
       }
       res.status(201).json({ page });
@@ -40,13 +54,31 @@ export function createPagesRouter(ctx: ServerContext): Router {
       const id = req.params.id;
       const body = (req.body ?? {}) as Record<string, unknown>;
       const updated = ctx.pageStore.updatePage(id, {
+        category:
+          body.category !== undefined
+            ? String(body.category)
+            : body.provider !== undefined
+              ? String(body.provider)
+              : undefined,
+        provider:
+          body.provider !== undefined
+            ? String(body.provider)
+            : body.category !== undefined
+              ? String(body.category)
+              : undefined,
         categoryName:
           body.categoryName !== undefined
             ? String(body.categoryName)
-            : undefined,
+            : body.name !== undefined
+              ? String(body.name)
+              : undefined,
+        name:
+          body.name !== undefined
+            ? String(body.name)
+            : body.categoryName !== undefined
+              ? String(body.categoryName)
+              : undefined,
         url: body.url !== undefined ? String(body.url) : undefined,
-        provider:
-          body.provider !== undefined ? String(body.provider) : undefined,
         enabled:
           body.enabled !== undefined ? Boolean(body.enabled) : undefined,
         withOffers:
@@ -62,9 +94,21 @@ export function createPagesRouter(ctx: ServerContext): Router {
       }
       if (ctx.pool) {
         try {
-          await upsertDbPage(updated, ctx.pool);
+          await upsertDbTarget(
+            {
+              id: updated.id,
+              category: updated.category || updated.provider || "eneba",
+              name: updated.categoryName || updated.name || updated.id,
+              url: updated.url,
+              enabled: updated.enabled,
+              withOffers: updated.withOffers,
+              scheduleId: updated.scheduleId || "default",
+              createdAt: updated.createdAt,
+            },
+            ctx.pool,
+          );
         } catch (dbErr) {
-          console.warn("[PostgreSQL Warn] Failed to update page in database:", dbErr);
+          console.warn("[PostgreSQL Warn] Failed to update target in database:", dbErr);
         }
       }
       res.json({ page: updated });
@@ -84,9 +128,21 @@ export function createPagesRouter(ctx: ServerContext): Router {
       }
       if (ctx.pool) {
         try {
-          await upsertDbPage(updated, ctx.pool);
+          await upsertDbTarget(
+            {
+              id: updated.id,
+              category: updated.category || updated.provider || "eneba",
+              name: updated.categoryName || updated.name || updated.id,
+              url: updated.url,
+              enabled: updated.enabled,
+              withOffers: updated.withOffers,
+              scheduleId: updated.scheduleId || "default",
+              createdAt: updated.createdAt,
+            },
+            ctx.pool,
+          );
         } catch (dbErr) {
-          console.warn("[PostgreSQL Warn] Failed to update page schedule in database:", dbErr);
+          console.warn("[PostgreSQL Warn] Failed to update target schedule in database:", dbErr);
         }
       }
       res.json({ page: updated });
@@ -101,9 +157,9 @@ export function createPagesRouter(ctx: ServerContext): Router {
       const deleted = ctx.pageStore.deletePage(id);
       if (deleted && ctx.pool) {
         try {
-          await deleteDbPage(id, ctx.pool);
+          await deleteDbTarget(id, ctx.pool);
         } catch (dbErr) {
-          console.warn("[PostgreSQL Warn] Failed to delete page from database:", dbErr);
+          console.warn("[PostgreSQL Warn] Failed to delete target from database:", dbErr);
         }
       }
       res.status(deleted ? 200 : 404).json({ deleted });

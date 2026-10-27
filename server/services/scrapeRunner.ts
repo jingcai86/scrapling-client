@@ -244,11 +244,26 @@ export class ScrapeRunner {
         this.currentStep = `Scraping (${i + 1}/${targetPages.length}) ${pageCfg.categoryName}${useWithOffers ? " + seller details" : ""}...`;
         this.addLog(this.currentStep);
 
-        const scraper = new EnebaGiftCardScraper({
-          categoryName: pageCfg.categoryName,
-          categoryUrl: pageCfg.url,
-          client,
-        });
+        // Differentiate scraper implementation based on target category (e.g., eneba, g2a)
+        const scraperCategory = (pageCfg.category || pageCfg.provider || "eneba").toLowerCase();
+        let scraper: {
+          scrapeAndAnalyze: (opts: {
+            page: number;
+            withOffers: boolean;
+            showProgress: boolean;
+          }) => Promise<PageDealStatus>;
+        };
+
+        switch (scraperCategory) {
+          case "eneba":
+          default:
+            scraper = new EnebaGiftCardScraper({
+              categoryName: pageCfg.categoryName,
+              categoryUrl: pageCfg.url,
+              client,
+            });
+            break;
+        }
 
         const status = await scraper.scrapeAndAnalyze({
           page: 1,
