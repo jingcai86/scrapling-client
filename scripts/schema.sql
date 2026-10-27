@@ -200,7 +200,9 @@ BEGIN
 
     ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_url_key;
     ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_url_unique;
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_url_key;
     ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_slug_unique;
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_slug_key;
     ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_pkey CASCADE;
 
     ALTER TABLE scrapling.products DROP COLUMN id CASCADE;
@@ -218,6 +220,12 @@ BEGIN
       ADD CONSTRAINT records_product_id_products_id_fk
       FOREIGN KEY (product_id) REFERENCES scrapling.products(id) ON DELETE SET NULL;
   END IF;
+
+  -- Drop redundant legacy constraints on products if present
+  ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_slug_key;
+  ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_url_key;
+  ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_slug_unique;
+  ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_url_unique;
 
   -- Ensure products.slug is unique
   IF NOT EXISTS (
