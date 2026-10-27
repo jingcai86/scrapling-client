@@ -64,6 +64,13 @@
       "when": 1793094000000,
       "tag": "0008_scrape_runs_and_records_uuid",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793097000000,
+      "tag": "0009_drop_is_lowest_price",
+      "breakpoints": true
     }
   ]
 }

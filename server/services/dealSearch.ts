@@ -309,8 +309,7 @@ export async function searchDeals(
             s.seller_name,
             s.seller_url,
             s.rating_pct,
-            s.rating_label,
-            r.is_lowest_price
+            s.rating_label
           FROM scrapling.records r
           JOIN latest_runs lr ON lr.id = r.scrape_run_id
           LEFT JOIN scrapling.target_pages t ON t.id = r.target_id
@@ -341,8 +340,7 @@ export async function searchDeals(
             s.seller_name,
             s.seller_url,
             s.rating_pct,
-            s.rating_label,
-            r.is_lowest_price
+            s.rating_label
           FROM scrapling.records r
           LEFT JOIN scrapling.target_pages t ON t.id = r.target_id
           LEFT JOIN scrapling.sellers s ON s.id = r.seller_id
@@ -374,7 +372,6 @@ export async function searchDeals(
         seller_url: string | null;
         rating_pct: string | null;
         rating_label: string | null;
-        is_lowest_price: boolean;
       }>(sql, values);
 
       const matchedRows = res.rows.filter((row) => {
@@ -399,7 +396,7 @@ export async function searchDeals(
                   ratingLabel: row.rating_label,
                   price: Number(row.selling_price || 0),
                   cashbackPct: 0,
-                  isLowestPrice: row.is_lowest_price,
+                  isLowestPrice: Number(row.rank) === 1,
                   isFeaturedOffer: false,
                 },
               ]

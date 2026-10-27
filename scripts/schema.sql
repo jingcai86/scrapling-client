@@ -284,6 +284,9 @@ BEGIN
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS total_listings CASCADE;
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS in_stock_count CASCADE;
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS discounted_count CASCADE;
+
+  -- Drop redundant is_lowest_price column from records (inferable from rank = 1)
+  ALTER TABLE scrapling.records DROP COLUMN IF EXISTS is_lowest_price CASCADE;
 END $$;
 DROP INDEX IF EXISTS scrapling.idx_scrapling_records_category_time;
 DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_provider_time;
@@ -404,7 +407,6 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   effective_price NUMERIC(10, 2),
   savings_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
   rank SMALLINT,
-  is_lowest_price BOOLEAN NOT NULL DEFAULT false,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

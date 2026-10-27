@@ -193,6 +193,9 @@ BEGIN
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS total_listings CASCADE;
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS in_stock_count CASCADE;
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS discounted_count CASCADE;
+
+  -- Drop redundant is_lowest_price column from records (inferable from rank = 1)
+  ALTER TABLE scrapling.records DROP COLUMN IF EXISTS is_lowest_price CASCADE;
 END $$;
 
 -- 2. Generic Products Catalog Table
@@ -257,7 +260,6 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   effective_price NUMERIC(10, 2),
   savings_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
   rank SMALLINT,
-  is_lowest_price BOOLEAN NOT NULL DEFAULT FALSE,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -766,7 +768,6 @@ export async function savePageDealsToDb(
                 effectivePrice: String(offer.price),
                 savingsAmount: String(deal.savingsAmount ?? 0),
                 rank,
-                isLowestPrice: offer.isLowestPrice ?? false,
                 scrapedAt: batchDate,
               });
               recordsInserted++;
@@ -802,7 +803,6 @@ export async function savePageDealsToDb(
                   : null,
               savingsAmount: String(deal.savingsAmount ?? 0),
               rank,
-              isLowestPrice: true,
               scrapedAt: batchDate,
             });
             recordsInserted++;
@@ -958,7 +958,6 @@ export async function saveProductOffersToDb(
             effectivePrice: String(offer.price),
             savingsAmount: latestRecord.savingsAmount,
             rank: latestRecord.rank,
-            isLowestPrice: offer.isLowestPrice ?? false,
             scrapedAt: scrapedDate,
           });
           offersInserted++;
@@ -1156,7 +1155,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
       }));
 
       const bestDealOffers: SellerOffer[] = records
-        .filter(({ record: r, seller: s }) => s != null && (r.isLowestPrice || r.sellerId != null))
+        .filter(({ record: r, seller: s }) => s != null && (Number(r.rank) === 1 || r.sellerId != null))
         .map(({ record: r, seller: s }) => ({
           sellerName: s!.sellerName,
           sellerSlug: s!.sellerName,
@@ -1165,7 +1164,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
           ratingLabel: s!.ratingLabel,
           price: Number(r.sellingPrice ?? 0),
           cashbackPct: 0,
-          isLowestPrice: r.isLowestPrice,
+          isLowestPrice: Number(r.rank) === 1,
           isFeaturedOffer: false,
         }));
 

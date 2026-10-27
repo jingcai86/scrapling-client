@@ -205,7 +205,6 @@ export const scraplingRecords = scraplingSchema.table(
       .notNull()
       .default("0"),
     rank: smallint("rank"),
-    isLowestPrice: boolean("is_lowest_price").notNull().default(false),
     scrapedAt: timestamp("scraped_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
