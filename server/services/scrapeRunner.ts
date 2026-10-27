@@ -240,7 +240,7 @@ export class ScrapeRunner {
         const useWithOffers =
           options.withOffersOverride !== undefined
             ? options.withOffersOverride
-            : pageCfg.withOffers;
+            : (pageCfg.withOffers ?? true);
 
         this.currentStep = `Scraping (${i + 1}/${targetPages.length}) ${pageCfg.categoryName}${useWithOffers ? " + seller details" : ""}...`;
         this.addLog(this.currentStep);

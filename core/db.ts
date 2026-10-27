@@ -104,13 +104,12 @@ CREATE TABLE IF NOT EXISTS scrapling.schedulers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS scrapling.targets (
+CREATE TABLE IF NOT EXISTS scrapling.target_pages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   provider TEXT NOT NULL DEFAULT 'eneba',
-  name TEXT NOT NULL,
+  name TEXT DEFAULT '',
   url TEXT NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  with_offers BOOLEAN NOT NULL DEFAULT TRUE,
   schedule_id TEXT NOT NULL DEFAULT 'default',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -118,52 +117,30 @@ CREATE TABLE IF NOT EXISTS scrapling.targets (
 
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'category')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'provider') THEN
-    ALTER TABLE scrapling.targets RENAME COLUMN category TO provider;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'targets'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
+  ) THEN
+    ALTER TABLE scrapling.targets RENAME TO target_pages;
   END IF;
 
-  -- Ensure targets.id and foreign keys are UUID
+  DROP TABLE IF EXISTS scrapling.targets CASCADE;
+
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'id' AND data_type = 'text'
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
   ) THEN
-    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_target_id_targets_id_fk;
-    ALTER TABLE scrapling.scrape_runs DROP CONSTRAINT IF EXISTS scrape_runs_target_id_targets_id_fk;
+    ALTER TABLE scrapling.target_pages DROP COLUMN IF EXISTS with_offers;
+    ALTER TABLE scrapling.target_pages ALTER COLUMN name DROP NOT NULL;
+    ALTER TABLE scrapling.target_pages ALTER COLUMN name SET DEFAULT '';
+  END IF;
 
-    ALTER TABLE scrapling.targets ADD COLUMN IF NOT EXISTS new_id UUID DEFAULT gen_random_uuid();
-    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000001'::uuid WHERE id = 'playstation-network-psn';
-    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000002'::uuid WHERE id = 'apple-itunes';
-    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000003'::uuid WHERE id = 'google-play';
-    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000004'::uuid WHERE id = 'steam';
-    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000005'::uuid WHERE id = 'nintendo-eshop';
-    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000006'::uuid WHERE id = 'eneba-amazon-gift-cards';
-    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000007'::uuid WHERE id = 'g2a-amazon-gift-cards';
-    UPDATE scrapling.targets SET new_id = gen_random_uuid() WHERE new_id IS NULL;
-
-    ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS new_target_id UUID;
-    UPDATE scrapling.scrape_runs r SET new_target_id = t.new_id FROM scrapling.targets t WHERE r.target_id = t.id;
-    ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_id;
-    ALTER TABLE scrapling.scrape_runs RENAME COLUMN new_target_id TO target_id;
-
-    ALTER TABLE scrapling.records ADD COLUMN IF NOT EXISTS new_target_id UUID;
-    UPDATE scrapling.records r SET new_target_id = t.new_id FROM scrapling.targets t WHERE r.target_id = t.id;
-    ALTER TABLE scrapling.records DROP COLUMN IF EXISTS target_id;
-    ALTER TABLE scrapling.records RENAME COLUMN new_target_id TO target_id;
-
-    ALTER TABLE scrapling.targets DROP CONSTRAINT targets_pkey CASCADE;
-    ALTER TABLE scrapling.targets DROP COLUMN id;
-    ALTER TABLE scrapling.targets RENAME COLUMN new_id TO id;
-    ALTER TABLE scrapling.targets ADD PRIMARY KEY (id);
-    ALTER TABLE scrapling.targets ALTER COLUMN id SET DEFAULT gen_random_uuid();
-
-    ALTER TABLE scrapling.scrape_runs
-      ADD CONSTRAINT scrape_runs_target_id_targets_id_fk
-      FOREIGN KEY (target_id) REFERENCES scrapling.targets(id) ON DELETE SET NULL;
-
-    ALTER TABLE scrapling.records
-      ADD CONSTRAINT records_target_id_targets_id_fk
-      FOREIGN KEY (target_id) REFERENCES scrapling.targets(id) ON DELETE SET NULL;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'target_pages' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'target_pages' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.target_pages RENAME COLUMN category TO provider;
   END IF;
 END $$;
 `;
@@ -441,16 +418,17 @@ export interface TargetDbItem {
   id: string;
   provider?: string;
   category?: string; // backward-compat alias
-  name: string;
+  name?: string;
   url: string;
   enabled: boolean;
-  withOffers: boolean;
+  withOffers?: boolean;
   scheduleId?: string;
   createdAt?: string;
 }
 
 // Backward-compatible alias
 export type ScrapePageDbItem = TargetDbItem;
+export type TargetPageDbItem = TargetDbItem;
 
 /**
  * Loads all configured schedules from `scrapling.schedulers`.
@@ -529,7 +507,7 @@ export async function deleteDbScheduler(
     await ensureScraplingConfigTable(p);
     await p.query("DELETE FROM scrapling.schedulers WHERE id = $1", [id]);
     await p.query(
-      "UPDATE scrapling.targets SET schedule_id = 'default', updated_at = NOW() WHERE schedule_id = $1",
+      "UPDATE scrapling.target_pages SET schedule_id = 'default', updated_at = NOW() WHERE schedule_id = $1",
       [id],
     );
   } finally {
@@ -538,7 +516,7 @@ export async function deleteDbScheduler(
 }
 
 /**
- * Loads all configured scrape targets from `scrapling.targets`.
+ * Loads all configured scrape target pages from `scrapling.target_pages`.
  */
 export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
   const ownPool = !pool;
@@ -548,21 +526,20 @@ export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
     const res = await p.query<{
       id: string;
       provider: string;
-      name: string;
+      name: string | null;
       url: string;
       enabled: boolean;
-      with_offers: boolean;
       schedule_id: string;
       created_at: Date;
-    }>("SELECT id, provider, name, url, enabled, with_offers, schedule_id, created_at FROM scrapling.targets ORDER BY created_at ASC");
+    }>("SELECT id, provider, name, url, enabled, schedule_id, created_at FROM scrapling.target_pages ORDER BY created_at ASC");
     return res.rows.map((r) => ({
       id: r.id,
       provider: r.provider || "eneba",
       category: r.provider || "eneba",
-      name: r.name,
+      name: r.name || "",
       url: r.url,
       enabled: Boolean(r.enabled),
-      withOffers: Boolean(r.with_offers),
+      withOffers: true,
       scheduleId: r.schedule_id || "default",
       createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
     }));
@@ -570,9 +547,10 @@ export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
     if (ownPool) await p.end();
   }
 }
+export const getDbTargetPages = getDbTargets;
 
 /**
- * Upserts a scrape target into `scrapling.targets`.
+ * Upserts a scrape target page into `scrapling.target_pages`.
  */
 export async function upsertDbTarget(
   target: TargetDbItem,
@@ -584,23 +562,21 @@ export async function upsertDbTarget(
     await ensureScraplingConfigTable(p);
     const provider = target.provider || target.category || "eneba";
     await p.query(
-      `INSERT INTO scrapling.targets (id, provider, name, url, enabled, with_offers, schedule_id, created_at, updated_at)
-       VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, NOW()), NOW())
+      `INSERT INTO scrapling.target_pages (id, provider, name, url, enabled, schedule_id, created_at, updated_at)
+       VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, COALESCE($3, ''), $4, $5, $6, COALESCE($7::timestamptz, NOW()), NOW())
        ON CONFLICT (id) DO UPDATE SET
          provider = EXCLUDED.provider,
          name = EXCLUDED.name,
          url = EXCLUDED.url,
          enabled = EXCLUDED.enabled,
-         with_offers = EXCLUDED.with_offers,
          schedule_id = EXCLUDED.schedule_id,
          updated_at = NOW()`,
       [
         target.id,
         provider,
-        target.name,
+        target.name || "",
         target.url,
         target.enabled,
-        target.withOffers,
         target.scheduleId || "default",
         target.createdAt || new Date().toISOString(),
       ],
@@ -609,9 +585,10 @@ export async function upsertDbTarget(
     if (ownPool) await p.end();
   }
 }
+export const upsertDbTargetPage = upsertDbTarget;
 
 /**
- * Deletes a scrape target from `scrapling.targets`.
+ * Deletes a scrape target page from `scrapling.target_pages`.
  */
 export async function deleteDbTarget(
   id: string,
@@ -621,11 +598,12 @@ export async function deleteDbTarget(
   const p = pool ?? createPgPool();
   try {
     await ensureScraplingConfigTable(p);
-    await p.query("DELETE FROM scrapling.targets WHERE id = $1", [id]);
+    await p.query("DELETE FROM scrapling.target_pages WHERE id = $1", [id]);
   } finally {
     if (ownPool) await p.end();
   }
 }
+export const deleteDbTargetPage = deleteDbTarget;
 
 const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
   {
@@ -635,7 +613,6 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     name: "PlayStation (PSN) Gift Cards",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network",
     enabled: true,
-    withOffers: true,
     scheduleId: "default",
   },
   {
@@ -645,7 +622,6 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     name: "Apple iTunes / App Store Gift Cards",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes",
     enabled: true,
-    withOffers: true,
     scheduleId: "default",
   },
   {
@@ -655,7 +631,6 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     name: "Google Play Gift Cards",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=google_play",
     enabled: true,
-    withOffers: true,
     scheduleId: "default",
   },
   {
@@ -665,7 +640,6 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     name: "Steam Gift Cards & Wallet Codes",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam",
     enabled: true,
-    withOffers: true,
     scheduleId: "default",
   },
   {
@@ -675,7 +649,6 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     name: "Nintendo eShop Cards",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=nintendo_eshop",
     enabled: true,
-    withOffers: true,
     scheduleId: "default",
   },
   {
@@ -685,7 +658,6 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     name: "Amazon Gift Cards",
     url: "https://www.eneba.com/us/store/amazon-gift-cards",
     enabled: true,
-    withOffers: true,
     scheduleId: "default",
   },
   {
@@ -695,10 +667,10 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     name: "Amazon Gift Cards (G2A)",
     url: "https://www.g2a.com/category/gift-cards-c6",
     enabled: true,
-    withOffers: true,
     scheduleId: "default",
   },
 ];
+export const DEFAULT_INITIAL_TARGET_PAGES = DEFAULT_INITIAL_TARGETS;
 
 const DEFAULT_INITIAL_SCHEDULERS: ScheduleDbItem[] = [
   {

@@ -180,7 +180,7 @@ if (isMain) {
       `🚀 Scrapling Monitor Server running at http://localhost:${instance.port}`,
     );
     console.log(
-      `🗄️  PostgreSQL Schema Ready: "scrapling" (products, scrape_runs, top_deals, schedulers, targets, config)`,
+      `🗄️  PostgreSQL Schema Ready: "scrapling" (products, scrape_runs, records, sellers, schedulers, target_pages, config)`,
     );
     console.log(
       `⏰ Daily Randomized Cron: ${sched.enabled ? `${sched.baseTime} + 0..${sched.jitterMinutes}m jitter (Next: ${sched.nextRunAt ? new Date(sched.nextRunAt).toLocaleString() : "N/A"})` : "Disabled"}`,

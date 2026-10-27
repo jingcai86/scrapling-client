@@ -17,11 +17,11 @@ export interface ScrapePageConfig {
   id: string;
   category: string; // e.g. "eneba", "g2a" (scraper provider/category)
   provider?: string; // alias for category
-  categoryName: string; // e.g. "PlayStation (PSN) Gift Cards"
+  categoryName?: string; // e.g. "PlayStation (PSN) Gift Cards"
   name?: string; // alias for categoryName
   url: string;
   enabled: boolean;
-  withOffers: boolean;
+  withOffers?: boolean;
   createdAt: string;
   scheduleId?: string;
 }
@@ -314,17 +314,19 @@ export class PageStore {
   }): ScrapePageConfig {
     const pages = this.listPages();
     const category = (input.category || input.provider || "eneba").trim().toLowerCase();
-    const categoryName = (input.categoryName || input.name || "").trim();
+    let categoryName = (input.categoryName || input.name || "").trim();
     const url = input.url.trim();
 
-    if (!categoryName) {
-      throw new Error("Category name is required.");
-    }
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(url);
     } catch {
       throw new Error("A valid full URL (https://...) is required.");
+    }
+
+    if (!categoryName) {
+      const segments = parsedUrl.pathname.split("/").filter(Boolean);
+      categoryName = segments.length > 0 ? segments[segments.length - 1].replace(/[-_]/g, " ") : parsedUrl.hostname;
     }
 
     const id = crypto.randomUUID();

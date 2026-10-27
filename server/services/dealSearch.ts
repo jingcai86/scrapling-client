@@ -302,14 +302,13 @@ export async function searchDeals(
             r.effective_price,
             r.savings_amount,
             s.seller_name,
-            s.seller_slug,
             s.seller_url,
             s.rating_pct,
             s.rating_label,
             r.is_lowest_price
           FROM scrapling.records r
           JOIN latest_runs lr ON lr.id = r.scrape_run_id
-          LEFT JOIN scrapling.targets t ON t.id = r.target_id
+          LEFT JOIN scrapling.target_pages t ON t.id = r.target_id
           LEFT JOIN scrapling.sellers s ON s.id = r.seller_id
           ${whereClause}
           ORDER BY r.discount_pct DESC, r.savings_amount DESC, r.scraped_at DESC
@@ -335,13 +334,12 @@ export async function searchDeals(
             r.effective_price,
             r.savings_amount,
             s.seller_name,
-            s.seller_slug,
             s.seller_url,
             s.rating_pct,
             s.rating_label,
             r.is_lowest_price
           FROM scrapling.records r
-          LEFT JOIN scrapling.targets t ON t.id = r.target_id
+          LEFT JOIN scrapling.target_pages t ON t.id = r.target_id
           LEFT JOIN scrapling.sellers s ON s.id = r.seller_id
           ${whereClause}
           ORDER BY r.discount_pct DESC, r.savings_amount DESC, r.scraped_at DESC
@@ -368,7 +366,6 @@ export async function searchDeals(
         effective_price: string | null;
         savings_amount: string;
         seller_name: string | null;
-        seller_slug: string | null;
         seller_url: string | null;
         rating_pct: string | null;
         rating_label: string | null;
@@ -390,7 +387,7 @@ export async function searchDeals(
             ? [
                 {
                   sellerName: row.seller_name,
-                  sellerSlug: row.seller_slug ?? row.seller_name,
+                  sellerSlug: row.seller_name,
                   sellerUrl: row.seller_url ?? "",
                   ratingScore:
                     row.rating_pct !== null ? Number(row.rating_pct) : null,

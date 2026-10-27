@@ -30,8 +30,8 @@ import type { ScrapePageConfig } from '../core/models/dashboard.model';
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-          <mat-label>Category Name</mat-label>
-          <input matInput [(ngModel)]="categoryName" name="categoryName" required placeholder="Xbox Gift Cards" />
+          <mat-label>Category Name (Optional)</mat-label>
+          <input matInput [(ngModel)]="categoryName" name="categoryName" placeholder="Xbox Gift Cards" />
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
@@ -40,11 +40,8 @@ import type { ScrapePageConfig } from '../core/models/dashboard.model';
         </mat-form-field>
 
         <div class="checkbox-group">
-          <mat-checkbox [(ngModel)]="withOffers" name="withOffers">
-            Additional scraping for top deals (competing merchant pricing &amp; ratings)
-          </mat-checkbox>
           <mat-checkbox [(ngModel)]="enabled" name="enabled">
-            Page Enabled for Scheduled & Batch Scrapes
+            Page Enabled for Scheduled &amp; Batch Scrapes
           </mat-checkbox>
         </div>
       </div>
@@ -116,7 +113,6 @@ export class PageFormDialogComponent {
   provider = 'eneba';
   categoryName = '';
   url = '';
-  withOffers = true;
   enabled = true;
 
   constructor(
@@ -125,9 +121,8 @@ export class PageFormDialogComponent {
   ) {
     if (data.page) {
       this.provider = data.page.provider;
-      this.categoryName = data.page.categoryName;
+      this.categoryName = data.page.categoryName || data.page.name || '';
       this.url = data.page.url;
-      this.withOffers = data.page.withOffers;
       this.enabled = data.page.enabled;
     }
   }
@@ -137,8 +132,8 @@ export class PageFormDialogComponent {
       id: this.data.page?.id,
       provider: this.provider,
       categoryName: this.categoryName,
+      name: this.categoryName,
       url: this.url,
-      withOffers: this.withOffers,
       enabled: this.enabled,
     });
   }

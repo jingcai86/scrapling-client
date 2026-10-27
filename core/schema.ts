@@ -52,15 +52,14 @@ export const scraplingSchedulers = scraplingSchema.table("schedulers", {
 });
 
 /**
- * 2c. Monitored Scraping Targets and Provider Mappings (`scrapling.targets`)
+ * 2c. Monitored Scraping Target Pages and Provider Mappings (`scrapling.target_pages`)
  */
-export const scraplingTargets = scraplingSchema.table("targets", {
+export const scraplingTargetPages = scraplingSchema.table("target_pages", {
   id: uuid("id").primaryKey().defaultRandom(),
   provider: text("provider").notNull().default("eneba"), // scraper provider (e.g. 'eneba', 'g2a')
-  name: text("name").notNull(), // display title (e.g. 'PlayStation (PSN) Gift Cards')
+  name: text("name").default(""), // display title (e.g. 'PlayStation (PSN) Gift Cards')
   url: text("url").notNull(),
   enabled: boolean("enabled").notNull().default(true),
-  withOffers: boolean("with_offers").notNull().default(true),
   scheduleId: text("schedule_id").notNull().default("default"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -69,6 +68,8 @@ export const scraplingTargets = scraplingSchema.table("targets", {
     .notNull()
     .defaultNow(),
 });
+
+export const scraplingTargets = scraplingTargetPages; // backward-compatibility alias
 
 /**
  * 3. Normalized Catalog of Unique Gift Card Products (`scrapling.products`)
@@ -155,7 +156,6 @@ export const scraplingSellers = scraplingSchema.table("sellers", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   provider: text("provider").notNull().default("eneba"),
   sellerName: text("seller_name").notNull().unique(),
-  sellerSlug: text("seller_slug"),
   sellerUrl: text("seller_url"),
   ratingPct: numeric("rating_pct", { precision: 5, scale: 2 }),
   ratingLabel: text("rating_label"),

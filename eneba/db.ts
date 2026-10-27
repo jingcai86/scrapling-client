@@ -62,11 +62,34 @@ BEGIN
   DROP TABLE IF EXISTS scrapling.product_offers CASCADE;
 
   -- Drop non-generic and redundant columns
+  ALTER TABLE scrapling.sellers DROP COLUMN IF EXISTS seller_slug;
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_name;
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS target_name;
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS target_url;
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS cashback_pct;
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS is_featured_offer;
+
+  -- Rename targets to target_pages if present
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'targets'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
+  ) THEN
+    ALTER TABLE scrapling.targets RENAME TO target_pages;
+  END IF;
+
+  DROP TABLE IF EXISTS scrapling.targets CASCADE;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
+  ) THEN
+    ALTER TABLE scrapling.target_pages DROP COLUMN IF EXISTS with_offers;
+    ALTER TABLE scrapling.target_pages ALTER COLUMN name DROP NOT NULL;
+    ALTER TABLE scrapling.target_pages ALTER COLUMN name SET DEFAULT '';
+  END IF;
 
   -- Ensure products.id and records.product_id are UUID
   IF EXISTS (
@@ -134,7 +157,7 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   batch_id UUID NOT NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   provider TEXT NOT NULL DEFAULT 'eneba',
-  target_id UUID REFERENCES scrapling.targets(id) ON DELETE SET NULL,
+  target_id UUID REFERENCES scrapling.target_pages(id) ON DELETE SET NULL,
   page_url TEXT NOT NULL,
   page_number SMALLINT NOT NULL DEFAULT 1,
   total_listings SMALLINT NOT NULL,
@@ -152,7 +175,6 @@ CREATE TABLE IF NOT EXISTS scrapling.sellers (
   id BIGSERIAL PRIMARY KEY,
   provider TEXT NOT NULL DEFAULT 'eneba',
   seller_name TEXT NOT NULL UNIQUE,
-  seller_slug TEXT,
   seller_url TEXT,
   rating_pct NUMERIC(5, 2),
   rating_label TEXT,
@@ -166,7 +188,7 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   id BIGSERIAL PRIMARY KEY,
   batch_id UUID NOT NULL,
   scrape_run_id BIGINT REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
-  target_id UUID REFERENCES scrapling.targets(id) ON DELETE SET NULL,
+  target_id UUID REFERENCES scrapling.target_pages(id) ON DELETE SET NULL,
   product_id UUID REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
   provider TEXT NOT NULL DEFAULT 'eneba',
@@ -220,11 +242,10 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_records_discount
 ALTER TABLE scrapling.products ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 ALTER TABLE scrapling.sellers ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
-ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS target_id TEXT;
-ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT '';
 
 -- Cleanup non-generic columns and drop legacy category columns
 ALTER TABLE scrapling.sellers DROP COLUMN IF EXISTS is_verified;
+ALTER TABLE scrapling.sellers DROP COLUMN IF EXISTS seller_slug;
 ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS out_of_stock_count;
 DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_category_time;
 DROP INDEX IF EXISTS scrapling.idx_scrapling_records_category_time;
@@ -245,9 +266,9 @@ BEGIN
     ALTER TABLE scrapling.records RENAME COLUMN category TO provider;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'category')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'provider') THEN
-    ALTER TABLE scrapling.targets RENAME COLUMN category TO provider;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'target_pages' AND column_name = 'category')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'target_pages' AND column_name = 'provider') THEN
+    ALTER TABLE scrapling.target_pages RENAME COLUMN category TO provider;
   END IF;
 END $$;
 `;
@@ -588,7 +609,6 @@ export async function savePageDealsToDb(
             .values({
               provider: siteProvider,
               sellerName: offer.sellerName,
-              sellerSlug: offer.sellerSlug || null,
               sellerUrl: offer.sellerUrl || null,
               ratingPct:
                 offer.ratingScore != null ? String(offer.ratingScore) : null,
@@ -843,7 +863,6 @@ export async function saveProductOffersToDb(
           .values({
             provider: siteProvider,
             sellerName: offer.sellerName,
-            sellerSlug: offer.sellerSlug,
             sellerUrl: offer.sellerUrl,
             ratingPct:
               offer.ratingScore != null ? String(offer.ratingScore) : null,
@@ -854,10 +873,6 @@ export async function saveProductOffersToDb(
           .onConflictDoUpdate({
             target: scraplingSellers.sellerName,
             set: {
-              sellerSlug:
-                offer.sellerSlug != null
-                  ? offer.sellerSlug
-                  : sql`COALESCE(${scraplingSellers.sellerSlug}, NULL)`,
               sellerUrl:
                 offer.sellerUrl != null
                   ? offer.sellerUrl
@@ -1086,7 +1101,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         .filter(({ record: r, seller: s }) => s != null && (r.isLowestPrice || r.sellerId != null))
         .map(({ record: r, seller: s }) => ({
           sellerName: s!.sellerName,
-          sellerSlug: s!.sellerSlug ?? s!.sellerName,
+          sellerSlug: s!.sellerName,
           sellerUrl: s!.sellerUrl ?? "",
           ratingScore: s!.ratingPct !== null ? Number(s!.ratingPct) : null,
           ratingLabel: s!.ratingLabel,

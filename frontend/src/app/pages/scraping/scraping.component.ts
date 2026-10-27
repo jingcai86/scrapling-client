@@ -45,11 +45,8 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
             Trigger an immediate scrape across all enabled pages or monitor automated scheduled executions.
           </mat-card-subtitle>
           <div class="action-buttons">
-            <button mat-flat-button color="primary" (click)="scrapeAll(true)" [disabled]="isScraping()">
-              ▶ Full Scrape (+ Seller Details)
-            </button>
-            <button mat-stroked-button (click)="scrapeAll(false)" [disabled]="isScraping()">
-              ⚡ Fast Scrape (Catalog Only)
+            <button mat-flat-button color="primary" (click)="scrapeAll()" [disabled]="isScraping()">
+              ▶ Run All Enabled Scrapes
             </button>
           </div>
         </mat-card-header>
@@ -196,20 +193,6 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
                 </td>
               </ng-container>
 
-              <ng-container matColumnDef="withOffers">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Additional Scraping</th>
-                <td mat-cell *matCellDef="let page">
-                  <mat-slide-toggle
-                    [checked]="page.withOffers"
-                    (change)="toggleOffers(page, $event.checked)"
-                    [matTooltip]="page.withOffers ? 'Additional scraping (seller offers & merchant details) enabled' : 'Catalog only (faster)'"
-                  >
-                    <span style="font-size:0.8rem;font-weight:600;" [style.color]="page.withOffers ? '#10b981' : 'var(--mat-sys-outline)'">
-                      {{ page.withOffers ? 'Include Sellers' : 'Catalog Only' }}
-                    </span>
-                  </mat-slide-toggle>
-                </td>
-              </ng-container>
 
               <ng-container matColumnDef="enabled">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Enabled</th>
@@ -469,7 +452,7 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
   `],
 })
 export class ScrapingComponent {
-  displayedColumns: string[] = ['categoryName', 'provider', 'url', 'scheduleId', 'withOffers', 'enabled', 'actions'];
+  displayedColumns: string[] = ['categoryName', 'provider', 'url', 'scheduleId', 'enabled', 'actions'];
   sortedPages: ScrapePageConfig[] = [];
   private lastPagesRef?: ScrapePageConfig[];
 
@@ -543,8 +526,8 @@ export class ScrapingComponent {
     return `${dateStrFormatted}, ${timeStr}`;
   }
 
-  scrapeAll(withOffers: boolean) {
-    this.apiService.triggerScrape({ withOffers }).subscribe(() => {
+  scrapeAll() {
+    this.apiService.triggerScrape({}).subscribe(() => {
       this.snackBar.open('Batch scrape triggered successfully!', 'OK', { duration: 3000 });
     });
   }
@@ -650,10 +633,6 @@ export class ScrapingComponent {
     });
   }
 
-  toggleOffers(page: ScrapePageConfig, withOffers: boolean) {
-    this.apiService.updatePage(page.id, { withOffers }).subscribe();
-  }
-
   toggleEnabled(page: ScrapePageConfig, enabled: boolean) {
     this.apiService.updatePage(page.id, { enabled }).subscribe();
   }
@@ -676,11 +655,10 @@ export class ScrapingComponent {
     this.sortedPages = data.sort((a, b) => {
       const isAsc = sort.direction === 'asc';
       switch (sort.active) {
-        case 'categoryName': return compare(a.categoryName, b.categoryName, isAsc);
+        case 'categoryName': return compare(a.categoryName || '', b.categoryName || '', isAsc);
         case 'provider': return compare(a.provider, b.provider, isAsc);
         case 'url': return compare(a.url, b.url, isAsc);
         case 'scheduleId': return compare(a.scheduleId || 'default', b.scheduleId || 'default', isAsc);
-        case 'withOffers': return compare(String(a.withOffers), String(b.withOffers), isAsc);
         case 'enabled': return compare(String(a.enabled), String(b.enabled), isAsc);
         default: return 0;
       }

@@ -80,19 +80,20 @@ function createInMemoryConfigPool(): {
         }
       }
 
-      // Scraping Targets table queries (scrapling.targets)
-      if (lower.includes("scrapling.targets") || lower.includes("scrapling.scrape_pages")) {
+      // Scraping Target Pages table queries (scrapling.target_pages / scrapling.targets)
+      if (lower.includes("scrapling.target_pages") || lower.includes("scrapling.targets") || lower.includes("scrapling.scrape_pages")) {
         if (lower.includes("insert into") || lower.includes("on conflict")) {
           const id = String(sqlParams[0] ?? "");
           const category = String(sqlParams[1] ?? "eneba");
           const name = String(sqlParams[2] ?? "");
           const url = String(sqlParams[3] ?? "");
           const enabled = Boolean(sqlParams[4]);
-          const with_offers = Boolean(sqlParams[5]);
-          const schedule_id = String(sqlParams[6] ?? "default");
-          const created_at = sqlParams[7] ? new Date(String(sqlParams[7])) : new Date();
+          const schedule_id = sqlParams.length >= 8 ? String(sqlParams[6] ?? "default") : String(sqlParams[5] ?? "default");
+          const created_at = (sqlParams.length >= 8 ? sqlParams[7] : sqlParams[6])
+            ? new Date(String(sqlParams.length >= 8 ? sqlParams[7] : sqlParams[6]))
+            : new Date();
           if (id) {
-            pageRows.set(id, { id, category, name, url, enabled, with_offers, schedule_id, created_at });
+            pageRows.set(id, { id, category, provider: category, name, url, enabled, schedule_id, created_at });
           }
           return { rows: [], rowCount: 1 };
         }
