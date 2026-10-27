@@ -208,6 +208,36 @@ BEGIN
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS in_stock_count CASCADE;
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS discounted_count CASCADE;
 
+  -- Ensure sellers.id and records.seller_id are UUID
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'scrapling' AND table_name = 'sellers' AND column_name = 'id' AND data_type != 'uuid'
+  ) THEN
+    ALTER TABLE scrapling.sellers ADD COLUMN IF NOT EXISTS new_id UUID DEFAULT gen_random_uuid();
+    UPDATE scrapling.sellers SET new_id = gen_random_uuid() WHERE new_id IS NULL;
+
+    ALTER TABLE scrapling.records ADD COLUMN IF NOT EXISTS new_seller_id UUID;
+    UPDATE scrapling.records r
+    SET new_seller_id = s.new_id
+    FROM scrapling.sellers s
+    WHERE r.seller_id = s.id;
+
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_seller_id_fkey;
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_seller_id_sellers_id_fk;
+    ALTER TABLE scrapling.sellers DROP CONSTRAINT IF EXISTS sellers_pkey CASCADE;
+
+    ALTER TABLE scrapling.sellers DROP COLUMN id CASCADE;
+    ALTER TABLE scrapling.sellers RENAME COLUMN new_id TO id;
+    ALTER TABLE scrapling.sellers ADD PRIMARY KEY (id);
+    ALTER TABLE scrapling.sellers ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+    ALTER TABLE scrapling.records DROP COLUMN IF EXISTS seller_id;
+    ALTER TABLE scrapling.records RENAME COLUMN new_seller_id TO seller_id;
+    ALTER TABLE scrapling.records
+      ADD CONSTRAINT records_seller_id_sellers_id_fk
+      FOREIGN KEY (seller_id) REFERENCES scrapling.sellers(id) ON DELETE SET NULL;
+  END IF;
+
   -- Drop redundant is_lowest_price column from records (inferable from rank = 1)
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS is_lowest_price CASCADE;
 END $$;
@@ -240,7 +270,7 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
 
 -- 4. Generic Sellers / Merchants Table
 CREATE TABLE IF NOT EXISTS scrapling.sellers (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   provider TEXT NOT NULL DEFAULT 'eneba',
   seller_name TEXT NOT NULL UNIQUE,
   seller_url TEXT,
@@ -258,7 +288,7 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   scrape_run_id UUID REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
   scrape_target_id UUID REFERENCES scrapling.scrape_targets(id) ON DELETE SET NULL,
   product_id UUID REFERENCES scrapling.products(id) ON DELETE SET NULL,
-  seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
+  seller_id UUID REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
   provider TEXT NOT NULL DEFAULT 'eneba',
   title TEXT NOT NULL,
   url TEXT NOT NULL,
@@ -657,7 +687,7 @@ export async function savePageDealsToDb(
         scrapeRunsInserted++;
 
         // 2. Pre-upsert sellers from bestDealOffers or listing offers
-        const sellerIdByName = new Map<string, number>();
+        const sellerIdByName = new Map<string, string>();
         const allOffers = [...(status.bestDealOffers || [])];
         for (const deal of status.rankedDeals) {
           if (deal.offers) {

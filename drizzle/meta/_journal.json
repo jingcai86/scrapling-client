@@ -85,6 +85,13 @@
       "when": 1793103000000,
       "tag": "0011_scrape_targets_product_id",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793106000000,
+      "tag": "0012_sellers_uuid",
+      "breakpoints": true
     }
   ]
 }

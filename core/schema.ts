@@ -146,7 +146,7 @@ export const enebaScrapeRuns = scraplingScrapeRuns;
  * 5. Sellers / Merchants (`scrapling.sellers`)
  */
 export const scraplingSellers = scraplingSchema.table("sellers", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
+  id: uuid("id").primaryKey().defaultRandom(),
   provider: text("provider").notNull().default("eneba"),
   sellerName: text("seller_name").notNull().unique(),
   sellerUrl: text("seller_url"),
@@ -184,7 +184,7 @@ export const scraplingRecords = scraplingSchema.table(
       () => scraplingProducts.id,
       { onDelete: "set null" },
     ),
-    sellerId: bigint("seller_id", { mode: "number" }).references(
+    sellerId: uuid("seller_id").references(
       () => scraplingSellers.id,
       { onDelete: "set null" },
     ),
