@@ -55,7 +55,7 @@ export const scraplingSchedulers = scraplingSchema.table("schedulers", {
  * 2c. Monitored Scraping Targets and Provider Mappings (`scrapling.targets`)
  */
 export const scraplingTargets = scraplingSchema.table("targets", {
-  id: text("id").primaryKey(),
+  id: uuid("id").primaryKey().defaultRandom(),
   provider: text("provider").notNull().default("eneba"), // scraper provider (e.g. 'eneba', 'g2a')
   name: text("name").notNull(), // display title (e.g. 'PlayStation (PSN) Gift Cards')
   url: text("url").notNull(),
@@ -104,10 +104,9 @@ export const scraplingScrapeRuns = scraplingSchema.table(
       .notNull()
       .defaultNow(),
     provider: text("provider").notNull().default("eneba"),
-    targetId: text("target_id").references(() => scraplingTargets.id, {
+    targetId: uuid("target_id").references(() => scraplingTargets.id, {
       onDelete: "set null",
     }),
-    targetName: text("target_name").notNull().default(""),
     pageUrl: text("page_url").notNull(),
     pageNumber: smallint("page_number").notNull().default(1),
     totalListings: smallint("total_listings").notNull(),
@@ -184,11 +183,9 @@ export const scraplingRecords = scraplingSchema.table(
       () => scraplingScrapeRuns.id,
       { onDelete: "cascade" },
     ),
-    targetId: text("target_id").references(() => scraplingTargets.id, {
+    targetId: uuid("target_id").references(() => scraplingTargets.id, {
       onDelete: "set null",
     }),
-    targetName: text("target_name").notNull().default(""),
-    targetUrl: text("target_url").notNull().default(""),
     productId: bigint("product_id", { mode: "number" }).references(
       () => scraplingProducts.id,
       { onDelete: "set null" },
@@ -209,9 +206,6 @@ export const scraplingRecords = scraplingSchema.table(
       precision: 6,
       scale: 2,
     }),
-    cashbackPct: numeric("cashback_pct", { precision: 6, scale: 2 })
-      .notNull()
-      .default("0"),
     inStock: boolean("in_stock").notNull().default(true),
     discountPct: numeric("discount_pct", { precision: 6, scale: 2 })
       .notNull()
@@ -228,7 +222,6 @@ export const scraplingRecords = scraplingSchema.table(
       .default("0"),
     rank: smallint("rank"),
     isLowestPrice: boolean("is_lowest_price").notNull().default(false),
-    isFeaturedOffer: boolean("is_featured_offer").notNull().default(false),
     scrapedAt: timestamp("scraped_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

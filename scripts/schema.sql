@@ -89,6 +89,11 @@ DROP TABLE IF EXISTS scrapling.product_offers CASCADE;
 -- Drop non-generic columns and standardize provider on existing tables
 ALTER TABLE scrapling.sellers DROP COLUMN IF EXISTS is_verified;
 ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS out_of_stock_count;
+ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_name;
+ALTER TABLE scrapling.records DROP COLUMN IF EXISTS target_name;
+ALTER TABLE scrapling.records DROP COLUMN IF EXISTS target_url;
+ALTER TABLE scrapling.records DROP COLUMN IF EXISTS cashback_pct;
+ALTER TABLE scrapling.records DROP COLUMN IF EXISTS is_featured_offer;
 DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_category_time;
 DO $$
 BEGIN
@@ -110,6 +115,49 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'category')
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'provider') THEN
     ALTER TABLE scrapling.targets RENAME COLUMN category TO provider;
+  END IF;
+
+  -- Ensure targets.id and foreign keys are UUID
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'scrapling' AND table_name = 'targets' AND column_name = 'id' AND data_type = 'text'
+  ) THEN
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_target_id_targets_id_fk;
+    ALTER TABLE scrapling.scrape_runs DROP CONSTRAINT IF EXISTS scrape_runs_target_id_targets_id_fk;
+
+    ALTER TABLE scrapling.targets ADD COLUMN IF NOT EXISTS new_id UUID DEFAULT gen_random_uuid();
+    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000001'::uuid WHERE id = 'playstation-network-psn';
+    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000002'::uuid WHERE id = 'apple-itunes';
+    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000003'::uuid WHERE id = 'google-play';
+    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000004'::uuid WHERE id = 'steam';
+    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000005'::uuid WHERE id = 'nintendo-eshop';
+    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000006'::uuid WHERE id = 'eneba-amazon-gift-cards';
+    UPDATE scrapling.targets SET new_id = 'a1000000-0000-4000-8000-000000000007'::uuid WHERE id = 'g2a-amazon-gift-cards';
+    UPDATE scrapling.targets SET new_id = gen_random_uuid() WHERE new_id IS NULL;
+
+    ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS new_target_id UUID;
+    UPDATE scrapling.scrape_runs r SET new_target_id = t.new_id FROM scrapling.targets t WHERE r.target_id = t.id;
+    ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_id;
+    ALTER TABLE scrapling.scrape_runs RENAME COLUMN new_target_id TO target_id;
+
+    ALTER TABLE scrapling.records ADD COLUMN IF NOT EXISTS new_target_id UUID;
+    UPDATE scrapling.records r SET new_target_id = t.new_id FROM scrapling.targets t WHERE r.target_id = t.id;
+    ALTER TABLE scrapling.records DROP COLUMN IF EXISTS target_id;
+    ALTER TABLE scrapling.records RENAME COLUMN new_target_id TO target_id;
+
+    ALTER TABLE scrapling.targets DROP CONSTRAINT targets_pkey CASCADE;
+    ALTER TABLE scrapling.targets DROP COLUMN id;
+    ALTER TABLE scrapling.targets RENAME COLUMN new_id TO id;
+    ALTER TABLE scrapling.targets ADD PRIMARY KEY (id);
+    ALTER TABLE scrapling.targets ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+    ALTER TABLE scrapling.scrape_runs
+      ADD CONSTRAINT scrape_runs_target_id_targets_id_fk
+      FOREIGN KEY (target_id) REFERENCES scrapling.targets(id) ON DELETE SET NULL;
+
+    ALTER TABLE scrapling.records
+      ADD CONSTRAINT records_target_id_targets_id_fk
+      FOREIGN KEY (target_id) REFERENCES scrapling.targets(id) ON DELETE SET NULL;
   END IF;
 END $$;
 DROP INDEX IF EXISTS scrapling.idx_scrapling_records_category_time;
@@ -137,7 +185,7 @@ ON CONFLICT (id) DO NOTHING;
 -- 3. Monitored Scraping Targets Table
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.targets (
-  id TEXT PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   provider TEXT NOT NULL DEFAULT 'eneba',
   name TEXT NOT NULL,
   url TEXT NOT NULL,
@@ -151,13 +199,13 @@ CREATE TABLE IF NOT EXISTS scrapling.targets (
 -- Seed default initial target pages
 INSERT INTO scrapling.targets (id, provider, name, url, enabled, with_offers, schedule_id, created_at, updated_at)
 VALUES
-  ('playstation-network-psn', 'eneba', 'PlayStation (PSN) Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network', true, true, 'default', NOW(), NOW()),
-  ('apple-itunes', 'eneba', 'Apple iTunes / App Store Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes', true, true, 'default', NOW(), NOW()),
-  ('google-play', 'eneba', 'Google Play Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=google_play', true, true, 'default', NOW(), NOW()),
-  ('steam', 'eneba', 'Steam Gift Cards & Wallet Codes', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam', true, true, 'default', NOW(), NOW()),
-  ('nintendo-eshop', 'eneba', 'Nintendo eShop Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=nintendo_eshop', true, true, 'default', NOW(), NOW()),
-  ('eneba-amazon-gift-cards', 'eneba', 'Amazon Gift Cards', 'https://www.eneba.com/us/store/amazon-gift-cards', true, true, 'default', NOW(), NOW()),
-  ('g2a-amazon-gift-cards', 'g2a', 'Amazon Gift Cards (G2A)', 'https://www.g2a.com/category/gift-cards-c6', true, true, 'default', NOW(), NOW())
+  ('a1000000-0000-4000-8000-000000000001'::uuid, 'eneba', 'PlayStation (PSN) Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=playstation_network', true, true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000002'::uuid, 'eneba', 'Apple iTunes / App Store Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=apple_itunes', true, true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000003'::uuid, 'eneba', 'Google Play Gift Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=google_play', true, true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000004'::uuid, 'eneba', 'Steam Gift Cards & Wallet Codes', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam', true, true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000005'::uuid, 'eneba', 'Nintendo eShop Cards', 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=nintendo_eshop', true, true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000006'::uuid, 'eneba', 'Amazon Gift Cards', 'https://www.eneba.com/us/store/amazon-gift-cards', true, true, 'default', NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000007'::uuid, 'g2a', 'Amazon Gift Cards (G2A)', 'https://www.g2a.com/category/gift-cards-c6', true, true, 'default', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -184,8 +232,7 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   batch_id UUID NOT NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   provider TEXT NOT NULL DEFAULT 'eneba',
-  target_id TEXT REFERENCES scrapling.targets(id) ON DELETE SET NULL,
-  target_name TEXT NOT NULL DEFAULT '',
+  target_id UUID REFERENCES scrapling.targets(id) ON DELETE SET NULL,
   page_url TEXT NOT NULL,
   page_number SMALLINT NOT NULL DEFAULT 1,
   total_listings SMALLINT NOT NULL,
@@ -221,9 +268,7 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   id BIGSERIAL PRIMARY KEY,
   batch_id UUID NOT NULL,
   scrape_run_id BIGINT REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
-  target_id TEXT REFERENCES scrapling.targets(id) ON DELETE SET NULL,
-  target_name TEXT NOT NULL DEFAULT '',
-  target_url TEXT NOT NULL DEFAULT '',
+  target_id UUID REFERENCES scrapling.targets(id) ON DELETE SET NULL,
   product_id BIGINT REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
   provider TEXT NOT NULL DEFAULT 'eneba',
@@ -235,7 +280,6 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   face_value NUMERIC(10, 2),
   face_value_currency TEXT,
   listed_discount_pct NUMERIC(6, 2),
-  cashback_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
   in_stock BOOLEAN NOT NULL DEFAULT true,
   discount_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
   effective_discount_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
@@ -243,7 +287,6 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   savings_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
   rank SMALLINT,
   is_lowest_price BOOLEAN NOT NULL DEFAULT false,
-  is_featured_offer BOOLEAN NOT NULL DEFAULT false,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -281,6 +324,4 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_records_discount
 ALTER TABLE scrapling.products ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 ALTER TABLE scrapling.sellers ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
-ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS target_id TEXT REFERENCES scrapling.targets(id) ON DELETE SET NULL;
-ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS target_name TEXT NOT NULL DEFAULT '';
 

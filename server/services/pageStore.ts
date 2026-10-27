@@ -67,7 +67,7 @@ export const DEFAULT_SCHEDULES: ScheduleConfigItem[] = [
 
 export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
   {
-    id: "eneba-psn",
+    id: "a1000000-0000-4000-8000-000000000001",
     category: "eneba",
     provider: "eneba",
     categoryName: "PlayStation (PSN) Gift Cards",
@@ -79,7 +79,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     scheduleId: "default",
   },
   {
-    id: "eneba-nintendo",
+    id: "a1000000-0000-4000-8000-000000000005",
     category: "eneba",
     provider: "eneba",
     categoryName: "Nintendo eShop Gift Cards",
@@ -91,7 +91,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     scheduleId: "default",
   },
   {
-    id: "eneba-android",
+    id: "a1000000-0000-4000-8000-000000000003",
     category: "eneba",
     provider: "eneba",
     categoryName: "Android (Google Play) Gift Cards",
@@ -103,7 +103,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     scheduleId: "default",
   },
   {
-    id: "eneba-amazon",
+    id: "a1000000-0000-4000-8000-000000000006",
     category: "eneba",
     provider: "eneba",
     categoryName: "Amazon Gift Cards",
@@ -115,7 +115,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     scheduleId: "default",
   },
   {
-    id: "eneba-apple",
+    id: "a1000000-0000-4000-8000-000000000002",
     category: "eneba",
     provider: "eneba",
     categoryName: "Apple Gift Cards",
@@ -327,12 +327,7 @@ export class PageStore {
       throw new Error("A valid full URL (https://...) is required.");
     }
 
-    const slug = categoryName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 32);
-    const id = `${category}-${slug || crypto.randomBytes(4).toString("hex")}-${Date.now().toString(36).slice(-4)}`;
+    const id = crypto.randomUUID();
 
     const newPage: ScrapePageConfig = {
       id,

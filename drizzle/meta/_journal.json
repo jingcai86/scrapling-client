@@ -36,6 +36,13 @@
       "when": 1793081000000,
       "tag": "0004_drop_non_generic_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793085000000,
+      "tag": "0005_lean_records_target_uuid",
+      "breakpoints": true
     }
   ]
 }

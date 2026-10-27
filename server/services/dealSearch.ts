@@ -257,7 +257,7 @@ export async function searchDeals(
       }
       if (categoryFilter) {
         values.push(`%${categoryFilter}%`);
-        conditions.push(`(r.provider ILIKE $${values.length} OR r.target_name ILIKE $${values.length})`);
+        conditions.push(`(r.provider ILIKE $${values.length} OR t.name ILIKE $${values.length})`);
       }
       if (minDiscount !== null) {
         values.push(minDiscount);
@@ -278,9 +278,9 @@ export async function searchDeals(
         !from && !to
           ? `
           WITH latest_runs AS (
-            SELECT DISTINCT ON (COALESCE(target_id, page_url)) id
+            SELECT DISTINCT ON (COALESCE(target_id::text, page_url)) id
             FROM scrapling.scrape_runs
-            ORDER BY COALESCE(target_id, page_url), scraped_at DESC
+            ORDER BY COALESCE(target_id::text, page_url), scraped_at DESC
           )
           SELECT
             r.scrape_run_id,
@@ -289,7 +289,7 @@ export async function searchDeals(
             r.rank,
             r.provider,
             r.target_id,
-            r.target_name,
+            COALESCE(t.name, r.provider) AS target_name,
             r.title,
             r.url,
             r.region,
@@ -297,7 +297,6 @@ export async function searchDeals(
             r.original_price,
             r.face_value,
             r.face_value_currency,
-            r.cashback_pct,
             r.discount_pct,
             r.effective_discount_pct,
             r.effective_price,
@@ -307,10 +306,10 @@ export async function searchDeals(
             s.seller_url,
             s.rating_pct,
             s.rating_label,
-            r.is_lowest_price,
-            r.is_featured_offer
+            r.is_lowest_price
           FROM scrapling.records r
           JOIN latest_runs lr ON lr.id = r.scrape_run_id
+          LEFT JOIN scrapling.targets t ON t.id = r.target_id
           LEFT JOIN scrapling.sellers s ON s.id = r.seller_id
           ${whereClause}
           ORDER BY r.discount_pct DESC, r.savings_amount DESC, r.scraped_at DESC
@@ -323,7 +322,7 @@ export async function searchDeals(
             r.rank,
             r.provider,
             r.target_id,
-            r.target_name,
+            COALESCE(t.name, r.provider) AS target_name,
             r.title,
             r.url,
             r.region,
@@ -331,7 +330,6 @@ export async function searchDeals(
             r.original_price,
             r.face_value,
             r.face_value_currency,
-            r.cashback_pct,
             r.discount_pct,
             r.effective_discount_pct,
             r.effective_price,
@@ -341,9 +339,9 @@ export async function searchDeals(
             s.seller_url,
             s.rating_pct,
             s.rating_label,
-            r.is_lowest_price,
-            r.is_featured_offer
+            r.is_lowest_price
           FROM scrapling.records r
+          LEFT JOIN scrapling.targets t ON t.id = r.target_id
           LEFT JOIN scrapling.sellers s ON s.id = r.seller_id
           ${whereClause}
           ORDER BY r.discount_pct DESC, r.savings_amount DESC, r.scraped_at DESC
@@ -365,7 +363,6 @@ export async function searchDeals(
         original_price: string | null;
         face_value: string | null;
         face_value_currency: string | null;
-        cashback_pct: string;
         discount_pct: string;
         effective_discount_pct: string;
         effective_price: string | null;
@@ -376,7 +373,6 @@ export async function searchDeals(
         rating_pct: string | null;
         rating_label: string | null;
         is_lowest_price: boolean;
-        is_featured_offer: boolean;
       }>(sql, values);
 
       const matchedRows = res.rows.filter((row) => {
@@ -400,9 +396,9 @@ export async function searchDeals(
                     row.rating_pct !== null ? Number(row.rating_pct) : null,
                   ratingLabel: row.rating_label,
                   price: Number(row.selling_price || 0),
-                  cashbackPct: Number(row.cashback_pct || 0),
+                  cashbackPct: 0,
                   isLowestPrice: row.is_lowest_price,
-                  isFeaturedOffer: row.is_featured_offer,
+                  isFeaturedOffer: false,
                 },
               ]
             : [];
@@ -421,7 +417,7 @@ export async function searchDeals(
             faceValue: row.face_value !== null ? Number(row.face_value) : null,
             faceValueCurrency: row.face_value_currency,
             discountPct: Number(row.discount_pct),
-            cashbackPct: Number(row.cashback_pct),
+            cashbackPct: 0,
             effectiveDiscountPct: Number(row.effective_discount_pct),
             effectivePrice:
               row.effective_price !== null ? Number(row.effective_price) : null,
