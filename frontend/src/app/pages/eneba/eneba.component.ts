@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, OnInit, AfterViewInit, OnDestroy, Inject, PLATFORM_ID, HostListener } from '@angular/core';
+import { Component, ElementRef, ViewChild, OnInit, AfterViewInit, OnDestroy, Inject, PLATFORM_ID, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute } from '@angular/router';
@@ -1076,6 +1076,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     private snackBar: MatSnackBar,
     private themeService: ThemeService,
     private route: ActivatedRoute,
+    private cdr: ChangeDetectorRef,
     @Inject(PLATFORM_ID) private platformId: object,
   ) {}
 
@@ -1084,8 +1085,12 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       const seg = this.route.snapshot.params['provider'] || this.route.snapshot.url[0]?.path || 'eneba';
       this.provider = seg.toLowerCase();
       this.syncData();
+      this.cdr.markForCheck();
       if (isPlatformBrowser(this.platformId)) {
-        setTimeout(() => this.renderBestDiscountChart(), 0);
+        setTimeout(() => {
+          this.renderBestDiscountChart();
+          this.cdr.markForCheck();
+        }, 0);
       }
     });
   }
@@ -1171,8 +1176,12 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     if (data !== this.lastDataRef) {
       this.lastDataRef = data;
       this.syncData();
+      this.cdr.markForCheck();
       if (isPlatformBrowser(this.platformId)) {
-        setTimeout(() => this.renderBestDiscountChart(), 0);
+        setTimeout(() => {
+          this.renderBestDiscountChart();
+          this.cdr.markForCheck();
+        }, 0);
       }
     }
   }
@@ -1253,9 +1262,13 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     collected.sort((a, b) => b.discountPct - a.discountPct);
     this.allDeals = collected;
     this.applyDealsFilter();
+    this.cdr.markForCheck();
 
     if (isPlatformBrowser(this.platformId)) {
-      setTimeout(() => this.renderBestDiscountChart(), 0);
+      setTimeout(() => {
+        this.renderBestDiscountChart();
+        this.cdr.markForCheck();
+      }, 0);
     }
   }
 
@@ -1638,6 +1651,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
           for (const entry of entries) {
             if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
               this.chartInstance?.resize();
+              this.cdr.markForCheck();
             }
           }
         });

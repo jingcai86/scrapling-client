@@ -8,6 +8,7 @@ import {
   PLATFORM_ID,
   HostListener,
   DoCheck,
+  ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -425,6 +426,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
   constructor(
     private apiService: ApiService,
     private themeService: ThemeService,
+    private cdr: ChangeDetectorRef,
     @Inject(PLATFORM_ID) private platformId: object,
   ) {}
 
@@ -485,10 +487,12 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     if (data !== this.lastDataRef) {
       this.lastDataRef = data;
       this.updateProvidersList();
+      this.cdr.markForCheck();
       if (isPlatformBrowser(this.platformId)) {
         setTimeout(() => {
           this.initOrUpdateCharts();
           this.triggerAllChartsResize();
+          this.cdr.markForCheck();
         }, 0);
       }
     }
@@ -499,6 +503,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
         setTimeout(() => {
           this.initOrUpdateCharts();
           this.triggerAllChartsResize();
+          this.cdr.markForCheck();
         }, 0);
       }
     }
@@ -556,6 +561,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
           for (const entry of entries) {
             if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
               this.chartInstance?.resize();
+              this.cdr.markForCheck();
             }
           }
         });
@@ -715,6 +721,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
           for (const entry of entries) {
             if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
               this.resultsChartInstance?.resize();
+              this.cdr.markForCheck();
             }
           }
         });

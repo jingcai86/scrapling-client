@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -464,6 +464,7 @@ export class ScrapingComponent {
     private apiService: ApiService,
     private dialog: MatDialog,
     private snackBar: MatSnackBar,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   get isLoading(): boolean {
@@ -475,6 +476,7 @@ export class ScrapingComponent {
     if (pages !== this.lastPagesRef) {
       this.lastPagesRef = pages;
       this.sortedPages = pages ? [...pages] : [];
+      this.cdr.markForCheck();
     }
   }
 
