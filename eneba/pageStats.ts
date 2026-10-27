@@ -250,3 +250,62 @@ export function formatPageStatusReport(
   lines.push(divider);
   return lines.join("\n");
 }
+
+/**
+ * Normalizes and deduplicates an array of PageDealStatus objects so that each distinct
+ * scrape target appears at most once (keeping the latest scrape result when duplicate
+ * snapshots or keys exist).
+ */
+export function deduplicatePageDealStatuses(
+  statuses: PageDealStatus[],
+): PageDealStatus[] {
+  const result: PageDealStatus[] = [];
+
+  for (const st of statuses) {
+    if (!st) continue;
+    const stProvider = (st.provider || st.category || "eneba").toLowerCase().trim();
+    const stId = (st.scrapeTargetId || st.targetId || "").trim();
+    const stName = (st.targetName || st.name || "").trim().toLowerCase();
+    const stUrl = (st.pageUrl || "").trim().toLowerCase();
+
+    const existingIdx = result.findIndex((existing) => {
+      const exProvider = (existing.provider || existing.category || "eneba").toLowerCase().trim();
+      if (stProvider !== exProvider) {
+        return false;
+      }
+      const exId = (existing.scrapeTargetId || existing.targetId || "").trim();
+      if (stId && exId && stId === exId) {
+        return true;
+      }
+      const exName = (existing.targetName || existing.name || "").trim().toLowerCase();
+      if (stName && exName && stName === exName) {
+        return true;
+      }
+      const exUrl = (existing.pageUrl || "").trim().toLowerCase();
+      if (stUrl && exUrl && (stUrl === exUrl || stUrl.split("?")[0] === exUrl.split("?")[0])) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingIdx === -1) {
+      result.push(st);
+    } else {
+      const exTime = new Date(result[existingIdx].scrapedAt || 0).getTime();
+      const stTime = new Date(st.scrapedAt || 0).getTime();
+      if (stTime >= exTime) {
+        result[existingIdx] = {
+          ...result[existingIdx],
+          ...st,
+          scrapeTargetId: st.scrapeTargetId || result[existingIdx].scrapeTargetId,
+          targetId: st.targetId || result[existingIdx].targetId,
+          targetName: st.targetName || st.name || result[existingIdx].targetName,
+          name: st.name || st.targetName || result[existingIdx].name,
+        };
+      }
+    }
+  }
+
+  return result;
+}
+

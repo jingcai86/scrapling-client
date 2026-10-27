@@ -16,7 +16,10 @@ import {
   tryPersistScrapeResult,
   type DbPersistenceStatus,
 } from "../../eneba/db.js";
-import type { PageDealStatus } from "../../eneba/pageStats.js";
+import {
+  deduplicatePageDealStatuses,
+  type PageDealStatus,
+} from "../../eneba/pageStats.js";
 import type { PageStore, ScrapePageConfig, ScrapeHistoryItem } from "./pageStore.js";
 
 export interface RunnerState {
@@ -88,13 +91,71 @@ export class ScrapeRunner {
   constructor(pageStore: PageStore) {
     this.pageStore = pageStore;
     for (const st of this.pageStore.loadLatestStatuses()) {
-      this.statusesByCategory.set(st.category, st);
+      this.setStatus(st);
     }
     this.scrapeHistory = this.pageStore.loadHistory();
     const emailStatus = getEmailConfigStatus();
     if (emailStatus.warningMessage) {
       this.addLog(`[Startup Warning] ${emailStatus.warningMessage}`);
     }
+  }
+
+  private setStatus(status: PageDealStatus): void {
+    if (!status) return;
+    const stProvider = (status.provider || status.category || "eneba").toLowerCase().trim();
+    const stId = (status.scrapeTargetId || status.targetId || "").trim();
+    const stName = (status.targetName || status.name || "").trim().toLowerCase();
+    const stUrl = (status.pageUrl || "").trim().toLowerCase();
+
+    // Check if an existing status entry represents the same target
+    for (const [key, existing] of this.statusesByCategory.entries()) {
+      const exProvider = (existing.provider || existing.category || "eneba").toLowerCase().trim();
+      if (stProvider !== exProvider) continue;
+
+      const exId = (existing.scrapeTargetId || existing.targetId || "").trim();
+      const exName = (existing.targetName || existing.name || "").trim().toLowerCase();
+      const exUrl = (existing.pageUrl || "").trim().toLowerCase();
+
+      const isMatch =
+        (stId && exId && stId === exId) ||
+        (stName && exName && stName === exName) ||
+        (stUrl && exUrl && (stUrl === exUrl || stUrl.split("?")[0] === exUrl.split("?")[0]));
+
+      if (isMatch) {
+        const exTime = new Date(existing.scrapedAt || 0).getTime();
+        const stTime = new Date(status.scrapedAt || 0).getTime();
+        this.statusesByCategory.delete(key);
+        if (stTime < exTime) {
+          status = {
+            ...status,
+            ...existing,
+            scrapeTargetId: status.scrapeTargetId || existing.scrapeTargetId,
+            targetId: status.targetId || existing.targetId,
+            targetName: status.targetName || status.name || existing.targetName,
+            name: status.name || status.targetName || existing.name,
+          };
+        } else {
+          status = {
+            ...existing,
+            ...status,
+            scrapeTargetId: status.scrapeTargetId || existing.scrapeTargetId,
+            targetId: status.targetId || existing.targetId,
+            targetName: status.targetName || status.name || existing.targetName,
+            name: status.name || status.targetName || existing.name,
+          };
+        }
+      }
+    }
+
+    const key =
+      status.scrapeTargetId ||
+      status.targetId ||
+      (status.targetName ? `${stProvider}:${status.targetName}` : null) ||
+      (status.name ? `${stProvider}:${status.name}` : null) ||
+      (status.pageUrl ? `${stProvider}:${status.pageUrl}` : null) ||
+      status.category;
+
+    this.statusesByCategory.set(key, status);
   }
 
   private addLog(message: string): void {
@@ -114,15 +175,7 @@ export class ScrapeRunner {
       const dbStatuses = await fetchLatestEnebaStatusesFromDb();
       if (dbStatuses.length > 0) {
         for (const st of dbStatuses) {
-          const key = st.scrapeTargetId || st.targetId || st.targetName || st.category;
-          const existing = this.statusesByCategory.get(key);
-          if (
-            !existing ||
-            new Date(st.scrapedAt).getTime() >=
-              new Date(existing.scrapedAt).getTime()
-          ) {
-            this.statusesByCategory.set(key, st);
-          }
+          this.setStatus(st);
         }
         this.pageStore.saveLatestStatuses(this.getLatestStatuses());
         this.addLog(
@@ -146,7 +199,7 @@ export class ScrapeRunner {
   }
 
   getLatestStatuses(): PageDealStatus[] {
-    return Array.from(this.statusesByCategory.values());
+    return deduplicatePageDealStatuses(Array.from(this.statusesByCategory.values()));
   }
 
   getLatestScrapeTime(): Date | null {
@@ -295,13 +348,7 @@ export class ScrapeRunner {
         });
 
         scrapedResults.push(status);
-        this.statusesByCategory.set(
-          status.scrapeTargetId ||
-            status.targetId ||
-            status.targetName ||
-            status.category,
-          status,
-        );
+        this.setStatus(status);
         this.completedPages = i + 1;
 
         const best = status.bestEffectiveDeal || status.bestDeal;

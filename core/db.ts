@@ -1071,10 +1071,11 @@ export async function createDbNotification(
       );
       const notif = notifRes.rows[0];
 
-      // Link users (Many-to-Many)
+      // Link users (Many-to-Many, sorted to prevent deadlock)
       const linkedUserIds: string[] = [];
       if (options.userIds && options.userIds.length > 0) {
-        for (const uId of options.userIds) {
+        const sortedUserIds = [...new Set(options.userIds)].sort();
+        for (const uId of sortedUserIds) {
           await client.query(
             `INSERT INTO scrapling.notification_users (notification_id, user_id, sent_at)
              VALUES ($1, $2, $3)
@@ -1085,10 +1086,11 @@ export async function createDbNotification(
         }
       }
 
-      // Link records (Many-to-Many)
+      // Link records (Many-to-Many, sorted to prevent deadlock)
       const linkedRecordIds: string[] = [];
       if (options.recordIds && options.recordIds.length > 0) {
-        for (const rId of options.recordIds) {
+        const sortedRecordIds = [...new Set(options.recordIds)].sort();
+        for (const rId of sortedRecordIds) {
           await client.query(
             `INSERT INTO scrapling.notification_records (notification_id, record_id)
              VALUES ($1, $2)

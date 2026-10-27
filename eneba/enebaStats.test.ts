@@ -6,7 +6,12 @@ import {
   parseFaceValueFromTitle,
 } from "./baseScraper.js";
 import { tryPersistScrapeResult } from "./db.js";
-import { analyzePageDeals, formatPageStatusReport } from "./pageStats.js";
+import {
+  analyzePageDeals,
+  deduplicatePageDealStatuses,
+  formatPageStatusReport,
+  type PageDealStatus,
+} from "./pageStats.js";
 import type { ScraplingClient } from "../core/index.js";
 
 const SAMPLE_DISCOUNTED_CARD = `![](https://products.eneba.games/resized-products/sample1.jpg)
@@ -178,5 +183,121 @@ describe("Eneba Gift Card Parser & Page Status Analytics", () => {
         delete process.env.DATABASE_URL;
       }
     }
+  });
+
+  it("deduplicates category statuses by target key, name, and URL, retaining the latest scrape", () => {
+    const rawStatuses: PageDealStatus[] = [
+      {
+        scrapedAt: "2026-10-25T10:00:00.000Z",
+        category: "eneba",
+        provider: "eneba",
+        targetId: "playstation-network-psn",
+        targetName: "PlayStation (PSN) Gift Cards",
+        name: "PlayStation (PSN) Gift Cards",
+        pageUrl: "https://www.eneba.com/store/gift-cards?platforms[]=playstation-network-psn",
+        pageNumber: 1,
+        totalListings: 10,
+        inStockCount: 8,
+        outOfStockCount: 2,
+        discountedCount: 5,
+        averageDiscountPctOnDiscounted: 10,
+        averageDiscountPctAllInStock: 8,
+        averageEffectiveDiscountPct: 8,
+        maxDiscountPct: 15,
+        maxEffectiveDiscountPct: 15,
+        bestDeal: null,
+        bestEffectiveDeal: null,
+        bestDealOffers: [],
+        topDeals: [],
+        rankedDeals: [],
+      },
+      {
+        scrapedAt: "2026-10-26T12:00:00.000Z",
+        category: "eneba",
+        provider: "eneba",
+        targetName: "PlayStation (PSN) Gift Cards",
+        name: "PlayStation (PSN) Gift Cards",
+        pageUrl: "https://www.eneba.com/store/gift-cards?platforms[]=playstation-network-psn",
+        pageNumber: 1,
+        totalListings: 12,
+        inStockCount: 10,
+        outOfStockCount: 2,
+        discountedCount: 6,
+        averageDiscountPctOnDiscounted: 12,
+        averageDiscountPctAllInStock: 9,
+        averageEffectiveDiscountPct: 9,
+        maxDiscountPct: 18,
+        maxEffectiveDiscountPct: 18,
+        bestDeal: null,
+        bestEffectiveDeal: null,
+        bestDealOffers: [],
+        topDeals: [],
+        rankedDeals: [],
+      },
+      {
+        scrapedAt: "2026-10-27T08:00:00.000Z",
+        category: "eneba",
+        provider: "eneba",
+        scrapeTargetId: "a1000000-0000-4000-8000-000000000001",
+        targetId: "a1000000-0000-4000-8000-000000000001",
+        targetName: "PlayStation (PSN) Gift Cards",
+        name: "PlayStation (PSN) Gift Cards",
+        pageUrl: "https://www.eneba.com/store/gift-cards?platforms[]=playstation-network-psn",
+        pageNumber: 1,
+        totalListings: 15,
+        inStockCount: 14,
+        outOfStockCount: 1,
+        discountedCount: 8,
+        averageDiscountPctOnDiscounted: 14,
+        averageDiscountPctAllInStock: 11,
+        averageEffectiveDiscountPct: 11,
+        maxDiscountPct: 20,
+        maxEffectiveDiscountPct: 20,
+        bestDeal: null,
+        bestEffectiveDeal: null,
+        bestDealOffers: [],
+        topDeals: [],
+        rankedDeals: [],
+      },
+      {
+        scrapedAt: "2026-10-27T08:30:00.000Z",
+        category: "g2a",
+        provider: "g2a",
+        scrapeTargetId: "a1000000-0000-4000-8000-000000000009",
+        targetId: "a1000000-0000-4000-8000-000000000009",
+        targetName: "PlayStation (PSN) Gift Cards (G2A)",
+        name: "PlayStation (PSN) Gift Cards (G2A)",
+        pageUrl: "https://www.g2a.com/category/psn-c1567",
+        pageNumber: 1,
+        totalListings: 5,
+        inStockCount: 5,
+        outOfStockCount: 0,
+        discountedCount: 3,
+        averageDiscountPctOnDiscounted: 8,
+        averageDiscountPctAllInStock: 6,
+        averageEffectiveDiscountPct: 6,
+        maxDiscountPct: 10,
+        maxEffectiveDiscountPct: 10,
+        bestDeal: null,
+        bestEffectiveDeal: null,
+        bestDealOffers: [],
+        topDeals: [],
+        rankedDeals: [],
+      },
+    ];
+
+    const deduplicated = deduplicatePageDealStatuses(rawStatuses);
+    // 3 duplicate PlayStation (PSN) entries for Eneba should collapse into 1, while G2A is preserved
+    assert.equal(deduplicated.length, 2);
+
+    const enebaPsn = deduplicated.find((s) => s.category === "eneba");
+    assert.ok(enebaPsn);
+    assert.equal(enebaPsn.scrapeTargetId, "a1000000-0000-4000-8000-000000000001");
+    assert.equal(enebaPsn.scrapedAt, "2026-10-27T08:00:00.000Z");
+    assert.equal(enebaPsn.totalListings, 15);
+
+    const g2aPsn = deduplicated.find((s) => s.category === "g2a");
+    assert.ok(g2aPsn);
+    assert.equal(g2aPsn.scrapeTargetId, "a1000000-0000-4000-8000-000000000009");
   });
 });

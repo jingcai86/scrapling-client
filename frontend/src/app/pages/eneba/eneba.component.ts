@@ -194,11 +194,11 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                       type="button"
                       class="schedule-trigger-btn"
                       [matMenuTriggerFor]="scheduleMenu"
-                      [matMenuTriggerData]="{ category: s.targetId || s.targetName || s.name || s.category }"
+                      [matMenuTriggerData]="{ category: s.scrapeTargetId || s.targetId || s.targetName || s.name || s.category }"
                       matTooltip="Click to change scraping schedule for {{ s.targetName || s.name || s.category }}"
                     >
                       <mat-icon class="schedule-btn-icon">alarm</mat-icon>
-                      <span class="schedule-btn-label">{{ getScheduleNameForCategory(s.targetId || s.targetName || s.name || s.category) }}</span>
+                      <span class="schedule-btn-label">{{ getScheduleNameForCategory(s.scrapeTargetId || s.targetId || s.targetName || s.name || s.category) }}</span>
                       <mat-icon class="schedule-chevron-icon">arrow_drop_down</mat-icon>
                     </button>
                   </td>
@@ -1196,14 +1196,53 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       const url = (s.pageUrl || '').toLowerCase();
       return cat === this.provider || url.includes(this.provider);
     });
-    this.sortedCategories = [...statuses];
+
+    // Deduplicate by target ID, target name, or URL within this provider
+    const deduplicatedStatuses: PageDealStatus[] = [];
+    for (const st of statuses) {
+      const stId = (st.scrapeTargetId || st.targetId || '').trim();
+      const stName = (st.targetName || st.name || st.category || '').trim().toLowerCase();
+      const stUrl = (st.pageUrl || '').trim().toLowerCase();
+
+      const exIdx = deduplicatedStatuses.findIndex((ex) => {
+        const exId = (ex.scrapeTargetId || ex.targetId || '').trim();
+        if (stId && exId && stId === exId) return true;
+
+        const exName = (ex.targetName || ex.name || ex.category || '').trim().toLowerCase();
+        if (stName && exName && stName === exName) return true;
+
+        const exUrl = (ex.pageUrl || '').trim().toLowerCase();
+        if (stUrl && exUrl && (stUrl === exUrl || stUrl.split('?')[0] === exUrl.split('?')[0])) return true;
+
+        return false;
+      });
+
+      if (exIdx === -1) {
+        deduplicatedStatuses.push(st);
+      } else {
+        const exTime = new Date(deduplicatedStatuses[exIdx].scrapedAt || 0).getTime();
+        const stTime = new Date(st.scrapedAt || 0).getTime();
+        if (stTime >= exTime) {
+          deduplicatedStatuses[exIdx] = {
+            ...deduplicatedStatuses[exIdx],
+            ...st,
+            scrapeTargetId: st.scrapeTargetId || deduplicatedStatuses[exIdx].scrapeTargetId,
+            targetId: st.targetId || deduplicatedStatuses[exIdx].targetId,
+            targetName: st.targetName || st.name || deduplicatedStatuses[exIdx].targetName,
+            name: st.name || st.targetName || deduplicatedStatuses[exIdx].name,
+          };
+        }
+      }
+    }
+
+    this.sortedCategories = [...deduplicatedStatuses];
 
     // Gather categories
-    this.availableCategories = Array.from(new Set(statuses.map((s) => s.targetName || s.name || s.category)));
+    this.availableCategories = Array.from(new Set(deduplicatedStatuses.map((s) => s.targetName || s.name || s.category)));
 
     // Gather all ranked deals across all matching categories
     const collected: (RankedDeal & { scrapedAt?: string })[] = [];
-    for (const st of statuses) {
+    for (const st of deduplicatedStatuses) {
       const deals = st.rankedDeals || st.topDeals || [];
       for (const d of deals) {
         collected.push({ ...d, scrapedAt: st.scrapedAt });

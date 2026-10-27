@@ -7,7 +7,10 @@ import { NINTENDO_GIFT_CARDS_URL } from "../../eneba/nintendoGiftCard.js";
 import { ANDROID_GIFT_CARDS_URL } from "../../eneba/androidGiftCard.js";
 import { AMAZON_GIFT_CARDS_URL } from "../../eneba/amazonGiftCard.js";
 import { APPLE_GIFT_CARDS_URL } from "../../eneba/appleGiftCard.js";
-import type { PageDealStatus } from "../../eneba/pageStats.js";
+import {
+  deduplicatePageDealStatuses,
+  type PageDealStatus,
+} from "../../eneba/pageStats.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
@@ -160,6 +163,34 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     categoryName: "Amazon Gift Cards (G2A)",
     name: "Amazon Gift Cards (G2A)",
     url: "https://www.g2a.com/category/gift-cards-c6",
+    enabled: true,
+    createdAt: "2026-10-25T00:00:00.000Z",
+    scheduleId: "default",
+  },
+  {
+    id: "a1000000-0000-4000-8000-000000000008",
+    productId: "ad69d4d6-a0fd-49dd-a439-e983f3af32b4",
+    productSlug: "g2a-google-play",
+    productTitle: "Google Play Gift Cards (G2A)",
+    category: "g2a",
+    provider: "g2a",
+    categoryName: "Google Play Gift Cards (G2A)",
+    name: "Google Play Gift Cards (G2A)",
+    url: "https://www.g2a.com/search?query=google%20play",
+    enabled: true,
+    createdAt: "2026-10-25T00:00:00.000Z",
+    scheduleId: "default",
+  },
+  {
+    id: "a1000000-0000-4000-8000-000000000009",
+    productId: "ad69d4d6-a0fd-49dd-a439-e983f3af32b5",
+    productSlug: "g2a-psn",
+    productTitle: "PlayStation (PSN) Gift Cards (G2A)",
+    category: "g2a",
+    provider: "g2a",
+    categoryName: "PlayStation (PSN) Gift Cards (G2A)",
+    name: "PlayStation (PSN) Gift Cards (G2A)",
+    url: "https://www.g2a.com/category/psn-c1567",
     enabled: true,
     createdAt: "2026-10-25T00:00:00.000Z",
     scheduleId: "default",
@@ -477,16 +508,10 @@ export class PageStore {
   saveLatestStatuses(statuses: PageDealStatus[]): void {
     try {
       const existing = this.loadLatestStatuses();
-      const byCategory = new Map<string, PageDealStatus>();
-      for (const st of existing) {
-        byCategory.set(st.category, st);
-      }
-      for (const st of statuses) {
-        byCategory.set(st.category, st);
-      }
+      const deduplicated = deduplicatePageDealStatuses([...existing, ...statuses]);
       fs.writeFileSync(
         this.resultsFilePath,
-        JSON.stringify(Array.from(byCategory.values()), null, 2) + "\n",
+        JSON.stringify(deduplicated, null, 2) + "\n",
         "utf8",
       );
     } catch {
@@ -501,7 +526,7 @@ export class PageStore {
     if (!fs.existsSync(this.resultsFilePath)) return [];
     try {
       const parsed = JSON.parse(fs.readFileSync(this.resultsFilePath, "utf8"));
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) ? deduplicatePageDealStatuses(parsed) : [];
     } catch {
       return [];
     }
