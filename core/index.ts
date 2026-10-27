@@ -46,8 +46,13 @@ export {
   enebaTopDeals,
   schema,
   scraplingConfig,
+  scraplingProductOffers,
+  scraplingProducts,
   scraplingSchedulers,
+  scraplingScrapeRuns,
+  scraplingSellers,
   scraplingTargets,
+  scraplingTopDeals,
   scraplingSchema,
   type ScraplingDb,
 } from "./schema.js";

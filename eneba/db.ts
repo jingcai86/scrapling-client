@@ -21,9 +21,56 @@ export const ENEBA_SCHEMA_NAME = "scrapling";
 const INIT_ENEBA_SCHEMA_SQL = `
 CREATE SCHEMA IF NOT EXISTS scrapling;
 
--- 1. Normalized catalog of unique Eneba gift card products
-CREATE TABLE IF NOT EXISTS scrapling.eneba_products (
+-- 1. Merge legacy scrapling.eneba_config into scrapling.config if present
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_config') THEN
+    INSERT INTO scrapling.config (key, value, group_name, description, updated_at)
+    SELECT key, value, 'scrapling', description, updated_at
+    FROM scrapling.eneba_config
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
+
+    DROP TABLE IF EXISTS scrapling.eneba_config;
+  END IF;
+
+  -- Rename legacy eneba_* tables to generic names if present and generic don't exist
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_products')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'products') THEN
+    ALTER TABLE scrapling.eneba_products RENAME TO products;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_scrape_runs')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs') THEN
+    ALTER TABLE scrapling.eneba_scrape_runs RENAME TO scrape_runs;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_top_deals')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'top_deals') THEN
+    ALTER TABLE scrapling.eneba_top_deals RENAME TO top_deals;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_sellers')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'sellers') THEN
+    ALTER TABLE scrapling.eneba_sellers RENAME TO sellers;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_product_offers')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'product_offers') THEN
+    ALTER TABLE scrapling.eneba_product_offers RENAME TO product_offers;
+  END IF;
+
+  -- Clean up empty legacy eneba_* tables
+  DROP TABLE IF EXISTS scrapling.eneba_product_offers CASCADE;
+  DROP TABLE IF EXISTS scrapling.eneba_top_deals CASCADE;
+  DROP TABLE IF EXISTS scrapling.eneba_scrape_runs CASCADE;
+  DROP TABLE IF EXISTS scrapling.eneba_sellers CASCADE;
+  DROP TABLE IF EXISTS scrapling.eneba_products CASCADE;
+END $$;
+
+-- 2. Generic Products Catalog Table
+CREATE TABLE IF NOT EXISTS scrapling.products (
   id BIGSERIAL PRIMARY KEY,
+  provider TEXT NOT NULL DEFAULT 'eneba',
   slug TEXT NOT NULL UNIQUE,
   url TEXT NOT NULL UNIQUE,
   category TEXT NOT NULL,
@@ -35,11 +82,12 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_products (
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 2. Page-level scrape runs (one row per category page scrape)
-CREATE TABLE IF NOT EXISTS scrapling.eneba_scrape_runs (
+-- 3. Generic Page-Level Scrape Runs Table
+CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   id BIGSERIAL PRIMARY KEY,
   batch_id UUID NOT NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  provider TEXT NOT NULL DEFAULT 'eneba',
   category TEXT NOT NULL,
   page_url TEXT NOT NULL,
   page_number SMALLINT NOT NULL DEFAULT 1,
@@ -54,12 +102,13 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_scrape_runs (
   max_effective_discount_pct NUMERIC(6, 2) NOT NULL
 );
 
--- 3. Top ranked deals (rank 1..N) per page scrape
-CREATE TABLE IF NOT EXISTS scrapling.eneba_top_deals (
+-- 4. Generic Top Ranked Deals Table
+CREATE TABLE IF NOT EXISTS scrapling.top_deals (
   id BIGSERIAL PRIMARY KEY,
-  scrape_run_id BIGINT NOT NULL REFERENCES scrapling.eneba_scrape_runs(id) ON DELETE CASCADE,
-  product_id BIGINT NOT NULL REFERENCES scrapling.eneba_products(id) ON DELETE CASCADE,
+  scrape_run_id BIGINT NOT NULL REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
+  product_id BIGINT NOT NULL REFERENCES scrapling.products(id) ON DELETE CASCADE,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  provider TEXT NOT NULL DEFAULT 'eneba',
   rank SMALLINT NOT NULL CHECK (rank >= 1),
   category TEXT NOT NULL,
   title TEXT NOT NULL,
@@ -79,9 +128,10 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_top_deals (
   UNIQUE (scrape_run_id, rank)
 );
 
--- 4. Sellers / merchants table (for product-level seller relationships)
-CREATE TABLE IF NOT EXISTS scrapling.eneba_sellers (
+-- 5. Generic Sellers / Merchants Table
+CREATE TABLE IF NOT EXISTS scrapling.sellers (
   id BIGSERIAL PRIMARY KEY,
+  provider TEXT NOT NULL DEFAULT 'eneba',
   seller_name TEXT NOT NULL UNIQUE,
   seller_slug TEXT,
   seller_url TEXT,
@@ -93,12 +143,12 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_sellers (
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 5. Individual seller offers for a product at a point in time
-CREATE TABLE IF NOT EXISTS scrapling.eneba_product_offers (
+-- 6. Generic Product Offers Table
+CREATE TABLE IF NOT EXISTS scrapling.product_offers (
   id BIGSERIAL PRIMARY KEY,
-  product_id BIGINT NOT NULL REFERENCES scrapling.eneba_products(id) ON DELETE CASCADE,
-  seller_id BIGINT REFERENCES scrapling.eneba_sellers(id) ON DELETE SET NULL,
-  scrape_run_id BIGINT REFERENCES scrapling.eneba_scrape_runs(id) ON DELETE SET NULL,
+  product_id BIGINT NOT NULL REFERENCES scrapling.products(id) ON DELETE CASCADE,
+  seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
+  scrape_run_id BIGINT REFERENCES scrapling.scrape_runs(id) ON DELETE SET NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   price NUMERIC(10, 2) NOT NULL,
   cashback_pct NUMERIC(6, 2) NOT NULL DEFAULT 0,
@@ -106,79 +156,27 @@ CREATE TABLE IF NOT EXISTS scrapling.eneba_product_offers (
   is_featured_offer BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- 6. Eneba-specific configuration table
-CREATE TABLE IF NOT EXISTS scrapling.eneba_config (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_scraped_at
+  ON scrapling.scrape_runs (scraped_at DESC);
 
-INSERT INTO scrapling.eneba_config (key, value, description)
-VALUES
-  ('top_deals_limit', '10', 'Number of top ranked deals to pull and persist per Eneba category'),
-  ('alert_discount_threshold_pct', '20', 'Minimum direct or effective discount % on Eneba to trigger deal alerts')
-ON CONFLICT (key) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_category_time
+  ON scrapling.scrape_runs (category, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_scrape_runs_scraped_at
-  ON scrapling.eneba_scrape_runs (scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_top_deals_scraped_rank
+  ON scrapling.top_deals (category, scraped_at DESC, rank ASC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_scrape_runs_category_time
-  ON scrapling.eneba_scrape_runs (category, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_top_deals_product_time
+  ON scrapling.top_deals (product_id, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_top_deals_scraped_rank
-  ON scrapling.eneba_top_deals (category, scraped_at DESC, rank ASC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_product_offers_product_time
+  ON scrapling.product_offers (product_id, scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_top_deals_product_time
-  ON scrapling.eneba_top_deals (product_id, scraped_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_scrapling_eneba_product_offers_product_time
-  ON scrapling.eneba_product_offers (product_id, scraped_at DESC);
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'scrapling.eneba_top_deals'::regclass
-      AND conname = 'eneba_top_deals_rank_check'
-  ) THEN
-    ALTER TABLE scrapling.eneba_top_deals DROP CONSTRAINT eneba_top_deals_rank_check;
-  END IF;
-  IF to_regclass('eneba.products') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_products LIMIT 1) THEN
-    INSERT INTO scrapling.eneba_products (id, slug, url, category, title, region, face_value, face_value_currency, first_seen_at, last_seen_at)
-    SELECT id, slug, url, category, title, region, face_value, face_value_currency, first_seen_at, last_seen_at
-    FROM eneba.products ON CONFLICT DO NOTHING;
-    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_products', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_products), 1));
-  END IF;
-
-  IF to_regclass('eneba.scrape_runs') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_scrape_runs LIMIT 1) THEN
-    INSERT INTO scrapling.eneba_scrape_runs (id, batch_id, scraped_at, category, page_url, page_number, total_listings, in_stock_count, out_of_stock_count, discounted_count, avg_discount_pct_on_discounted, avg_discount_pct_all_in_stock, avg_effective_discount_pct, max_discount_pct, max_effective_discount_pct)
-    SELECT id, batch_id, scraped_at, category, page_url, page_number, total_listings, in_stock_count, out_of_stock_count, discounted_count, avg_discount_pct_on_discounted, avg_discount_pct_all_in_stock, avg_effective_discount_pct, max_discount_pct, max_effective_discount_pct
-    FROM eneba.scrape_runs ON CONFLICT DO NOTHING;
-    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_scrape_runs', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_scrape_runs), 1));
-  END IF;
-
-  IF to_regclass('eneba.top_deals') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_top_deals LIMIT 1) THEN
-    INSERT INTO scrapling.eneba_top_deals (id, scrape_run_id, product_id, scraped_at, rank, category, title, url, region, selling_price, original_price, face_value, face_value_currency, listed_discount_pct, cashback_pct, in_stock, discount_pct, effective_discount_pct, effective_price, savings_amount)
-    SELECT id, scrape_run_id, product_id, scraped_at, rank, category, title, url, region, selling_price, original_price, face_value, face_value_currency, listed_discount_pct, cashback_pct, in_stock, discount_pct, effective_discount_pct, effective_price, savings_amount
-    FROM eneba.top_deals ON CONFLICT DO NOTHING;
-    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_top_deals', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_top_deals), 1));
-  END IF;
-
-  IF to_regclass('eneba.sellers') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_sellers LIMIT 1) THEN
-    INSERT INTO scrapling.eneba_sellers (id, seller_name, seller_slug, seller_url, rating_pct, rating_label, rating_count, is_verified, first_seen_at, last_seen_at)
-    SELECT id, seller_name, seller_slug, seller_url, rating_pct, rating_label, rating_count, is_verified, first_seen_at, last_seen_at
-    FROM eneba.sellers ON CONFLICT DO NOTHING;
-    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_sellers', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_sellers), 1));
-  END IF;
-
-  IF to_regclass('eneba.product_offers') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM scrapling.eneba_product_offers LIMIT 1) THEN
-    INSERT INTO scrapling.eneba_product_offers (id, product_id, seller_id, scrape_run_id, scraped_at, price, cashback_pct, is_lowest_price, is_featured_offer)
-    SELECT id, product_id, seller_id, scrape_run_id, scraped_at, price, cashback_pct, is_lowest_price, is_featured_offer
-    FROM eneba.product_offers ON CONFLICT DO NOTHING;
-    PERFORM setval(pg_get_serial_sequence('scrapling.eneba_product_offers', 'id'), COALESCE((SELECT MAX(id) FROM scrapling.eneba_product_offers), 1));
-  END IF;
-END $$;
+-- Ensure provider columns exist on upgraded tables
+ALTER TABLE scrapling.products ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
+ALTER TABLE scrapling.top_deals ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
+ALTER TABLE scrapling.sellers ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 `;
 
 export interface SaveDealsResult {
@@ -221,7 +219,7 @@ export function extractProductSlug(url: string): string {
 }
 
 /**
- * Ensures the `scrapling` PostgreSQL schema and all `scrapling.eneba_*` relational tables exist.
+ * Ensures the `scrapling` PostgreSQL schema and all relational tables exist.
  */
 export async function ensureEnebaSchema(pool: pg.Pool): Promise<void> {
   await pool.query(INIT_ENEBA_SCHEMA_SQL);
@@ -232,7 +230,7 @@ export interface EnebaConfigOptions {
 }
 
 /**
- * Reads all Eneba configuration key-value pairs from `scrapling.eneba_config`.
+ * Reads Eneba configuration key-value pairs from `scrapling.config`.
  */
 export async function getEnebaConfig(
   options: EnebaConfigOptions = {},
@@ -261,6 +259,13 @@ export async function getEnebaConfig(
       alert_discount_threshold_pct: "20",
     };
     for (const row of rows) {
+      if (row.key === "top_deals_limit") config.top_deals_limit = row.value;
+      if (
+        row.key === "alert_discount_threshold_pct" ||
+        row.key === "ALERT_DISCOUNT_THRESHOLD_PCT"
+      ) {
+        config.alert_discount_threshold_pct = row.value;
+      }
       config[row.key] = row.value;
     }
     return config;
@@ -299,7 +304,7 @@ export async function getEnebaAlertThreshold(
 }
 
 /**
- * Updates key-value settings in `scrapling.eneba_config`.
+ * Updates key-value settings in `scrapling.config`.
  */
 export async function updateEnebaConfig(
   updates: Record<string, string | number>,
@@ -319,7 +324,8 @@ export async function updateEnebaConfig(
         .values({
           key,
           value: strVal,
-          description: "Eneba configuration setting",
+          groupName: "scrapling",
+          description: "Category scrape limit & alert configuration",
         })
         .onConflictDoUpdate({
           target: enebaConfig.key,
@@ -630,7 +636,7 @@ export async function tryPersistScrapeResult(
 
   const spinner = new TerminalSpinner({ silent: options.showProgress === false });
   spinner.start(
-    `[PostgreSQL] Saving top deals & seller offers to schema "scrapling" (eneba_* tables)...`,
+    `[PostgreSQL] Saving top deals & seller offers to schema "scrapling"...`,
   );
 
   let pool: pg.Pool | null = options.pool ?? null;
@@ -704,7 +710,7 @@ export async function tryPersistScrapeResult(
 }
 
 /**
- * Loads the most recent `PageDealStatus` for each category from PostgreSQL (`scrapling.eneba_*` tables).
+ * Loads the most recent `PageDealStatus` for each category from PostgreSQL (`scrapling` schema tables).
  */
 export async function fetchLatestEnebaStatusesFromDb(): Promise<
   PageDealStatus[]

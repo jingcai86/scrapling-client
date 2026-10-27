@@ -40,7 +40,7 @@ export async function createDashboardServer(options: {
 
   const pageStore = new PageStore(options.dataDir);
 
-  // Mandatory startup check: Ensure PostgreSQL is reachable and initialize `scrapling.config` + `scrapling.eneba_*` tables.
+  // Mandatory startup check: Ensure PostgreSQL is reachable and initialize `scrapling` schema and tables.
   // Fails fast if DATABASE_URL is missing or PostgreSQL is unreachable.
   const startupPool = options.pool ?? createPgPool();
   try {
@@ -177,7 +177,7 @@ if (isMain) {
       `🚀 Scrapling Monitor Server running at http://localhost:${instance.port}`,
     );
     console.log(
-      `🗄️  PostgreSQL Schema Ready: "scrapling" (scrapling.config + scrapling.eneba_*)`,
+      `🗄️  PostgreSQL Schema Ready: "scrapling" (products, scrape_runs, top_deals, schedulers, targets, config)`,
     );
     console.log(
       `⏰ Daily Randomized Cron: ${sched.enabled ? `${sched.baseTime} + 0..${sched.jitterMinutes}m jitter (Next: ${sched.nextRunAt ? new Date(sched.nextRunAt).toLocaleString() : "N/A"})` : "Disabled"}`,

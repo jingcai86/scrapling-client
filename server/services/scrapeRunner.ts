@@ -7,6 +7,7 @@ import {
   type EmailDispatchResult,
 } from "../../core/index.js";
 import { EnebaGiftCardScraper } from "../../eneba/baseScraper.js";
+import { G2aGiftCardScraper } from "../../g2a/index.js";
 import {
   fetchLatestEnebaStatusesFromDb,
   fetchScrapeHistoryFromDb,
@@ -124,7 +125,7 @@ export class ScrapeRunner {
         }
         this.pageStore.saveLatestStatuses(this.getLatestStatuses());
         this.addLog(
-          `Loaded ${dbStatuses.length} category snapshots from PostgreSQL (scrapling.eneba_* tables).`,
+          `Loaded ${dbStatuses.length} category snapshots from PostgreSQL (scrapling schema tables).`,
         );
       }
 
@@ -255,6 +256,13 @@ export class ScrapeRunner {
         };
 
         switch (scraperCategory) {
+          case "g2a":
+            scraper = new G2aGiftCardScraper({
+              categoryName: pageCfg.categoryName || pageCfg.name,
+              categoryUrl: pageCfg.url,
+              client,
+            });
+            break;
           case "eneba":
           default:
             scraper = new EnebaGiftCardScraper({
@@ -285,7 +293,7 @@ export class ScrapeRunner {
       this.pageStore.saveLatestStatuses(scrapedResults);
 
       // Persist to PostgreSQL (fault-tolerant)
-      this.currentStep = `Saving ${scrapedResults.length} page run(s) to PostgreSQL (scrapling.eneba_* tables)...`;
+      this.currentStep = `Saving ${scrapedResults.length} page run(s) to PostgreSQL (scrapling schema tables)...`;
       const enebaLimit = await getEnebaTopDealsLimit().catch(() => 10);
       const dbStatus = await tryPersistScrapeResult(scrapedResults, {
         maxRank: enebaLimit,

@@ -21,6 +21,10 @@ function createInMemoryConfigPool(): {
 } {
   const configRows = new Map<string, { key: string; value: string }>();
   const enebaConfigRows = new Map<string, { key: string; value: string }>();
+  configRows.set("top_deals_limit", { key: "top_deals_limit", value: "10" });
+  configRows.set("alert_discount_threshold_pct", { key: "alert_discount_threshold_pct", value: "20" });
+  enebaConfigRows.set("top_deals_limit", { key: "top_deals_limit", value: "10" });
+  enebaConfigRows.set("alert_discount_threshold_pct", { key: "alert_discount_threshold_pct", value: "20" });
   const scheduleRows = new Map<string, any>();
   const pageRows = new Map<string, any>();
 
@@ -114,6 +118,9 @@ function createInMemoryConfigPool(): {
         const value = String(sqlParams[1] ?? "");
         if (key && !configRows.has(key)) {
           configRows.set(key, { key, value });
+          if (key === "top_deals_limit" || key === "alert_discount_threshold_pct") {
+            enebaConfigRows.set(key, { key, value });
+          }
         }
         return { rows: [], rowCount: 1 };
       }
@@ -126,6 +133,9 @@ function createInMemoryConfigPool(): {
         const value = String(sqlParams[4] ?? sqlParams[1] ?? "");
         if (key) {
           configRows.set(key, { key, value });
+          if (key === "top_deals_limit" || key === "alert_discount_threshold_pct") {
+            enebaConfigRows.set(key, { key, value });
+          }
         }
         return { rows: [], rowCount: 1 };
       }

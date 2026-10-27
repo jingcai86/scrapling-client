@@ -15,6 +15,13 @@
       "when": 1793071784832,
       "tag": "0001_curly_starjammers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793075645788,
+      "tag": "0002_make_tables_generic",
+      "breakpoints": true
     }
   ]
 }

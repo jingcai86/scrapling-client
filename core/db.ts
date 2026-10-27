@@ -39,6 +39,51 @@ CREATE TABLE IF NOT EXISTS scrapling.config (
 -- Deprecate and remove CRON keys from scrapling.config as schedules are now stored as first-class rows in scrapling.schedulers
 DELETE FROM scrapling.config WHERE key IN ('CRON_ENABLED', 'CRON_BASE_TIME', 'CRON_JITTER_MINUTES');
 
+-- Merge legacy scrapling.eneba_config into scrapling.config if present
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_config') THEN
+    INSERT INTO scrapling.config (key, value, group_name, description, updated_at)
+    SELECT key, value, 'scrapling', description, updated_at
+    FROM scrapling.eneba_config
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
+
+    DROP TABLE IF EXISTS scrapling.eneba_config;
+  END IF;
+
+  -- Rename legacy eneba_* tables to generic names if present and generic don't exist
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_products')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'products') THEN
+    ALTER TABLE scrapling.eneba_products RENAME TO products;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_scrape_runs')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs') THEN
+    ALTER TABLE scrapling.eneba_scrape_runs RENAME TO scrape_runs;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_top_deals')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'top_deals') THEN
+    ALTER TABLE scrapling.eneba_top_deals RENAME TO top_deals;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_sellers')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'sellers') THEN
+    ALTER TABLE scrapling.eneba_sellers RENAME TO sellers;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_product_offers')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'product_offers') THEN
+    ALTER TABLE scrapling.eneba_product_offers RENAME TO product_offers;
+  END IF;
+END $$;
+
+INSERT INTO scrapling.config (key, value, group_name, description, updated_at)
+VALUES
+  ('top_deals_limit', '10', 'scrapling', 'Number of top ranked deals to pull and persist per category', NOW()),
+  ('alert_discount_threshold_pct', '20', 'scrapling', 'Minimum direct or effective discount % to trigger deal alerts', NOW())
+ON CONFLICT (key) DO NOTHING;
+
 -- Drop legacy table names if present
 DROP TABLE IF EXISTS scrapling.scrape_pages;
 DROP TABLE IF EXISTS scrapling.schedules;
@@ -564,6 +609,15 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     category: "eneba",
     name: "Nintendo eShop Cards",
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=nintendo_eshop",
+    enabled: true,
+    withOffers: true,
+    scheduleId: "default",
+  },
+  {
+    id: "g2a-amazon-gift-cards",
+    category: "g2a",
+    name: "Amazon Gift Cards (G2A)",
+    url: "https://www.g2a.com/category/gift-cards-c6",
     enabled: true,
     withOffers: true,
     scheduleId: "default",

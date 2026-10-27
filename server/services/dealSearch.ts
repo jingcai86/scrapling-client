@@ -279,7 +279,7 @@ export async function searchDeals(
           ? `
           WITH latest_runs AS (
             SELECT DISTINCT ON (category) id
-            FROM scrapling.eneba_scrape_runs
+            FROM scrapling.scrape_runs
             ORDER BY category, scraped_at DESC
           )
           SELECT
@@ -300,7 +300,7 @@ export async function searchDeals(
             td.effective_discount_pct,
             td.effective_price,
             td.savings_amount
-          FROM scrapling.eneba_top_deals td
+          FROM scrapling.top_deals td
           JOIN latest_runs lr ON lr.id = td.scrape_run_id
           ${whereClause}
           ORDER BY td.discount_pct DESC, td.savings_amount DESC, td.scraped_at DESC
@@ -324,7 +324,7 @@ export async function searchDeals(
             td.effective_discount_pct,
             td.effective_price,
             td.savings_amount
-          FROM scrapling.eneba_top_deals td
+          FROM scrapling.top_deals td
           ${whereClause}
           ORDER BY td.discount_pct DESC, td.savings_amount DESC, td.scraped_at DESC
           LIMIT 500
@@ -383,8 +383,8 @@ export async function searchDeals(
               po.cashback_pct,
               po.is_lowest_price,
               po.is_featured_offer
-            FROM scrapling.eneba_product_offers po
-            JOIN scrapling.eneba_sellers s ON s.id = po.seller_id
+            FROM scrapling.product_offers po
+            JOIN scrapling.sellers s ON s.id = po.seller_id
             WHERE po.product_id = $1 AND po.scrape_run_id = $2
             ORDER BY po.price ASC
             `,

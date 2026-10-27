@@ -19,7 +19,7 @@ import type pg from "pg";
 export const scraplingSchema = pgSchema("scrapling");
 
 /**
- * 1. System & Application Runtime Configuration (`scrapling.config`)
+ * 1. Application & System Configuration (`scrapling.config`)
  */
 export const scraplingConfig = scraplingSchema.table("config", {
   key: text("key").primaryKey(),
@@ -31,17 +31,8 @@ export const scraplingConfig = scraplingSchema.table("config", {
     .defaultNow(),
 });
 
-/**
- * 2. Eneba Provider Configuration (`scrapling.eneba_config`)
- */
-export const enebaConfig = scraplingSchema.table("eneba_config", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
-  description: text("description").notNull().default(""),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+// Backward-compatibility alias: eneba_config has been merged into config
+export const enebaConfig = scraplingConfig;
 
 /**
  * 2b. Multi-Scheduler Configurations (`scrapling.schedulers`)
@@ -80,10 +71,11 @@ export const scraplingTargets = scraplingSchema.table("targets", {
 });
 
 /**
- * 3. Normalized Catalog of Unique Eneba Gift Card Products (`scrapling.eneba_products`)
+ * 3. Normalized Catalog of Unique Gift Card Products (`scrapling.products`)
  */
-export const enebaProducts = scraplingSchema.table("eneba_products", {
+export const scraplingProducts = scraplingSchema.table("products", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
+  provider: text("provider").notNull().default("eneba"),
   slug: text("slug").notNull().unique(),
   url: text("url").notNull().unique(),
   category: text("category").notNull(),
@@ -99,17 +91,20 @@ export const enebaProducts = scraplingSchema.table("eneba_products", {
     .defaultNow(),
 });
 
+export const enebaProducts = scraplingProducts;
+
 /**
- * 4. Page-Level Scrape Runs (`scrapling.eneba_scrape_runs`)
+ * 4. Page-Level Scrape Runs (`scrapling.scrape_runs`)
  */
-export const enebaScrapeRuns = scraplingSchema.table(
-  "eneba_scrape_runs",
+export const scraplingScrapeRuns = scraplingSchema.table(
+  "scrape_runs",
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
     batchId: uuid("batch_id").notNull(),
     scrapedAt: timestamp("scraped_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    provider: text("provider").notNull().default("eneba"),
     category: text("category").notNull(),
     pageUrl: text("page_url").notNull(),
     pageNumber: smallint("page_number").notNull().default(1),
@@ -139,30 +134,33 @@ export const enebaScrapeRuns = scraplingSchema.table(
     }).notNull(),
   },
   (table) => [
-    index("idx_scrapling_eneba_scrape_runs_scraped_at").on(table.scrapedAt),
-    index("idx_scrapling_eneba_scrape_runs_category_time").on(
+    index("idx_scrapling_scrape_runs_scraped_at").on(table.scrapedAt),
+    index("idx_scrapling_scrape_runs_category_time").on(
       table.category,
       table.scrapedAt,
     ),
   ],
 );
 
+export const enebaScrapeRuns = scraplingScrapeRuns;
+
 /**
- * 5. Top Ranked Deals per Scrape Run (`scrapling.eneba_top_deals`)
+ * 5. Top Ranked Deals per Scrape Run (`scrapling.top_deals`)
  */
-export const enebaTopDeals = scraplingSchema.table(
-  "eneba_top_deals",
+export const scraplingTopDeals = scraplingSchema.table(
+  "top_deals",
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
     scrapeRunId: bigint("scrape_run_id", { mode: "number" })
       .notNull()
-      .references(() => enebaScrapeRuns.id, { onDelete: "cascade" }),
+      .references(() => scraplingScrapeRuns.id, { onDelete: "cascade" }),
     productId: bigint("product_id", { mode: "number" })
       .notNull()
-      .references(() => enebaProducts.id, { onDelete: "cascade" }),
+      .references(() => scraplingProducts.id, { onDelete: "cascade" }),
     scrapedAt: timestamp("scraped_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    provider: text("provider").notNull().default("eneba"),
     rank: smallint("rank").notNull(),
     category: text("category").notNull(),
     title: text("title").notNull(),
@@ -195,27 +193,30 @@ export const enebaTopDeals = scraplingSchema.table(
       .default("0"),
   },
   (table) => [
-    unique("eneba_top_deals_scrape_run_id_rank_key").on(
+    unique("top_deals_scrape_run_id_rank_key").on(
       table.scrapeRunId,
       table.rank,
     ),
-    index("idx_scrapling_eneba_top_deals_scraped_rank").on(
+    index("idx_scrapling_top_deals_scraped_rank").on(
       table.category,
       table.scrapedAt,
       table.rank,
     ),
-    index("idx_scrapling_eneba_top_deals_product_time").on(
+    index("idx_scrapling_top_deals_product_time").on(
       table.productId,
       table.scrapedAt,
     ),
   ],
 );
 
+export const enebaTopDeals = scraplingTopDeals;
+
 /**
- * 6. Sellers / Merchants (`scrapling.eneba_sellers`)
+ * 6. Sellers / Merchants (`scrapling.sellers`)
  */
-export const enebaSellers = scraplingSchema.table("eneba_sellers", {
+export const scraplingSellers = scraplingSchema.table("sellers", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
+  provider: text("provider").notNull().default("eneba"),
   sellerName: text("seller_name").notNull().unique(),
   sellerSlug: text("seller_slug"),
   sellerUrl: text("seller_url"),
@@ -231,22 +232,24 @@ export const enebaSellers = scraplingSchema.table("eneba_sellers", {
     .defaultNow(),
 });
 
+export const enebaSellers = scraplingSellers;
+
 /**
- * 7. Individual Seller Offers for a Product (`scrapling.eneba_product_offers`)
+ * 7. Individual Seller Offers for a Product (`scrapling.product_offers`)
  */
-export const enebaProductOffers = scraplingSchema.table(
-  "eneba_product_offers",
+export const scraplingProductOffers = scraplingSchema.table(
+  "product_offers",
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
     productId: bigint("product_id", { mode: "number" })
       .notNull()
-      .references(() => enebaProducts.id, { onDelete: "cascade" }),
+      .references(() => scraplingProducts.id, { onDelete: "cascade" }),
     sellerId: bigint("seller_id", { mode: "number" }).references(
-      () => enebaSellers.id,
+      () => scraplingSellers.id,
       { onDelete: "set null" },
     ),
     scrapeRunId: bigint("scrape_run_id", { mode: "number" }).references(
-      () => enebaScrapeRuns.id,
+      () => scraplingScrapeRuns.id,
       { onDelete: "set null" },
     ),
     scrapedAt: timestamp("scraped_at", { withTimezone: true })
@@ -260,64 +263,98 @@ export const enebaProductOffers = scraplingSchema.table(
     isFeaturedOffer: boolean("is_featured_offer").notNull().default(false),
   },
   (table) => [
-    index("idx_scrapling_eneba_product_offers_product_time").on(
+    index("idx_scrapling_product_offers_product_time").on(
       table.productId,
       table.scrapedAt,
     ),
   ],
 );
 
+export const enebaProductOffers = scraplingProductOffers;
+
 /**
  * Relational definitions for Drizzle relational query builder
  */
-export const enebaScrapeRunsRelations = relations(
-  enebaScrapeRuns,
+export const scraplingScrapeRunsRelations = relations(
+  scraplingScrapeRuns,
   ({ many }) => ({
-    topDeals: many(enebaTopDeals),
-    productOffers: many(enebaProductOffers),
+    topDeals: many(scraplingTopDeals),
+    productOffers: many(scraplingProductOffers),
   }),
 );
 
-export const enebaProductsRelations = relations(enebaProducts, ({ many }) => ({
-  topDeals: many(enebaTopDeals),
-  productOffers: many(enebaProductOffers),
-}));
+export const enebaScrapeRunsRelations = scraplingScrapeRunsRelations;
 
-export const enebaTopDealsRelations = relations(enebaTopDeals, ({ one }) => ({
-  scrapeRun: one(enebaScrapeRuns, {
-    fields: [enebaTopDeals.scrapeRunId],
-    references: [enebaScrapeRuns.id],
+export const scraplingProductsRelations = relations(
+  scraplingProducts,
+  ({ many }) => ({
+    topDeals: many(scraplingTopDeals),
+    productOffers: many(scraplingProductOffers),
   }),
-  product: one(enebaProducts, {
-    fields: [enebaTopDeals.productId],
-    references: [enebaProducts.id],
-  }),
-}));
+);
 
-export const enebaSellersRelations = relations(enebaSellers, ({ many }) => ({
-  productOffers: many(enebaProductOffers),
-}));
+export const enebaProductsRelations = scraplingProductsRelations;
 
-export const enebaProductOffersRelations = relations(
-  enebaProductOffers,
+export const scraplingTopDealsRelations = relations(
+  scraplingTopDeals,
   ({ one }) => ({
-    product: one(enebaProducts, {
-      fields: [enebaProductOffers.productId],
-      references: [enebaProducts.id],
+    scrapeRun: one(scraplingScrapeRuns, {
+      fields: [scraplingTopDeals.scrapeRunId],
+      references: [scraplingScrapeRuns.id],
     }),
-    seller: one(enebaSellers, {
-      fields: [enebaProductOffers.sellerId],
-      references: [enebaSellers.id],
-    }),
-    scrapeRun: one(enebaScrapeRuns, {
-      fields: [enebaProductOffers.scrapeRunId],
-      references: [enebaScrapeRuns.id],
+    product: one(scraplingProducts, {
+      fields: [scraplingTopDeals.productId],
+      references: [scraplingProducts.id],
     }),
   }),
 );
+
+export const enebaTopDealsRelations = scraplingTopDealsRelations;
+
+export const scraplingSellersRelations = relations(
+  scraplingSellers,
+  ({ many }) => ({
+    productOffers: many(scraplingProductOffers),
+  }),
+);
+
+export const enebaSellersRelations = scraplingSellersRelations;
+
+export const scraplingProductOffersRelations = relations(
+  scraplingProductOffers,
+  ({ one }) => ({
+    product: one(scraplingProducts, {
+      fields: [scraplingProductOffers.productId],
+      references: [scraplingProducts.id],
+    }),
+    seller: one(scraplingSellers, {
+      fields: [scraplingProductOffers.sellerId],
+      references: [scraplingSellers.id],
+    }),
+    scrapeRun: one(scraplingScrapeRuns, {
+      fields: [scraplingProductOffers.scrapeRunId],
+      references: [scraplingScrapeRuns.id],
+    }),
+  }),
+);
+
+export const enebaProductOffersRelations = scraplingProductOffersRelations;
 
 export const schema = {
   scraplingConfig,
+  scraplingSchedulers,
+  scraplingTargets,
+  scraplingProducts,
+  scraplingScrapeRuns,
+  scraplingTopDeals,
+  scraplingSellers,
+  scraplingProductOffers,
+  scraplingScrapeRunsRelations,
+  scraplingProductsRelations,
+  scraplingTopDealsRelations,
+  scraplingSellersRelations,
+  scraplingProductOffersRelations,
+  // Backward compatibility
   enebaConfig,
   enebaProducts,
   enebaScrapeRuns,
