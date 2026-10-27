@@ -74,14 +74,14 @@ export const scraplingTargets = scraplingSchema.table("targets", {
  * 3. Normalized Catalog of Unique Gift Card Products (`scrapling.products`)
  */
 export const scraplingProducts = scraplingSchema.table("products", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
-  provider: text("provider").notNull().default("eneba"),
-  slug: text("slug").notNull().unique(),
-  url: text("url").notNull().unique(),
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(), // canonical shortcut (e.g. 'amazon-10', 'psn-50')
   title: text("title").notNull(),
-  region: text("region").notNull(),
+  region: text("region").notNull().default("GLOBAL"),
   faceValue: numeric("face_value", { precision: 10, scale: 2 }),
   faceValueCurrency: text("face_value_currency"),
+  url: text("url"), // optional reference URL
+  provider: text("provider"), // optional representative provider
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -186,7 +186,7 @@ export const scraplingRecords = scraplingSchema.table(
     targetId: uuid("target_id").references(() => scraplingTargets.id, {
       onDelete: "set null",
     }),
-    productId: bigint("product_id", { mode: "number" }).references(
+    productId: uuid("product_id").references(
       () => scraplingProducts.id,
       { onDelete: "set null" },
     ),

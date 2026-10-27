@@ -159,6 +159,51 @@ BEGIN
       ADD CONSTRAINT records_target_id_targets_id_fk
       FOREIGN KEY (target_id) REFERENCES scrapling.targets(id) ON DELETE SET NULL;
   END IF;
+
+  -- Ensure products.id and records.product_id are UUID
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'scrapling' AND table_name = 'products' AND column_name = 'id' AND data_type != 'uuid'
+  ) THEN
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_product_id_products_id_fk;
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_product_id_fkey;
+
+    ALTER TABLE scrapling.products ADD COLUMN IF NOT EXISTS new_id UUID DEFAULT gen_random_uuid();
+    ALTER TABLE scrapling.records ADD COLUMN IF NOT EXISTS new_product_id UUID;
+
+    UPDATE scrapling.records r
+    SET new_product_id = p.new_id
+    FROM scrapling.products p
+    WHERE r.product_id = p.id;
+
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_url_key;
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_url_unique;
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_slug_unique;
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_pkey CASCADE;
+
+    ALTER TABLE scrapling.products DROP COLUMN id CASCADE;
+    ALTER TABLE scrapling.products RENAME COLUMN new_id TO id;
+    ALTER TABLE scrapling.products ADD PRIMARY KEY (id);
+    ALTER TABLE scrapling.products ALTER COLUMN id SET DEFAULT gen_random_uuid();
+    ALTER TABLE scrapling.products ALTER COLUMN url DROP NOT NULL;
+    ALTER TABLE scrapling.products ALTER COLUMN provider DROP NOT NULL;
+    ALTER TABLE scrapling.products ALTER COLUMN provider SET DEFAULT NULL;
+
+    ALTER TABLE scrapling.records DROP COLUMN IF EXISTS product_id;
+    ALTER TABLE scrapling.records RENAME COLUMN new_product_id TO product_id;
+
+    ALTER TABLE scrapling.records
+      ADD CONSTRAINT records_product_id_products_id_fk
+      FOREIGN KEY (product_id) REFERENCES scrapling.products(id) ON DELETE SET NULL;
+  END IF;
+
+  -- Ensure products.slug is unique
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'products_slug_key'
+  ) THEN
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_slug_unique;
+    ALTER TABLE scrapling.products ADD CONSTRAINT products_slug_key UNIQUE (slug);
+  END IF;
 END $$;
 DROP INDEX IF EXISTS scrapling.idx_scrapling_records_category_time;
 
@@ -212,14 +257,14 @@ ON CONFLICT (id) DO NOTHING;
 -- 4. Normalized Product Catalog (Unique Gift Cards)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.products (
-  id BIGSERIAL PRIMARY KEY,
-  provider TEXT NOT NULL DEFAULT 'eneba',
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT NOT NULL UNIQUE,
-  url TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
-  region TEXT NOT NULL,
+  region TEXT NOT NULL DEFAULT 'GLOBAL',
   face_value NUMERIC(10, 2),
   face_value_currency TEXT,
+  url TEXT,
+  provider TEXT,
   first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -269,7 +314,7 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   batch_id UUID NOT NULL,
   scrape_run_id BIGINT REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
   target_id UUID REFERENCES scrapling.targets(id) ON DELETE SET NULL,
-  product_id BIGINT REFERENCES scrapling.products(id) ON DELETE SET NULL,
+  product_id UUID REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
   provider TEXT NOT NULL DEFAULT 'eneba',
   title TEXT NOT NULL,

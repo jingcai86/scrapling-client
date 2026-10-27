@@ -67,18 +67,63 @@ BEGIN
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS target_url;
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS cashback_pct;
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS is_featured_offer;
+
+  -- Ensure products.id and records.product_id are UUID
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'scrapling' AND table_name = 'products' AND column_name = 'id' AND data_type != 'uuid'
+  ) THEN
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_product_id_products_id_fk;
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_product_id_fkey;
+
+    ALTER TABLE scrapling.products ADD COLUMN IF NOT EXISTS new_id UUID DEFAULT gen_random_uuid();
+    ALTER TABLE scrapling.records ADD COLUMN IF NOT EXISTS new_product_id UUID;
+
+    UPDATE scrapling.records r
+    SET new_product_id = p.new_id
+    FROM scrapling.products p
+    WHERE r.product_id = p.id;
+
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_url_key;
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_url_unique;
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS eneba_products_slug_unique;
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_pkey CASCADE;
+
+    ALTER TABLE scrapling.products DROP COLUMN id CASCADE;
+    ALTER TABLE scrapling.products RENAME COLUMN new_id TO id;
+    ALTER TABLE scrapling.products ADD PRIMARY KEY (id);
+    ALTER TABLE scrapling.products ALTER COLUMN id SET DEFAULT gen_random_uuid();
+    ALTER TABLE scrapling.products ALTER COLUMN url DROP NOT NULL;
+    ALTER TABLE scrapling.products ALTER COLUMN provider DROP NOT NULL;
+    ALTER TABLE scrapling.products ALTER COLUMN provider SET DEFAULT NULL;
+
+    ALTER TABLE scrapling.records DROP COLUMN IF EXISTS product_id;
+    ALTER TABLE scrapling.records RENAME COLUMN new_product_id TO product_id;
+
+    ALTER TABLE scrapling.records
+      ADD CONSTRAINT records_product_id_products_id_fk
+      FOREIGN KEY (product_id) REFERENCES scrapling.products(id) ON DELETE SET NULL;
+  END IF;
+
+  -- Ensure products.slug is unique
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'products_slug_key'
+  ) THEN
+    ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_slug_unique;
+    ALTER TABLE scrapling.products ADD CONSTRAINT products_slug_key UNIQUE (slug);
+  END IF;
 END $$;
 
 -- 2. Generic Products Catalog Table
 CREATE TABLE IF NOT EXISTS scrapling.products (
-  id BIGSERIAL PRIMARY KEY,
-  provider TEXT NOT NULL DEFAULT 'eneba',
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT NOT NULL UNIQUE,
-  url TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
-  region TEXT NOT NULL,
+  region TEXT NOT NULL DEFAULT 'GLOBAL',
   face_value NUMERIC(10, 2),
   face_value_currency TEXT,
+  url TEXT,
+  provider TEXT,
   first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -122,7 +167,7 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
   batch_id UUID NOT NULL,
   scrape_run_id BIGINT REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
   target_id UUID REFERENCES scrapling.targets(id) ON DELETE SET NULL,
-  product_id BIGINT REFERENCES scrapling.products(id) ON DELETE SET NULL,
+  product_id UUID REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
   provider TEXT NOT NULL DEFAULT 'eneba',
   title TEXT NOT NULL,
@@ -246,6 +291,64 @@ export function extractProductSlug(url: string): string {
   } catch {
     return url;
   }
+}
+
+/**
+ * Builds a canonical product shortcut slug (e.g. 'amazon-10', 'psn-50', 'apple-25')
+ * to group identical gift card items across multiple providers.
+ */
+export function buildProductSlug(item: {
+  title: string;
+  faceValue?: number | string | null;
+  faceValueCurrency?: string | null;
+  region?: string | null;
+  url?: string;
+}): string {
+  const t = (item.title || "").toLowerCase();
+  let brand = "";
+  if (t.includes("playstation") || t.includes("psn")) brand = "psn";
+  else if (t.includes("amazon")) brand = "amazon";
+  else if (t.includes("apple") || t.includes("itunes")) brand = "apple";
+  else if (t.includes("nintendo")) brand = "nintendo";
+  else if (
+    t.includes("google play") ||
+    t.includes("google-play") ||
+    t.includes("android")
+  )
+    brand = "google-play";
+  else if (t.includes("steam")) brand = "steam";
+  else if (t.includes("xbox")) brand = "xbox";
+  else {
+    brand =
+      t
+        .replace(/gift card.*/i, "")
+        .replace(/card.*/i, "")
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "card";
+  }
+
+  const num = item.faceValue != null ? Number(item.faceValue) : NaN;
+  const val = !Number.isNaN(num) && num > 0 ? String(num) : "";
+  const curr =
+    item.faceValueCurrency && item.faceValueCurrency.toUpperCase() !== "USD"
+      ? `-${item.faceValueCurrency.toLowerCase()}`
+      : "";
+
+  if (val) {
+    return `${brand}-${val}${curr}`.toLowerCase();
+  }
+  if (item.url) {
+    try {
+      const parsed = new URL(item.url);
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      const last = parts[parts.length - 1];
+      if (last) return `${brand}-${last.replace(/[^a-z0-9]+/g, "-").slice(0, 30)}`;
+    } catch {
+      // ignore
+    }
+  }
+  return `${brand}-${t.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30)}`.toLowerCase();
 }
 
 /**
@@ -521,7 +624,13 @@ export async function savePageDealsToDb(
         for (let i = 0; i < allDeals.length; i++) {
           const deal = allDeals[i];
           const rank = i + 1;
-          const slug = extractProductSlug(deal.url);
+          const slug = buildProductSlug({
+            title: deal.title,
+            faceValue: deal.faceValue,
+            faceValueCurrency: deal.faceValueCurrency,
+            region: deal.region,
+            url: deal.url,
+          });
 
           const prodRes = await tx
             .insert(scraplingProducts)
@@ -538,10 +647,10 @@ export async function savePageDealsToDb(
               lastSeenAt: batchDate,
             })
             .onConflictDoUpdate({
-              target: scraplingProducts.url,
+              target: scraplingProducts.slug,
               set: {
-                title: deal.title,
-                region: deal.region,
+                title: sql`COALESCE(${scraplingProducts.title}, EXCLUDED.title)`,
+                region: sql`COALESCE(${scraplingProducts.region}, EXCLUDED.region)`,
                 faceValue:
                   deal.faceValue != null
                     ? String(deal.faceValue)
@@ -689,32 +798,50 @@ export async function saveProductOffersToDb(
     let offersInserted = 0;
 
     await db.transaction(async (tx) => {
-      const prodRows = await tx
-        .select()
-        .from(scraplingProducts)
-        .where(eq(scraplingProducts.url, productUrl))
-        .limit(1);
-
-      if (prodRows.length === 0) {
-        return;
-      }
-      const product = prodRows[0];
-      const productId = product.id;
-
+      // 1. Locate record or product matching productUrl
       const latestRecordRows = await tx
         .select()
         .from(scraplingRecords)
-        .where(eq(scraplingRecords.productId, productId))
+        .where(eq(scraplingRecords.url, productUrl))
         .orderBy(desc(scraplingRecords.scrapedAt))
         .limit(1);
 
-      const latestRecord = latestRecordRows[0];
+      let productId: string | null = latestRecordRows[0]?.productId ?? null;
+      let siteProvider = latestRecordRows[0]?.provider || "eneba";
+
+      if (!productId) {
+        const prodRows = await tx
+          .select()
+          .from(scraplingProducts)
+          .where(
+            or(
+              eq(scraplingProducts.url, productUrl),
+              eq(scraplingProducts.slug, productUrl),
+            ),
+          )
+          .limit(1);
+
+        if (prodRows.length === 0) {
+          return;
+        }
+        productId = prodRows[0].id;
+        siteProvider = prodRows[0].provider || "eneba";
+      }
+
+      const latestRecord =
+        latestRecordRows[0] ||
+        (await tx
+          .select()
+          .from(scraplingRecords)
+          .where(eq(scraplingRecords.productId, productId))
+          .orderBy(desc(scraplingRecords.scrapedAt))
+          .limit(1))[0];
 
       for (const offer of offers) {
         const sellerRows = await tx
           .insert(scraplingSellers)
           .values({
-            provider: product.provider || "eneba",
+            provider: siteProvider,
             sellerName: offer.sellerName,
             sellerSlug: offer.sellerSlug,
             sellerUrl: offer.sellerUrl,

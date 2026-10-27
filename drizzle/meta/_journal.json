@@ -43,6 +43,13 @@
       "when": 1793085000000,
       "tag": "0005_lean_records_target_uuid",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793088000000,
+      "tag": "0006_canonical_product_uuid",
+      "breakpoints": true
     }
   ]
 }
