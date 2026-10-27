@@ -278,9 +278,10 @@ export async function searchDeals(
         !from && !to
           ? `
           WITH latest_runs AS (
-            SELECT DISTINCT ON (COALESCE(target_id::text, page_url)) id
-            FROM scrapling.scrape_runs
-            ORDER BY COALESCE(target_id::text, page_url), scraped_at DESC
+            SELECT DISTINCT ON (r.target_id) r.scrape_run_id AS id
+            FROM scrapling.records r
+            WHERE r.target_id IS NOT NULL
+            ORDER BY r.target_id, r.scraped_at DESC
           )
           SELECT
             r.scrape_run_id,

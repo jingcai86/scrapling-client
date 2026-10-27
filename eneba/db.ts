@@ -135,6 +135,56 @@ BEGIN
     ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_slug_unique;
     ALTER TABLE scrapling.products ADD CONSTRAINT products_slug_key UNIQUE (slug);
   END IF;
+
+  -- Ensure scrape_runs.id, records.id, and records.scrape_run_id are UUID
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs' AND column_name = 'id' AND data_type != 'uuid'
+  ) THEN
+    ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS new_id UUID DEFAULT gen_random_uuid();
+    UPDATE scrapling.scrape_runs SET new_id = gen_random_uuid() WHERE new_id IS NULL;
+
+    ALTER TABLE scrapling.records ADD COLUMN IF NOT EXISTS new_scrape_run_id UUID;
+    UPDATE scrapling.records r
+    SET new_scrape_run_id = sr.new_id
+    FROM scrapling.scrape_runs sr
+    WHERE r.scrape_run_id = sr.id;
+
+    ALTER TABLE scrapling.records ADD COLUMN IF NOT EXISTS new_id UUID DEFAULT gen_random_uuid();
+    UPDATE scrapling.records SET new_id = gen_random_uuid() WHERE new_id IS NULL;
+
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_scrape_run_id_scrape_runs_id_fk;
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_scrape_run_id_fkey;
+
+    ALTER TABLE scrapling.scrape_runs DROP CONSTRAINT IF EXISTS scrape_runs_pkey CASCADE;
+    ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS id CASCADE;
+    ALTER TABLE scrapling.scrape_runs RENAME COLUMN new_id TO id;
+    ALTER TABLE scrapling.scrape_runs ADD PRIMARY KEY (id);
+    ALTER TABLE scrapling.scrape_runs ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_pkey CASCADE;
+    ALTER TABLE scrapling.records DROP COLUMN IF EXISTS id CASCADE;
+    ALTER TABLE scrapling.records RENAME COLUMN new_id TO id;
+    ALTER TABLE scrapling.records ADD PRIMARY KEY (id);
+    ALTER TABLE scrapling.records ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+    ALTER TABLE scrapling.records DROP COLUMN IF EXISTS scrape_run_id CASCADE;
+    ALTER TABLE scrapling.records RENAME COLUMN new_scrape_run_id TO scrape_run_id;
+
+    ALTER TABLE scrapling.records
+      ADD CONSTRAINT records_scrape_run_id_scrape_runs_id_fk
+      FOREIGN KEY (scrape_run_id) REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE;
+  END IF;
+
+  -- Drop non-generic & redundant page-level columns from scrape_runs
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS provider CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_id CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_name CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS page_url CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS page_number CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS total_listings CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS in_stock_count CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS discounted_count CASCADE;
 END $$;
 
 -- 2. Generic Products Catalog Table
@@ -153,16 +203,9 @@ CREATE TABLE IF NOT EXISTS scrapling.products (
 
 -- 3. Generic Page-Level Scrape Runs Table
 CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  provider TEXT NOT NULL DEFAULT 'eneba',
-  target_id UUID REFERENCES scrapling.target_pages(id) ON DELETE SET NULL,
-  page_url TEXT NOT NULL,
-  page_number SMALLINT NOT NULL DEFAULT 1,
-  total_listings SMALLINT NOT NULL,
-  in_stock_count SMALLINT NOT NULL,
-  discounted_count SMALLINT NOT NULL,
   avg_discount_pct_on_discounted NUMERIC(6, 2) NOT NULL,
   avg_discount_pct_all_in_stock NUMERIC(6, 2) NOT NULL,
   avg_effective_discount_pct NUMERIC(6, 2) NOT NULL,
@@ -185,9 +228,9 @@ CREATE TABLE IF NOT EXISTS scrapling.sellers (
 
 -- 5. Consolidated Scraped Records & Listings Table
 CREATE TABLE IF NOT EXISTS scrapling.records (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL,
-  scrape_run_id BIGINT REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
+  scrape_run_id UUID REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
   target_id UUID REFERENCES scrapling.target_pages(id) ON DELETE SET NULL,
   product_id UUID REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
@@ -215,11 +258,11 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
 CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_scraped_at
   ON scrapling.scrape_runs (scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_provider_time
-  ON scrapling.scrape_runs (provider, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_batch_id
+  ON scrapling.scrape_runs (batch_id);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_target_time
-  ON scrapling.scrape_runs (target_id, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_scrape_run_id
+  ON scrapling.records (scrape_run_id);
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_provider_time
   ON scrapling.records (provider, scraped_at DESC);
@@ -240,7 +283,6 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_records_discount
   ON scrapling.records (discount_pct DESC, effective_discount_pct DESC);
 
 ALTER TABLE scrapling.products ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
-ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 ALTER TABLE scrapling.sellers ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 
 -- Cleanup non-generic columns and drop legacy category columns
@@ -567,13 +609,6 @@ export async function savePageDealsToDb(
           .values({
             batchId,
             scrapedAt: batchDate,
-            provider: siteProvider,
-            targetId,
-            pageUrl: status.pageUrl,
-            pageNumber: status.pageNumber ?? 1,
-            totalListings: status.totalListings,
-            inStockCount: status.inStockCount,
-            discountedCount: status.discountedCount,
             avgDiscountPctOnDiscounted: String(
               status.averageDiscountPctOnDiscounted,
             ),
@@ -1049,13 +1084,21 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
     const db: ScraplingDb = createDrizzleDb(pool);
 
     const runsWithTargets = await db
-      .selectDistinctOn([sql`COALESCE(${scraplingScrapeRuns.targetId}::text, ${scraplingScrapeRuns.pageUrl})`], {
+      .selectDistinctOn([scraplingRecords.targetId], {
         run: scraplingScrapeRuns,
         target: scraplingTargets,
       })
-      .from(scraplingScrapeRuns)
-      .leftJoin(scraplingTargets, eq(scraplingScrapeRuns.targetId, scraplingTargets.id))
-      .orderBy(sql`COALESCE(${scraplingScrapeRuns.targetId}::text, ${scraplingScrapeRuns.pageUrl})`, desc(scraplingScrapeRuns.scrapedAt));
+      .from(scraplingRecords)
+      .innerJoin(
+        scraplingScrapeRuns,
+        eq(scraplingRecords.scrapeRunId, scraplingScrapeRuns.id),
+      )
+      .leftJoin(
+        scraplingTargets,
+        eq(scraplingRecords.targetId, scraplingTargets.id),
+      )
+      .where(sql`${scraplingRecords.targetId} IS NOT NULL`)
+      .orderBy(scraplingRecords.targetId, desc(scraplingRecords.scrapedAt));
 
     const statuses: PageDealStatus[] = [];
 
@@ -1070,12 +1113,19 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         .where(eq(scraplingRecords.scrapeRunId, run.id))
         .orderBy(asc(scraplingRecords.rank));
 
-      const targetTitle = target?.name || run.provider;
+      const provider = target?.provider || records[0]?.record.provider || "eneba";
+      const targetTitle = target?.name || provider;
+      const targetUrl = target?.url || records[0]?.record.url || "";
+      const totalListings = records.length;
+      const inStockCount = records.filter(({ record: r }) => r.inStock).length;
+      const discountedCount = records.filter(
+        ({ record: r }) => Number(r.discountPct) > 0,
+      ).length;
 
       const rankedDeals = records.map(({ record: d }) => ({
         rank: Number(d.rank ?? 1),
         category: d.provider,
-        targetId: d.targetId ?? run.targetId ?? undefined,
+        targetId: d.targetId ?? target?.id ?? undefined,
         targetName: targetTitle,
         title: d.title,
         url: d.url,
@@ -1117,17 +1167,17 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         null;
 
       statuses.push({
-        category: run.provider,
-        targetId: run.targetId ?? undefined,
+        category: provider,
+        targetId: target?.id ?? undefined,
         targetName: targetTitle,
         name: targetTitle,
-        pageUrl: run.pageUrl,
-        pageNumber: run.pageNumber,
+        pageUrl: targetUrl,
+        pageNumber: 1,
         scrapedAt: new Date(run.scrapedAt).toISOString(),
-        totalListings: run.totalListings,
-        inStockCount: run.inStockCount,
-        outOfStockCount: run.totalListings - run.inStockCount,
-        discountedCount: run.discountedCount,
+        totalListings,
+        inStockCount,
+        outOfStockCount: totalListings - inStockCount,
+        discountedCount,
         averageDiscountPctOnDiscounted: Number(
           run.avgDiscountPctOnDiscounted,
         ),
@@ -1157,8 +1207,8 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
  * Loads scraping history and success rate records aggregated by batch_id from PostgreSQL.
  */
 export async function fetchScrapeHistoryFromDb(
-  pool?: pg.Pool,
-  limit = 30,
+  poolOrLimit?: pg.Pool | number,
+  limitOrPool?: number | pg.Pool,
 ): Promise<Array<{
   id: string;
   timestamp: string;
@@ -1181,6 +1231,20 @@ export async function fetchScrapeHistoryFromDb(
     return [];
   }
 
+  const pool =
+    typeof poolOrLimit === "object" && poolOrLimit !== null && "query" in poolOrLimit
+      ? (poolOrLimit as pg.Pool)
+      : typeof limitOrPool === "object" && limitOrPool !== null && "query" in limitOrPool
+        ? (limitOrPool as pg.Pool)
+        : undefined;
+
+  const limit =
+    typeof poolOrLimit === "number"
+      ? poolOrLimit
+      : typeof limitOrPool === "number"
+        ? limitOrPool
+        : 30;
+
   const ownPool = !pool;
   const p = pool || createPgPool();
   try {
@@ -1189,12 +1253,16 @@ export async function fetchScrapeHistoryFromDb(
       .select({
         batchId: enebaScrapeRuns.batchId,
         scrapedAt: sql<Date>`MIN(${enebaScrapeRuns.scrapedAt})`,
-        totalPages: sql<number>`COUNT(*)::int`,
-        successfulPages: sql<number>`COUNT(CASE WHEN ${enebaScrapeRuns.totalListings} > 0 THEN 1 END)::int`,
-        totalListings: sql<number>`COALESCE(SUM(${enebaScrapeRuns.totalListings}), 0)::int`,
-        inStockCount: sql<number>`COALESCE(SUM(${enebaScrapeRuns.inStockCount}), 0)::int`,
+        totalPages: sql<number>`COUNT(DISTINCT ${enebaScrapeRuns.id})::int`,
+        successfulPages: sql<number>`COUNT(DISTINCT ${scraplingRecords.scrapeRunId})::int`,
+        totalListings: sql<number>`COUNT(${scraplingRecords.id})::int`,
+        inStockCount: sql<number>`COUNT(CASE WHEN ${scraplingRecords.inStock} THEN 1 END)::int`,
       })
       .from(enebaScrapeRuns)
+      .leftJoin(
+        scraplingRecords,
+        eq(scraplingRecords.scrapeRunId, enebaScrapeRuns.id),
+      )
       .groupBy(enebaScrapeRuns.batchId)
       .orderBy(asc(sql`MIN(${enebaScrapeRuns.scrapedAt})`))
       .limit(limit);

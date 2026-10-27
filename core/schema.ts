@@ -99,20 +99,11 @@ export const enebaProducts = scraplingProducts;
 export const scraplingScrapeRuns = scraplingSchema.table(
   "scrape_runs",
   {
-    id: bigserial("id", { mode: "number" }).primaryKey(),
+    id: uuid("id").primaryKey().defaultRandom(),
     batchId: uuid("batch_id").notNull(),
     scrapedAt: timestamp("scraped_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    provider: text("provider").notNull().default("eneba"),
-    targetId: uuid("target_id").references(() => scraplingTargets.id, {
-      onDelete: "set null",
-    }),
-    pageUrl: text("page_url").notNull(),
-    pageNumber: smallint("page_number").notNull().default(1),
-    totalListings: smallint("total_listings").notNull(),
-    inStockCount: smallint("in_stock_count").notNull(),
-    discountedCount: smallint("discounted_count").notNull(),
     avgDiscountPctOnDiscounted: numeric("avg_discount_pct_on_discounted", {
       precision: 6,
       scale: 2,
@@ -136,14 +127,7 @@ export const scraplingScrapeRuns = scraplingSchema.table(
   },
   (table) => [
     index("idx_scrapling_scrape_runs_scraped_at").on(table.scrapedAt),
-    index("idx_scrapling_scrape_runs_provider_time").on(
-      table.provider,
-      table.scrapedAt,
-    ),
-    index("idx_scrapling_scrape_runs_target_time").on(
-      table.targetId,
-      table.scrapedAt,
-    ),
+    index("idx_scrapling_scrape_runs_batch_id").on(table.batchId),
   ],
 );
 
@@ -177,9 +161,9 @@ export const enebaSellers = scraplingSellers;
 export const scraplingRecords = scraplingSchema.table(
   "records",
   {
-    id: bigserial("id", { mode: "number" }).primaryKey(),
+    id: uuid("id").primaryKey().defaultRandom(),
     batchId: uuid("batch_id").notNull(),
-    scrapeRunId: bigint("scrape_run_id", { mode: "number" }).references(
+    scrapeRunId: uuid("scrape_run_id").references(
       () => scraplingScrapeRuns.id,
       { onDelete: "cascade" },
     ),
@@ -244,6 +228,7 @@ export const scraplingRecords = scraplingSchema.table(
       table.scrapedAt,
     ),
     index("idx_scrapling_records_seller_id").on(table.sellerId),
+    index("idx_scrapling_records_scrape_run_id").on(table.scrapeRunId),
     index("idx_scrapling_records_discount").on(
       table.discountPct,
       table.effectiveDiscountPct,
@@ -262,12 +247,8 @@ export const enebaProductOffers = scraplingRecords;
  */
 export const scraplingScrapeRunsRelations = relations(
   scraplingScrapeRuns,
-  ({ many, one }) => ({
+  ({ many }) => ({
     records: many(scraplingRecords),
-    target: one(scraplingTargets, {
-      fields: [scraplingScrapeRuns.targetId],
-      references: [scraplingTargets.id],
-    }),
   }),
 );
 

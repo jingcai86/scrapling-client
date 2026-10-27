@@ -226,8 +226,60 @@ BEGIN
     ALTER TABLE scrapling.products DROP CONSTRAINT IF EXISTS products_slug_unique;
     ALTER TABLE scrapling.products ADD CONSTRAINT products_slug_key UNIQUE (slug);
   END IF;
+
+  -- Ensure scrape_runs.id, records.id, and records.scrape_run_id are UUID
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs' AND column_name = 'id' AND data_type != 'uuid'
+  ) THEN
+    ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS new_id UUID DEFAULT gen_random_uuid();
+    UPDATE scrapling.scrape_runs SET new_id = gen_random_uuid() WHERE new_id IS NULL;
+
+    ALTER TABLE scrapling.records ADD COLUMN IF NOT EXISTS new_scrape_run_id UUID;
+    UPDATE scrapling.records r
+    SET new_scrape_run_id = sr.new_id
+    FROM scrapling.scrape_runs sr
+    WHERE r.scrape_run_id = sr.id;
+
+    ALTER TABLE scrapling.records ADD COLUMN IF NOT EXISTS new_id UUID DEFAULT gen_random_uuid();
+    UPDATE scrapling.records SET new_id = gen_random_uuid() WHERE new_id IS NULL;
+
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_scrape_run_id_scrape_runs_id_fk;
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_scrape_run_id_fkey;
+
+    ALTER TABLE scrapling.scrape_runs DROP CONSTRAINT IF EXISTS scrape_runs_pkey CASCADE;
+    ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS id CASCADE;
+    ALTER TABLE scrapling.scrape_runs RENAME COLUMN new_id TO id;
+    ALTER TABLE scrapling.scrape_runs ADD PRIMARY KEY (id);
+    ALTER TABLE scrapling.scrape_runs ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+    ALTER TABLE scrapling.records DROP CONSTRAINT IF EXISTS records_pkey CASCADE;
+    ALTER TABLE scrapling.records DROP COLUMN IF EXISTS id CASCADE;
+    ALTER TABLE scrapling.records RENAME COLUMN new_id TO id;
+    ALTER TABLE scrapling.records ADD PRIMARY KEY (id);
+    ALTER TABLE scrapling.records ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+    ALTER TABLE scrapling.records DROP COLUMN IF EXISTS scrape_run_id CASCADE;
+    ALTER TABLE scrapling.records RENAME COLUMN new_scrape_run_id TO scrape_run_id;
+
+    ALTER TABLE scrapling.records
+      ADD CONSTRAINT records_scrape_run_id_scrape_runs_id_fk
+      FOREIGN KEY (scrape_run_id) REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE;
+  END IF;
+
+  -- Drop non-generic & redundant page-level columns from scrape_runs
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS provider CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_id CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_name CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS page_url CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS page_number CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS total_listings CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS in_stock_count CASCADE;
+  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS discounted_count CASCADE;
 END $$;
 DROP INDEX IF EXISTS scrapling.idx_scrapling_records_category_time;
+DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_provider_time;
+DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_target_time;
 
 -- ----------------------------------------------------------------------------
 -- 2. Multi-Scheduler Configurations Table
@@ -294,16 +346,9 @@ CREATE TABLE IF NOT EXISTS scrapling.products (
 -- 5. Page-Level Scrape Runs (One record per category page scrape)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  provider TEXT NOT NULL DEFAULT 'eneba',
-  target_id UUID REFERENCES scrapling.target_pages(id) ON DELETE SET NULL,
-  page_url TEXT NOT NULL,
-  page_number SMALLINT NOT NULL DEFAULT 1,
-  total_listings SMALLINT NOT NULL,
-  in_stock_count SMALLINT NOT NULL,
-  discounted_count SMALLINT NOT NULL,
   avg_discount_pct_on_discounted NUMERIC(6, 2) NOT NULL,
   avg_discount_pct_all_in_stock NUMERIC(6, 2) NOT NULL,
   avg_effective_discount_pct NUMERIC(6, 2) NOT NULL,
@@ -330,9 +375,9 @@ CREATE TABLE IF NOT EXISTS scrapling.sellers (
 -- 7. Consolidated Scraped Records & Listings
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.records (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL,
-  scrape_run_id BIGINT REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
+  scrape_run_id UUID REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
   target_id UUID REFERENCES scrapling.target_pages(id) ON DELETE SET NULL,
   product_id UUID REFERENCES scrapling.products(id) ON DELETE SET NULL,
   seller_id BIGINT REFERENCES scrapling.sellers(id) ON DELETE SET NULL,
@@ -362,11 +407,11 @@ CREATE TABLE IF NOT EXISTS scrapling.records (
 CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_scraped_at
   ON scrapling.scrape_runs (scraped_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_provider_time
-  ON scrapling.scrape_runs (provider, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_batch_id
+  ON scrapling.scrape_runs (batch_id);
 
-CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_target_time
-  ON scrapling.scrape_runs (target_id, scraped_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrapling_records_scrape_run_id
+  ON scrapling.records (scrape_run_id);
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_provider_time
   ON scrapling.records (provider, scraped_at DESC);
@@ -387,6 +432,5 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_records_discount
   ON scrapling.records (discount_pct DESC, effective_discount_pct DESC);
 
 ALTER TABLE scrapling.products ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
-ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 ALTER TABLE scrapling.sellers ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
 

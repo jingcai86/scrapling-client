@@ -57,6 +57,13 @@
       "when": 1793091000000,
       "tag": "0007_target_pages_and_clean_sellers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793094000000,
+      "tag": "0008_scrape_runs_and_records_uuid",
+      "breakpoints": true
     }
   ]
 }
