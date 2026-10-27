@@ -95,18 +95,37 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
           <div class="kpi-top-bar"></div>
           <div class="kpi-card-inner">
             <div class="kpi-header-row">
-              <span class="kpi-eyebrow">Best {{ providerDisplayName }} Deal</span>
-              <div class="kpi-icon-pill">
-                <mat-icon>trending_down</mat-icon>
+              <span class="kpi-eyebrow">Best {{ providerDisplayName }} Deals</span>
+              <div class="kpi-icon-pill" matTooltip="Top deals with the highest discounts">
+                <mat-icon>north_east</mat-icon>
               </div>
             </div>
             <div class="kpi-value-row">
               <span class="kpi-metric-num kpi-deal-pct">{{ bestDealPct() }}</span>
               <span class="kpi-unit-badge kpi-unit-emerald">max discount</span>
             </div>
-            <div class="kpi-deal-title-box truncate" [title]="bestDealTitle()">
-              <mat-icon class="deal-icon">verified</mat-icon>
-              <span class="deal-name">{{ bestDealTitle() }}</span>
+            <div class="kpi-best-deals-list" *ngIf="topBestDeals.length > 0">
+              <a
+                *ngFor="let deal of topBestDeals"
+                [href]="deal.url"
+                target="_blank"
+                rel="noopener"
+                class="kpi-deal-row-link"
+                [title]="deal.title"
+              >
+                <div class="kpi-deal-row-left">
+                  <span class="badge badge-discount-peak kpi-deal-badge">-{{ deal.discountPct.toFixed(1) }}%</span>
+                  <span class="kpi-deal-row-title truncate">{{ deal.title }}</span>
+                </div>
+                <div class="kpi-deal-row-right">
+                  <span class="kpi-deal-price" *ngIf="deal.sellingPrice">\${{ deal.sellingPrice.toFixed(2) }}</span>
+                  <mat-icon class="kpi-deal-arrow">north_east</mat-icon>
+                </div>
+              </a>
+            </div>
+            <div class="kpi-deal-title-box truncate" *ngIf="topBestDeals.length === 0">
+              <mat-icon class="deal-icon">info</mat-icon>
+              <span class="deal-name">No active deals</span>
             </div>
           </div>
         </mat-card>
@@ -1207,6 +1226,12 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       for (const d of deals) {
         collected.push({ ...d, scrapedAt: st.scrapedAt });
       }
+      if (st.bestDeal) {
+        const alreadyIn = deals.some((d) => d.url === st.bestDeal!.url || d.title === st.bestDeal!.title);
+        if (!alreadyIn) {
+          collected.push({ ...st.bestDeal, scrapedAt: st.scrapedAt });
+        }
+      }
     }
 
     // Sort by discountPct descending by default (highest discount first)
@@ -1235,13 +1260,59 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.sortedCategories.reduce((acc, s) => acc + (s.discountedCount || 0), 0);
   }
 
+  get topBestDeals(): (RankedDeal & { scrapedAt?: string })[] {
+    const list: (RankedDeal & { scrapedAt?: string })[] = [];
+    const seenUrls = new Set<string>();
+    const seenTitles = new Set<string>();
+
+    for (const deal of this.allDeals) {
+      if (!deal || deal.discountPct <= 0) continue;
+      const urlKey = (deal.url || '').trim().toLowerCase();
+      const titleKey = (deal.title || '').trim().toLowerCase();
+      if (urlKey && seenUrls.has(urlKey)) continue;
+      if (titleKey && seenTitles.has(titleKey)) continue;
+
+      if (urlKey) seenUrls.add(urlKey);
+      if (titleKey) seenTitles.add(titleKey);
+      list.push(deal);
+      if (list.length >= 3) break;
+    }
+
+    if (list.length < 3) {
+      for (const st of this.sortedCategories) {
+        const candidate = st.bestDeal || st.bestEffectiveDeal;
+        if (!candidate || candidate.discountPct <= 0) continue;
+        const urlKey = (candidate.url || '').trim().toLowerCase();
+        const titleKey = (candidate.title || '').trim().toLowerCase();
+        if (urlKey && seenUrls.has(urlKey)) continue;
+        if (titleKey && seenTitles.has(titleKey)) continue;
+
+        if (urlKey) seenUrls.add(urlKey);
+        if (titleKey) seenTitles.add(titleKey);
+        list.push({ ...candidate, scrapedAt: st.scrapedAt });
+        if (list.length >= 3) break;
+      }
+    }
+
+    list.sort((a, b) => b.discountPct - a.discountPct);
+    return list;
+  }
+
   bestDealPct(): string {
+    const top = this.topBestDeals;
+    if (top.length > 0 && top[0].discountPct > 0) {
+      return `${top[0].discountPct.toFixed(1)}%`;
+    }
     const statuses = this.sortedCategories;
     const maxDisc = Math.max(...statuses.map((s) => s.maxDiscountPct || 0), 0);
     return maxDisc > 0 ? `${maxDisc.toFixed(1)}%` : '—';
   }
 
   bestDealTitle(): string {
+    const top = this.topBestDeals;
+    if (top.length > 0) {
+      return top[0].title;
+    }
     const statuses = this.sortedCategories;
     let best: RankedDeal | null = null;
     for (const s of statuses) {
