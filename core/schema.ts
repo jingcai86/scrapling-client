@@ -258,6 +258,7 @@ export const scraplingUsers = scraplingSchema.table("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
   name: text("name"),
+  tz: text("tz").notNull().default("America/Los_Angeles"),
   enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -266,6 +267,8 @@ export const scraplingUsers = scraplingSchema.table("users", {
     .notNull()
     .defaultNow(),
 });
+
+export const scraplingUser = scraplingUsers; // alias for singular user table reference
 
 /**
  * 8. Notification Content & History (`scrapling.notifications`)
@@ -463,6 +466,7 @@ export const schema = {
   scraplingSellers,
   scraplingProductOffers,
   scraplingUsers,
+  scraplingUser,
   scraplingNotifications,
   scraplingNotificationUsers,
   scraplingNotificationRecords,

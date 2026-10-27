@@ -513,14 +513,18 @@ CREATE TABLE IF NOT EXISTS scrapling.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL UNIQUE,
   name TEXT,
+  tz TEXT NOT NULL DEFAULT 'America/Los_Angeles',
   enabled BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE scrapling.users ADD COLUMN IF NOT EXISTS tz TEXT NOT NULL DEFAULT 'America/Los_Angeles';
+CREATE OR REPLACE VIEW scrapling."user" AS SELECT * FROM scrapling.users;
+
 -- Seed default notification recipient from config or alert email if present
-INSERT INTO scrapling.users (email, name, enabled)
-VALUES ('alerts@example.com', 'Default Alert Recipient', true)
+INSERT INTO scrapling.users (email, name, tz, enabled)
+VALUES ('alerts@example.com', 'Default Alert Recipient', 'America/Los_Angeles', true)
 ON CONFLICT (email) DO NOTHING;
 
 -- ----------------------------------------------------------------------------

@@ -62,6 +62,7 @@ export {
   scraplingTargetPages,
   scraplingTargets,
   scraplingTopDeals,
+  scraplingUser,
   scraplingUsers,
   scraplingNotifications,
   scraplingNotificationUsers,

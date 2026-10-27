@@ -6,6 +6,7 @@ import {
   upsertDbUser,
   createDbNotification,
   getDbNotifications,
+  scraplingUser,
   scraplingUsers,
   scraplingNotifications,
   scraplingNotificationUsers,
@@ -16,6 +17,7 @@ import {
 describe("Notifications & Users Many-to-Many Architecture", () => {
   it("exports notification and user schema tables and relations in Drizzle schema", () => {
     assert.ok(scraplingUsers, "scraplingUsers should be defined");
+    assert.ok(scraplingUser, "scraplingUser alias should be defined");
     assert.ok(scraplingNotifications, "scraplingNotifications should be defined");
     assert.ok(
       scraplingNotificationUsers,
@@ -26,6 +28,7 @@ describe("Notifications & Users Many-to-Many Architecture", () => {
       "scraplingNotificationRecords should be defined",
     );
     assert.ok(schema.scraplingUsers, "schema should export scraplingUsers");
+    assert.ok(schema.scraplingUser, "schema should export scraplingUser");
     assert.ok(
       schema.scraplingNotifications,
       "schema should export scraplingNotifications",
@@ -52,7 +55,7 @@ describe("Notifications & Users Many-to-Many Architecture", () => {
     }
 
     try {
-      // 1. Create 2 test users
+      // 1. Create 2 test users (testing default and custom TZ)
       const email1 = `test-user-1-${Date.now()}@example.com`;
       const email2 = `test-user-2-${Date.now()}@example.com`;
 
@@ -61,7 +64,11 @@ describe("Notifications & Users Many-to-Many Architecture", () => {
         pool,
       );
       const user2 = await upsertDbUser(
-        { email: email2, name: "Test User Two" },
+        {
+          email: email2,
+          name: "Test User Two",
+          tz: "America/New_York",
+        },
         pool,
       );
 
@@ -69,11 +76,22 @@ describe("Notifications & Users Many-to-Many Architecture", () => {
       assert.ok(user2.id, "User 2 should have UUID id");
       assert.equal(user1.email, email1);
       assert.equal(user2.email, email2);
+      assert.equal(user1.tz, "America/Los_Angeles", "User 1 should default to America/Los_Angeles TZ");
+      assert.equal(user2.tz, "America/New_York", "User 2 should have custom America/New_York TZ");
+
+      // Verify scrapling."user" view queries properly
+      const userViewRes = await pool.query<{ id: string; email: string; tz: string }>(
+        'SELECT id, email, tz FROM scrapling."user" WHERE id = $1',
+        [user1.id],
+      );
+      assert.equal(userViewRes.rows.length, 1);
+      assert.equal(userViewRes.rows[0].email, email1);
+      assert.equal(userViewRes.rows[0].tz, "America/Los_Angeles");
 
       // Verify getDbUsers contains our users
       const allUsers = await getDbUsers(pool);
-      assert.ok(allUsers.some((u) => u.id === user1.id));
-      assert.ok(allUsers.some((u) => u.id === user2.id));
+      assert.ok(allUsers.some((u) => u.id === user1.id && u.tz === "America/Los_Angeles"));
+      assert.ok(allUsers.some((u) => u.id === user2.id && u.tz === "America/New_York"));
 
       // 2. Query an existing record from scrapling.records to link to
       const recordRes = await pool.query<{ id: string }>(

@@ -175,10 +175,14 @@ CREATE TABLE IF NOT EXISTS scrapling.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL UNIQUE,
   name TEXT,
+  tz TEXT NOT NULL DEFAULT 'America/Los_Angeles',
   enabled BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE scrapling.users ADD COLUMN IF NOT EXISTS tz TEXT NOT NULL DEFAULT 'America/Los_Angeles';
+CREATE OR REPLACE VIEW scrapling."user" AS SELECT * FROM scrapling.users;
 
 CREATE TABLE IF NOT EXISTS scrapling.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -871,6 +875,7 @@ export interface UserDbItem {
   id: string;
   email: string;
   name?: string | null;
+  tz: string;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -895,11 +900,12 @@ export async function getDbUsers(pool?: pg.Pool): Promise<UserDbItem[]> {
       id: string;
       email: string;
       name: string | null;
+      tz: string | null;
       enabled: boolean;
       created_at: Date;
       updated_at: Date;
     }>(`
-      SELECT id, email, name, enabled, created_at, updated_at
+      SELECT id, email, name, tz, enabled, created_at, updated_at
       FROM scrapling.users
       ORDER BY created_at ASC
     `);
@@ -907,6 +913,7 @@ export async function getDbUsers(pool?: pg.Pool): Promise<UserDbItem[]> {
       id: r.id,
       email: r.email,
       name: r.name,
+      tz: r.tz || "America/Los_Angeles",
       enabled: Boolean(r.enabled),
       createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
       updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
@@ -920,7 +927,13 @@ export async function getDbUsers(pool?: pg.Pool): Promise<UserDbItem[]> {
  * Creates or updates a user in `scrapling.users`.
  */
 export async function upsertDbUser(
-  user: { id?: string; email: string; name?: string | null; enabled?: boolean },
+  user: {
+    id?: string;
+    email: string;
+    name?: string | null;
+    tz?: string;
+    enabled?: boolean;
+  },
   pool?: pg.Pool,
 ): Promise<UserDbItem> {
   const ownPool = !pool;
@@ -929,30 +942,34 @@ export async function upsertDbUser(
     await ensureScraplingConfigTable(p);
     const enabled = user.enabled ?? true;
     const name = user.name ?? null;
+    const tz = user.tz?.trim() || "America/Los_Angeles";
     const res = await p.query<{
       id: string;
       email: string;
       name: string | null;
+      tz: string | null;
       enabled: boolean;
       created_at: Date;
       updated_at: Date;
     }>(
       `
-      INSERT INTO scrapling.users (id, email, name, enabled, updated_at)
-      VALUES (COALESCE($1, gen_random_uuid()), $2, $3, $4, NOW())
+      INSERT INTO scrapling.users (id, email, name, tz, enabled, updated_at)
+      VALUES (COALESCE($1, gen_random_uuid()), $2, $3, $4, $5, NOW())
       ON CONFLICT (email) DO UPDATE SET
         name = COALESCE(EXCLUDED.name, scrapling.users.name),
+        tz = COALESCE(EXCLUDED.tz, scrapling.users.tz),
         enabled = EXCLUDED.enabled,
         updated_at = NOW()
-      RETURNING id, email, name, enabled, created_at, updated_at
+      RETURNING id, email, name, tz, enabled, created_at, updated_at
     `,
-      [user.id ?? null, user.email.trim(), name, enabled],
+      [user.id ?? null, user.email.trim(), name, tz, enabled],
     );
     const r = res.rows[0];
     return {
       id: r.id,
       email: r.email,
       name: r.name,
+      tz: r.tz || tz,
       enabled: Boolean(r.enabled),
       createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
       updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
