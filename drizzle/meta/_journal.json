@@ -92,6 +92,13 @@
       "when": 1793106000000,
       "tag": "0012_sellers_uuid",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793109000000,
+      "tag": "0013_notifications_and_users",
+      "breakpoints": true
     }
   ]
 }

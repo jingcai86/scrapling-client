@@ -252,6 +252,95 @@ export const scraplingProductOffers = scraplingRecords;
 export const enebaProductOffers = scraplingRecords;
 
 /**
+ * 7. System Users & Notification Recipients (`scrapling.users`)
+ */
+export const scraplingUsers = scraplingSchema.table("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * 8. Notification Content & History (`scrapling.notifications`)
+ * Primary key is UUID `id`. Stores HTML string in `content`.
+ */
+export const scraplingNotifications = scraplingSchema.table(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    content: text("content").notNull(),
+    subject: text("subject").default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_scrapling_notifications_created_at").on(table.createdAt),
+  ],
+);
+
+/**
+ * 9. Many-to-Many Junction: Notifications <-> Users (`scrapling.notification_users`)
+ * Links notifications to recipients with delivery and read statuses.
+ */
+export const scraplingNotificationUsers = scraplingSchema.table(
+  "notification_users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => scraplingNotifications.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => scraplingUsers.id, { onDelete: "cascade" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("uq_notification_users").on(table.notificationId, table.userId),
+    index("idx_notification_users_user_id").on(table.userId),
+    index("idx_notification_users_notification_id").on(table.notificationId),
+  ],
+);
+
+/**
+ * 10. Many-to-Many Junction: Notifications <-> Records (`scrapling.notification_records`)
+ * Links notifications to specific scraped listing records included in the alert.
+ */
+export const scraplingNotificationRecords = scraplingSchema.table(
+  "notification_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => scraplingNotifications.id, { onDelete: "cascade" }),
+    recordId: uuid("record_id")
+      .notNull()
+      .references(() => scraplingRecords.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("uq_notification_records").on(table.notificationId, table.recordId),
+    index("idx_notification_records_record_id").on(table.recordId),
+    index("idx_notification_records_notification_id").on(
+      table.notificationId,
+    ),
+  ],
+);
+
+/**
  * Relational definitions for Drizzle relational query builder
  */
 export const scraplingScrapeRunsRelations = relations(
@@ -288,7 +377,7 @@ export const scraplingTargetsRelations = scraplingScrapeTargetsRelations;
 
 export const scraplingRecordsRelations = relations(
   scraplingRecords,
-  ({ one }) => ({
+  ({ one, many }) => ({
     scrapeRun: one(scraplingScrapeRuns, {
       fields: [scraplingRecords.scrapeRunId],
       references: [scraplingScrapeRuns.id],
@@ -305,6 +394,7 @@ export const scraplingRecordsRelations = relations(
       fields: [scraplingRecords.scrapeTargetId],
       references: [scraplingScrapeTargets.id],
     }),
+    notificationRecords: many(scraplingNotificationRecords),
   }),
 );
 
@@ -322,6 +412,46 @@ export const scraplingSellersRelations = relations(
 
 export const enebaSellersRelations = scraplingSellersRelations;
 
+export const scraplingUsersRelations = relations(scraplingUsers, ({ many }) => ({
+  notificationUsers: many(scraplingNotificationUsers),
+}));
+
+export const scraplingNotificationsRelations = relations(
+  scraplingNotifications,
+  ({ many }) => ({
+    notificationUsers: many(scraplingNotificationUsers),
+    notificationRecords: many(scraplingNotificationRecords),
+  }),
+);
+
+export const scraplingNotificationUsersRelations = relations(
+  scraplingNotificationUsers,
+  ({ one }) => ({
+    notification: one(scraplingNotifications, {
+      fields: [scraplingNotificationUsers.notificationId],
+      references: [scraplingNotifications.id],
+    }),
+    user: one(scraplingUsers, {
+      fields: [scraplingNotificationUsers.userId],
+      references: [scraplingUsers.id],
+    }),
+  }),
+);
+
+export const scraplingNotificationRecordsRelations = relations(
+  scraplingNotificationRecords,
+  ({ one }) => ({
+    notification: one(scraplingNotifications, {
+      fields: [scraplingNotificationRecords.notificationId],
+      references: [scraplingNotifications.id],
+    }),
+    record: one(scraplingRecords, {
+      fields: [scraplingNotificationRecords.recordId],
+      references: [scraplingRecords.id],
+    }),
+  }),
+);
+
 export const schema = {
   scraplingConfig,
   scraplingSchedulers,
@@ -332,6 +462,10 @@ export const schema = {
   scraplingTopDeals,
   scraplingSellers,
   scraplingProductOffers,
+  scraplingUsers,
+  scraplingNotifications,
+  scraplingNotificationUsers,
+  scraplingNotificationRecords,
   scraplingScrapeRunsRelations,
   scraplingProductsRelations,
   scraplingScrapeTargetsRelations,
@@ -340,6 +474,10 @@ export const schema = {
   scraplingTopDealsRelations,
   scraplingSellersRelations,
   scraplingProductOffersRelations,
+  scraplingUsersRelations,
+  scraplingNotificationsRelations,
+  scraplingNotificationUsersRelations,
+  scraplingNotificationRecordsRelations,
   // Backward compatibility
   enebaConfig,
   enebaProducts,

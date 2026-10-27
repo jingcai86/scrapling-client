@@ -170,6 +170,46 @@ BEGIN
     ALTER TABLE scrapling.scrape_targets RENAME COLUMN category TO provider;
   END IF;
 END $$;
+
+CREATE TABLE IF NOT EXISTS scrapling.users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  name TEXT,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS scrapling.notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  content TEXT NOT NULL,
+  subject TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS scrapling.notification_users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notification_id UUID NOT NULL REFERENCES scrapling.notifications(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES scrapling.users(id) ON DELETE CASCADE,
+  sent_at TIMESTAMPTZ,
+  read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_notification_users UNIQUE (notification_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS scrapling.notification_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notification_id UUID NOT NULL REFERENCES scrapling.notifications(id) ON DELETE CASCADE,
+  record_id UUID NOT NULL REFERENCES scrapling.records(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_notification_records UNIQUE (notification_id, record_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scrapling_notifications_created_at ON scrapling.notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_users_user_id ON scrapling.notification_users(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_users_notification_id ON scrapling.notification_users(notification_id);
+CREATE INDEX IF NOT EXISTS idx_notification_records_record_id ON scrapling.notification_records(record_id);
+CREATE INDEX IF NOT EXISTS idx_notification_records_notification_id ON scrapling.notification_records(notification_id);
 `;
 
 /**
@@ -826,3 +866,254 @@ export const getDbPages = getDbTargets;
 export const upsertDbPage = upsertDbTarget;
 export const deleteDbPage = deleteDbTarget;
 export const syncSchedulesAndPagesOnStartup = syncSchedulersAndTargetsOnStartup;
+
+export interface UserDbItem {
+  id: string;
+  email: string;
+  name?: string | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationDbItem {
+  id: string;
+  content: string;
+  subject?: string | null;
+  createdAt: string;
+}
+
+/**
+ * Loads all configured notification users/recipients from `scrapling.users`.
+ */
+export async function getDbUsers(pool?: pg.Pool): Promise<UserDbItem[]> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    const res = await p.query<{
+      id: string;
+      email: string;
+      name: string | null;
+      enabled: boolean;
+      created_at: Date;
+      updated_at: Date;
+    }>(`
+      SELECT id, email, name, enabled, created_at, updated_at
+      FROM scrapling.users
+      ORDER BY created_at ASC
+    `);
+    return res.rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      name: r.name,
+      enabled: Boolean(r.enabled),
+      createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
+    }));
+  } finally {
+    if (ownPool) await p.end();
+  }
+}
+
+/**
+ * Creates or updates a user in `scrapling.users`.
+ */
+export async function upsertDbUser(
+  user: { id?: string; email: string; name?: string | null; enabled?: boolean },
+  pool?: pg.Pool,
+): Promise<UserDbItem> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    const enabled = user.enabled ?? true;
+    const name = user.name ?? null;
+    const res = await p.query<{
+      id: string;
+      email: string;
+      name: string | null;
+      enabled: boolean;
+      created_at: Date;
+      updated_at: Date;
+    }>(
+      `
+      INSERT INTO scrapling.users (id, email, name, enabled, updated_at)
+      VALUES (COALESCE($1, gen_random_uuid()), $2, $3, $4, NOW())
+      ON CONFLICT (email) DO UPDATE SET
+        name = COALESCE(EXCLUDED.name, scrapling.users.name),
+        enabled = EXCLUDED.enabled,
+        updated_at = NOW()
+      RETURNING id, email, name, enabled, created_at, updated_at
+    `,
+      [user.id ?? null, user.email.trim(), name, enabled],
+    );
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      email: r.email,
+      name: r.name,
+      enabled: Boolean(r.enabled),
+      createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
+    };
+  } finally {
+    if (ownPool) await p.end();
+  }
+}
+
+/**
+ * Creates a notification with its HTML content and links it to multiple users and records (M:N).
+ */
+export async function createDbNotification(
+  options: {
+    content: string;
+    subject?: string;
+    userIds?: string[];
+    recordIds?: string[];
+    sentAt?: Date;
+  },
+  pool?: pg.Pool,
+): Promise<{
+  id: string;
+  content: string;
+  subject: string;
+  createdAt: string;
+  userIds: string[];
+  recordIds: string[];
+}> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    const client = await p.connect();
+    try {
+      await client.query("BEGIN");
+      const notifRes = await client.query<{
+        id: string;
+        content: string;
+        subject: string | null;
+        created_at: Date;
+      }>(
+        `INSERT INTO scrapling.notifications (content, subject)
+         VALUES ($1, $2)
+         RETURNING id, content, subject, created_at`,
+        [options.content, options.subject ?? ""],
+      );
+      const notif = notifRes.rows[0];
+
+      // Link users (Many-to-Many)
+      const linkedUserIds: string[] = [];
+      if (options.userIds && options.userIds.length > 0) {
+        for (const uId of options.userIds) {
+          await client.query(
+            `INSERT INTO scrapling.notification_users (notification_id, user_id, sent_at)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (notification_id, user_id) DO NOTHING`,
+            [notif.id, uId, options.sentAt ?? new Date()],
+          );
+          linkedUserIds.push(uId);
+        }
+      }
+
+      // Link records (Many-to-Many)
+      const linkedRecordIds: string[] = [];
+      if (options.recordIds && options.recordIds.length > 0) {
+        for (const rId of options.recordIds) {
+          await client.query(
+            `INSERT INTO scrapling.notification_records (notification_id, record_id)
+             VALUES ($1, $2)
+             ON CONFLICT (notification_id, record_id) DO NOTHING`,
+            [notif.id, rId],
+          );
+          linkedRecordIds.push(rId);
+        }
+      }
+
+      await client.query("COMMIT");
+      return {
+        id: notif.id,
+        content: notif.content,
+        subject: notif.subject ?? "",
+        createdAt: notif.created_at ? new Date(notif.created_at).toISOString() : new Date().toISOString(),
+        userIds: linkedUserIds,
+        recordIds: linkedRecordIds,
+      };
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  } finally {
+    if (ownPool) await p.end();
+  }
+}
+
+/**
+ * Retrieves notifications along with linked user IDs and record IDs.
+ */
+export async function getDbNotifications(
+  options: { limit?: number; offset?: number } = {},
+  pool?: pg.Pool,
+): Promise<
+  Array<{
+    id: string;
+    content: string;
+    subject: string;
+    createdAt: string;
+    userIds: string[];
+    recordIds: string[];
+  }>
+> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+    const offset = Math.max(options.offset ?? 0, 0);
+
+    const res = await p.query<{
+      id: string;
+      content: string;
+      subject: string | null;
+      created_at: Date;
+      user_ids: string[] | null;
+      record_ids: string[] | null;
+    }>(
+      `
+      SELECT 
+        n.id,
+        n.content,
+        n.subject,
+        n.created_at,
+        COALESCE(
+          ARRAY_AGG(DISTINCT nu.user_id::text) FILTER (WHERE nu.user_id IS NOT NULL),
+          '{}'
+        ) AS user_ids,
+        COALESCE(
+          ARRAY_AGG(DISTINCT nr.record_id::text) FILTER (WHERE nr.record_id IS NOT NULL),
+          '{}'
+        ) AS record_ids
+      FROM scrapling.notifications n
+      LEFT JOIN scrapling.notification_users nu ON nu.notification_id = n.id
+      LEFT JOIN scrapling.notification_records nr ON nr.notification_id = n.id
+      GROUP BY n.id, n.content, n.subject, n.created_at
+      ORDER BY n.created_at DESC
+      LIMIT $1 OFFSET $2
+    `,
+      [limit, offset],
+    );
+
+    return res.rows.map((r) => ({
+      id: r.id,
+      content: r.content,
+      subject: r.subject ?? "",
+      createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+      userIds: r.user_ids ?? [],
+      recordIds: r.record_ids ?? [],
+    }));
+  } finally {
+    if (ownPool) await p.end();
+  }
+}

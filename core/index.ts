@@ -35,6 +35,12 @@ export {
   type ScheduleDbItem,
   type ScrapePageDbItem,
   type TargetDbItem,
+  type UserDbItem,
+  type NotificationDbItem,
+  createDbNotification,
+  getDbNotifications,
+  getDbUsers,
+  upsertDbUser,
 } from "./db.js";
 export {
   createDrizzleDb,
@@ -56,6 +62,10 @@ export {
   scraplingTargetPages,
   scraplingTargets,
   scraplingTopDeals,
+  scraplingUsers,
+  scraplingNotifications,
+  scraplingNotificationUsers,
+  scraplingNotificationRecords,
   scraplingSchema,
   type ScraplingDb,
 } from "./schema.js";
