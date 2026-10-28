@@ -102,6 +102,23 @@ import {
                 {{ nextRunWindow() }}
               </span>
             </div>
+            <div class="kpi-chips-row" *ngIf="nextRunTargetPages.length > 0">
+              <span
+                class="kpi-mini-chip"
+                *ngFor="let page of nextRunTargetPages | slice:0:3"
+                [matTooltip]="page.name || page.url"
+              >
+                {{ getPageShortName(page.name || page.categoryName || page.productTitle) }}
+              </span>
+              <a
+                *ngIf="nextRunTargetPages.length > 3"
+                routerLink="/schedulers"
+                class="kpi-mini-chip kpi-mini-chip-link"
+                [matTooltip]="'View all ' + nextRunTargetPages.length + ' scheduled targets in Schedulers'"
+              >
+                ...
+              </a>
+            </div>
           </div>
         </mat-card>
 
@@ -1681,6 +1698,46 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!sched || !sched.nextRunAt) return 'No scheduled scrape for ' + this.providerDisplayName;
     const fullDate = new Date(sched.nextRunAt).toLocaleString();
     return `Next run: ${fullDate} (${sched.name || 'Default Schedule'}, Base ${sched.baseTime} + 0..${sched.jitterMinutes}m jitter)`;
+  }
+
+  get nextRunTargetPages(): ScrapePageConfig[] {
+    const sched = this.getEarliestProviderScheduler();
+    const activePages = this.getProviderActivePages();
+    if (!sched) return activePages;
+
+    const schedId = sched.id;
+    const isDefaultSched =
+      sched.isDefault ||
+      schedId === 'default' ||
+      schedId === '00000000-0000-0000-0000-000000000000' ||
+      schedId === 'c1000000-0000-4000-8000-000000000001';
+
+    const assigned = activePages.filter((p) => {
+      if (sched.assignedPageIds && sched.assignedPageIds.length > 0) {
+        if (sched.assignedPageIds.includes(p.id)) return true;
+      }
+      if (schedId && p.scheduleId === schedId) return true;
+      if (
+        isDefaultSched &&
+        (!p.scheduleId ||
+          p.scheduleId === 'default' ||
+          p.scheduleId === '00000000-0000-0000-0000-000000000000' ||
+          p.scheduleId === 'c1000000-0000-4000-8000-000000000001')
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    return assigned.length > 0 ? assigned : activePages;
+  }
+
+  getPageShortName(name?: string | null): string {
+    if (!name) return 'Target';
+    let clean = name.replace(/\s*\((?:G2A|Eneba)\)/i, '').trim();
+    clean = clean.replace(/\s*Gift Cards(?:\s*&\s*Wallet Codes)?/i, '').trim();
+    clean = clean.replace(/\s*iTunes\s*\/\s*App Store/i, 'iTunes').trim();
+    return clean || name;
   }
 
   get topBestDeals(): (RankedDeal & { scrapedAt?: string })[] {

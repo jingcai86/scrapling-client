@@ -827,6 +827,10 @@ tr.mat-mdc-row {
   margin-top: auto;
 }
 
+.kpi-sub-row + .kpi-chips-row {
+  margin-top: 0.35rem;
+}
+
 .kpi-mini-chip {
   font-size: 0.7rem;
   font-weight: 600;
@@ -836,6 +840,22 @@ tr.mat-mdc-row {
   color: #6366f1;
   border: 1px solid rgba(99, 102, 241, 0.2);
   white-space: nowrap;
+
+  &.kpi-mini-chip-link {
+    text-decoration: none !important;
+    cursor: pointer;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease-in-out;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    }
+  }
 }
 
 .kpi-sub-row {
@@ -1135,6 +1155,24 @@ tr.mat-mdc-row {
     background: rgba(14, 165, 233, 0.12);
     color: #0284c7;
   }
+
+  .kpi-mini-chip {
+    background: rgba(14, 165, 233, 0.1);
+    color: #0284c7;
+    border-color: rgba(14, 165, 233, 0.25);
+  }
+
+  .kpi-mini-chip-link {
+    background: rgba(14, 165, 233, 0.16);
+    color: #0369a1;
+    border-color: rgba(14, 165, 233, 0.35);
+
+    &:hover {
+      background: rgba(14, 165, 233, 0.28);
+      color: #0284c7;
+      border-color: rgba(14, 165, 233, 0.55);
+    }
+  }
 }
 
 .kpi-emerald {
@@ -1220,6 +1258,24 @@ tr.mat-mdc-row {
     .kpi-icon-pill {
       background: rgba(14, 165, 233, 0.2);
       color: #7dd3fc;
+    }
+
+    .kpi-mini-chip {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border-color: rgba(14, 165, 233, 0.35);
+    }
+
+    .kpi-mini-chip-link {
+      background: rgba(14, 165, 233, 0.24);
+      color: #7dd3fc;
+      border-color: rgba(14, 165, 233, 0.5);
+
+      &:hover {
+        background: rgba(14, 165, 233, 0.36);
+        color: #bae6fd;
+        border-color: rgba(14, 165, 233, 0.75);
+      }
     }
   }
 
