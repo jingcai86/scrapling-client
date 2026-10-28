@@ -41,8 +41,10 @@ export {
   type NotificationDbItem,
   createDbNotification,
   getDbNotifications,
+  getDbScrapeHistory,
   getDbUsers,
   upsertDbUser,
+  type DbScrapeHistoryItem,
 } from "./db.js";
 export {
   createDrizzleDb,

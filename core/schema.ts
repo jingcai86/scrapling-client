@@ -5,6 +5,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgSchema,
   smallint,
@@ -110,6 +111,24 @@ export const scraplingScrapeRuns = scraplingSchema.table(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     batchId: uuid("batch_id").notNull(),
+    scrapeTargetId: uuid("scrape_target_id").references(
+      () => scraplingScrapeTargets.id,
+      { onDelete: "set null" },
+    ),
+    provider: text("provider").notNull().default("eneba"),
+    status: text("status").notNull().default("success"),
+    errorMessage: text("error_message"),
+    totalListings: integer("total_listings").notNull().default(0),
+    inStockCount: integer("in_stock_count").notNull().default(0),
+    discountedCount: integer("discounted_count").notNull().default(0),
+    totalPages: integer("total_pages").default(1),
+    successfulPages: integer("successful_pages").default(1),
+    successRate: numeric("success_rate", { precision: 5, scale: 2 }).default("100.0"),
+    bestDealTitle: text("best_deal_title"),
+    bestDealPrice: numeric("best_deal_price", { precision: 10, scale: 2 }),
+    bestDealDiscountPct: numeric("best_deal_discount_pct", { precision: 6, scale: 2 }),
+    bestDealUrl: text("best_deal_url"),
+    bestDealsByProvider: jsonb("best_deals_by_provider"),
     scrapedAt: timestamp("scraped_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -137,6 +156,8 @@ export const scraplingScrapeRuns = scraplingSchema.table(
   (table) => [
     index("idx_scrapling_scrape_runs_scraped_at").on(table.scrapedAt),
     index("idx_scrapling_scrape_runs_batch_id").on(table.batchId),
+    index("idx_scrapling_scrape_runs_target_id").on(table.scrapeTargetId),
+    index("idx_scrapling_scrape_runs_provider").on(table.provider),
   ],
 );
 
@@ -348,7 +369,11 @@ export const scraplingNotificationRecords = scraplingSchema.table(
  */
 export const scraplingScrapeRunsRelations = relations(
   scraplingScrapeRuns,
-  ({ many }) => ({
+  ({ one, many }) => ({
+    target: one(scraplingScrapeTargets, {
+      fields: [scraplingScrapeRuns.scrapeTargetId],
+      references: [scraplingScrapeTargets.id],
+    }),
     records: many(scraplingRecords),
   }),
 );

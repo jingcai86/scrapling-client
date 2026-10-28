@@ -70,11 +70,15 @@ export function createPgPool(options: DbPoolOptions = {}): pg.Pool {
   });
 }
 
+let schemaEnsured = false;
+
 /**
  * Ensures the `scrapling` schema and `scrapling.config` table exist.
  */
 export async function ensureScraplingConfigTable(pool: pg.Pool): Promise<void> {
+  if (schemaEnsured) return;
   await pool.query(getSchemaSql());
+  schemaEnsured = true;
 }
 
 /**
@@ -1039,5 +1043,144 @@ export async function getDbNotifications(
     }));
   } finally {
     if (ownPool) await p.end();
+  }
+}
+
+export interface DbScrapeHistoryItem {
+  id: string;
+  provider?: string;
+  timestamp: string;
+  totalPages: number;
+  successfulPages: number;
+  successRate: number;
+  totalListings: number;
+  inStockCount: number;
+  bestDeal?: {
+    title: string;
+    category: string;
+    provider?: string;
+    sellerName: string;
+    cost: number;
+    faceValue: number;
+    discountPct: number;
+    url?: string;
+  };
+  bestDealsByProvider?: Record<
+    string,
+    {
+      title: string;
+      category: string;
+      provider?: string;
+      sellerName: string;
+      cost: number;
+      faceValue: number;
+      discountPct: number;
+      url?: string;
+    }
+  >;
+}
+
+/**
+ * Loads aggregated scrape run history and summary rates directly from PostgreSQL `scrapling.scrape_runs`.
+ */
+export async function getDbScrapeHistory(
+  pool?: pg.Pool,
+  limit = 60,
+): Promise<DbScrapeHistoryItem[]> {
+  const ownPool = !pool;
+  const p = pool ?? createPgPool();
+  try {
+    await ensureScraplingConfigTable(p);
+    const safeLimit = Math.min(Math.max(limit, 1), 200);
+
+    const res = await p.query<{
+      batch_id: string;
+      scraped_at: Date;
+      provider: string | null;
+      total_pages: number | null;
+      successful_pages: number | null;
+      success_rate: string | null;
+      total_listings: number | null;
+      in_stock_count: number | null;
+      best_deals_by_provider: any;
+      best_deal_title: string | null;
+      best_deal_price: string | null;
+      best_deal_discount_pct: string | null;
+      best_deal_url: string | null;
+    }>(
+      `
+      SELECT
+        batch_id,
+        MIN(scraped_at) AS scraped_at,
+        COALESCE(MAX(provider), 'eneba') AS provider,
+        COALESCE(MAX(total_pages), COUNT(*)::int) AS total_pages,
+        COALESCE(MAX(successful_pages), COUNT(CASE WHEN COALESCE(total_listings, 0) > 0 THEN 1 END)::int) AS successful_pages,
+        COALESCE(
+          MAX(success_rate),
+          ROUND((COUNT(CASE WHEN COALESCE(total_listings, 0) > 0 THEN 1 END)::numeric / NULLIF(COUNT(*), 0)) * 100, 1)
+        )::text AS success_rate,
+        COALESCE(
+          NULLIF(SUM(total_listings), 0),
+          (SELECT COUNT(*)::int FROM scrapling.records r WHERE r.batch_id = scrapling.scrape_runs.batch_id),
+          0
+        )::int AS total_listings,
+        COALESCE(
+          NULLIF(SUM(in_stock_count), 0),
+          (SELECT COUNT(*)::int FROM scrapling.records r WHERE r.batch_id = scrapling.scrape_runs.batch_id AND r.in_stock),
+          0
+        )::int AS in_stock_count,
+        (ARRAY_AGG(best_deals_by_provider) FILTER (WHERE best_deals_by_provider IS NOT NULL))[1] AS best_deals_by_provider,
+        (ARRAY_AGG(best_deal_title ORDER BY max_discount_pct DESC NULLS LAST) FILTER (WHERE best_deal_title IS NOT NULL))[1] AS best_deal_title,
+        (ARRAY_AGG(best_deal_price ORDER BY max_discount_pct DESC NULLS LAST) FILTER (WHERE best_deal_title IS NOT NULL))[1] AS best_deal_price,
+        (ARRAY_AGG(best_deal_discount_pct ORDER BY max_discount_pct DESC NULLS LAST) FILTER (WHERE best_deal_title IS NOT NULL))[1] AS best_deal_discount_pct,
+        (ARRAY_AGG(best_deal_url ORDER BY max_discount_pct DESC NULLS LAST) FILTER (WHERE best_deal_title IS NOT NULL))[1] AS best_deal_url
+      FROM scrapling.scrape_runs
+      GROUP BY batch_id
+      ORDER BY MIN(scraped_at) DESC
+      LIMIT $1
+    `,
+      [safeLimit],
+    );
+
+    return res.rows.map((r) => {
+      const bestDealsByProvider = r.best_deals_by_provider || undefined;
+      let bestDeal: DbScrapeHistoryItem["bestDeal"] = undefined;
+
+      if (r.best_deal_title) {
+        bestDeal = {
+          title: r.best_deal_title,
+          category: r.provider === "g2a" ? "G2A" : "Eneba",
+          provider: r.provider || "eneba",
+          sellerName: "Top Merchant",
+          cost: r.best_deal_price ? Number(r.best_deal_price) : 0,
+          faceValue: 0,
+          discountPct: r.best_deal_discount_pct ? Number(r.best_deal_discount_pct) : 0,
+          url: r.best_deal_url || undefined,
+        };
+      } else if (bestDealsByProvider && typeof bestDealsByProvider === "object") {
+        const topProv = Object.values(bestDealsByProvider)[0] as any;
+        if (topProv) {
+          bestDeal = topProv;
+        }
+      }
+
+      return {
+        id: r.batch_id,
+        provider: r.provider || "eneba",
+        timestamp: new Date(r.scraped_at).toISOString(),
+        totalPages: Number(r.total_pages ?? 1),
+        successfulPages: Number(r.successful_pages ?? 1),
+        successRate: Number(r.success_rate ?? 100),
+        totalListings: Number(r.total_listings ?? 0),
+        inStockCount: Number(r.in_stock_count ?? 0),
+        bestDeal,
+        bestDealsByProvider,
+      };
+    });
+  } catch (err) {
+    console.warn("[PostgreSQL Warn] Could not fetch scrape history from database:", err);
+    return [];
+  } finally {
+    if (ownPool) await p.end().catch(() => {});
   }
 }

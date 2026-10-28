@@ -289,15 +289,11 @@ BEGIN
       FOREIGN KEY (scrape_run_id) REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE;
   END IF;
 
-  -- Drop non-generic & redundant page-level columns from scrape_runs
-  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS provider CASCADE;
+  -- Retain target reference and metrics on scrape_runs
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_id CASCADE;
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS target_name CASCADE;
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS page_url CASCADE;
   ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS page_number CASCADE;
-  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS total_listings CASCADE;
-  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS in_stock_count CASCADE;
-  ALTER TABLE scrapling.scrape_runs DROP COLUMN IF EXISTS discounted_count CASCADE;
 
   -- Ensure sellers.id and records.seller_id are UUID
   IF EXISTS (
@@ -424,6 +420,21 @@ ON CONFLICT (id) DO UPDATE SET
 CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL,
+  scrape_target_id UUID REFERENCES scrapling.scrape_targets(id) ON DELETE SET NULL,
+  provider TEXT NOT NULL DEFAULT 'eneba',
+  status TEXT NOT NULL DEFAULT 'success',
+  error_message TEXT,
+  total_listings INTEGER NOT NULL DEFAULT 0,
+  in_stock_count INTEGER NOT NULL DEFAULT 0,
+  discounted_count INTEGER NOT NULL DEFAULT 0,
+  total_pages INTEGER DEFAULT 1,
+  successful_pages INTEGER DEFAULT 1,
+  success_rate NUMERIC(5, 2) DEFAULT 100.0,
+  best_deal_title TEXT,
+  best_deal_price NUMERIC(10, 2),
+  best_deal_discount_pct NUMERIC(6, 2),
+  best_deal_url TEXT,
+  best_deals_by_provider JSONB,
   scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   avg_discount_pct_on_discounted NUMERIC(6, 2) NOT NULL,
   avg_discount_pct_all_in_stock NUMERIC(6, 2) NOT NULL,
@@ -431,6 +442,53 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   max_discount_pct NUMERIC(6, 2) NOT NULL,
   max_effective_discount_pct NUMERIC(6, 2) NOT NULL
 );
+
+-- Idempotent column migrations for scrapling.scrape_runs
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS scrape_target_id UUID REFERENCES scrapling.scrape_targets(id) ON DELETE SET NULL;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'eneba';
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'success';
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS error_message TEXT;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS total_listings INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS in_stock_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS discounted_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS total_pages INTEGER DEFAULT 1;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS successful_pages INTEGER DEFAULT 1;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS success_rate NUMERIC(5, 2) DEFAULT 100.0;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS best_deal_title TEXT;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS best_deal_price NUMERIC(10, 2);
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS best_deal_discount_pct NUMERIC(6, 2);
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS best_deal_url TEXT;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS best_deals_by_provider JSONB;
+
+-- Backfill scrape_runs summary metrics from records if unpopulated
+UPDATE scrapling.scrape_runs sr
+SET
+  total_listings = COALESCE(sub.cnt, 0),
+  in_stock_count = COALESCE(sub.in_stock_cnt, 0),
+  discounted_count = COALESCE(sub.disc_cnt, 0),
+  provider = COALESCE(sub.provider, 'eneba'),
+  scrape_target_id = COALESCE(sr.scrape_target_id, sub.scrape_target_id),
+  best_deal_title = COALESCE(sr.best_deal_title, sub.best_title),
+  best_deal_price = COALESCE(sr.best_deal_price, sub.best_price),
+  best_deal_discount_pct = COALESCE(sr.best_deal_discount_pct, sub.best_disc),
+  best_deal_url = COALESCE(sr.best_deal_url, sub.best_url)
+FROM (
+  SELECT
+    scrape_run_id,
+    COUNT(*)::int AS cnt,
+    COUNT(CASE WHEN in_stock THEN 1 END)::int AS in_stock_cnt,
+    COUNT(CASE WHEN discount_pct > 0 THEN 1 END)::int AS disc_cnt,
+    MAX(provider) AS provider,
+    (ARRAY_AGG(scrape_target_id))[1] AS scrape_target_id,
+    (ARRAY_AGG(title ORDER BY discount_pct DESC NULLS LAST) FILTER (WHERE title IS NOT NULL))[1] AS best_title,
+    (ARRAY_AGG(selling_price ORDER BY discount_pct DESC NULLS LAST) FILTER (WHERE title IS NOT NULL))[1] AS best_price,
+    (ARRAY_AGG(discount_pct ORDER BY discount_pct DESC NULLS LAST) FILTER (WHERE title IS NOT NULL))[1] AS best_disc,
+    (ARRAY_AGG(url ORDER BY discount_pct DESC NULLS LAST) FILTER (WHERE title IS NOT NULL))[1] AS best_url
+  FROM scrapling.records
+  WHERE scrape_run_id IS NOT NULL
+  GROUP BY scrape_run_id
+) sub
+WHERE sr.id = sub.scrape_run_id AND (sr.total_listings = 0 OR sr.total_listings IS NULL);
 
 -- ----------------------------------------------------------------------------
 -- 6. Merchant / Seller Registry

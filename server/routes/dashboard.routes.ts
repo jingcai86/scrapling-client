@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   ENV_SCHEMA,
+  getDbScrapeHistory,
   readAllConfigValues,
   resolveEnvFilePath,
 } from "../../core/index.js";
@@ -20,6 +21,18 @@ export function createDashboardRouter(ctx: ServerContext): Router {
       });
       const enebaConfig = await getEnebaConfig({ pool: ctx.pool });
 
+      let history = ctx.runner.getHistory();
+      if (ctx.pool) {
+        try {
+          const dbHistory = await getDbScrapeHistory(ctx.pool);
+          if (dbHistory.length > 0) {
+            history = dbHistory;
+          }
+        } catch {
+          // fallback to runner in-memory history
+        }
+      }
+
       const assignedPagesMap = ctx.pageStore.getAssignedPagesMap();
       res.json({
         pages,
@@ -29,7 +42,7 @@ export function createDashboardRouter(ctx: ServerContext): Router {
         scheduler: ctx.scheduler.getState(),
         schedulers: ctx.schedulerManager.getStates(assignedPagesMap),
         enebaConfig,
-        history: ctx.runner.getHistory(),
+        history,
         env: {
           schema: ENV_SCHEMA,
           values: configValues,

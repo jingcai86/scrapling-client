@@ -285,6 +285,28 @@ export async function savePageDealsToDb(
     let scrapeRunsInserted = 0;
     let recordsInserted = 0;
 
+    const totalPages = statusList.length;
+    const successfulPages = statusList.filter((s) => (s.totalListings || 0) > 0).length;
+    const successRate = totalPages > 0 ? Number(((successfulPages / totalPages) * 100).toFixed(2)) : 100;
+
+    const bestDealsByProvider: Record<string, any> = {};
+    for (const s of statusList) {
+      const prov = (s.provider || s.category || "eneba").toLowerCase().includes("g2a") ? "g2a" : "eneba";
+      const top = s.bestDeal || s.bestEffectiveDeal || (s.rankedDeals && s.rankedDeals[0]);
+      if (top && (top.discountPct || 0) > (bestDealsByProvider[prov]?.discountPct || -1)) {
+        bestDealsByProvider[prov] = {
+          title: top.title,
+          category: s.targetName || s.name || s.category,
+          provider: prov,
+          sellerName: (s.bestDealOffers && s.bestDealOffers[0]?.sellerName) || top.offers?.[0]?.sellerName || "Top Merchant",
+          cost: top.sellingPrice ?? 0,
+          faceValue: top.faceValue ?? top.originalPrice ?? 0,
+          discountPct: top.discountPct ?? 0,
+          url: top.url,
+        };
+      }
+    }
+
     await db.transaction(async (tx) => {
       for (const status of statusList) {
         // Find matching target if any
@@ -322,11 +344,28 @@ export async function savePageDealsToDb(
             ? "g2a"
             : "eneba");
 
+        const pageBestDeal = status.bestDeal || status.bestEffectiveDeal || (status.rankedDeals && status.rankedDeals[0]);
+
         // 1. Insert the page-level scrape run into scrapling.scrape_runs
         const runRes = await tx
           .insert(scraplingScrapeRuns)
           .values({
             batchId,
+            scrapeTargetId,
+            provider: siteProvider,
+            status: (status.totalListings || 0) > 0 ? "success" : "empty",
+            errorMessage: status.totalListings === 0 ? "No listings found on target page" : null,
+            totalListings: status.totalListings || 0,
+            inStockCount: status.inStockCount || 0,
+            discountedCount: status.discountedCount || 0,
+            totalPages,
+            successfulPages,
+            successRate: String(successRate),
+            bestDealTitle: pageBestDeal?.title ?? null,
+            bestDealPrice: pageBestDeal?.sellingPrice != null ? String(pageBestDeal.sellingPrice) : null,
+            bestDealDiscountPct: pageBestDeal?.discountPct != null ? String(pageBestDeal.discountPct) : null,
+            bestDealUrl: pageBestDeal?.url ?? null,
+            bestDealsByProvider: Object.keys(bestDealsByProvider).length > 0 ? bestDealsByProvider : null,
             scrapedAt: batchDate,
             avgDiscountPctOnDiscounted: String(
               status.averageDiscountPctOnDiscounted,
