@@ -58,7 +58,7 @@ import type { ScrapePageConfig, CatalogProduct } from '../core/models/dashboard.
 
         <div class="checkbox-group">
           <mat-checkbox [(ngModel)]="enabled" name="enabled">
-            Target Enabled for Scheduled &amp; Batch Scrapes
+            Scraping: <strong>{{ enabled ? 'On' : 'Off' }}</strong>
           </mat-checkbox>
         </div>
       </div>

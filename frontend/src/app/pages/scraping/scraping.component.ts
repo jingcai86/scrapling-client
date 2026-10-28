@@ -238,15 +238,15 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
 
 
               <ng-container matColumnDef="enabled">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Enabled</th>
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Scraping</th>
                 <td mat-cell *matCellDef="let page">
                   <mat-slide-toggle
                     [checked]="page.enabled"
                     (change)="toggleEnabled(page, $event.checked)"
-                    [matTooltip]="page.enabled ? 'Page active for scheduled & batch scrapes' : 'Page disabled (skipped during scrapes)'"
+                    [matTooltip]="page.enabled ? 'Scraping is On' : 'Scraping is Off'"
                   >
                     <span style="font-size:0.8rem;font-weight:600;" [style.color]="page.enabled ? '#10b981' : 'var(--mat-sys-outline)'">
-                      {{ page.enabled ? 'Active' : 'Disabled' }}
+                      {{ page.enabled ? 'On' : 'Off' }}
                     </span>
                   </mat-slide-toggle>
                 </td>
