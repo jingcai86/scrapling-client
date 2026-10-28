@@ -172,7 +172,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
             <div class="table-header-titles">
-              <mat-card-title>{{ providerDisplayName }} Pages — Scraping Runs &amp; Status</mat-card-title>
+              <mat-card-title>{{ providerDisplayName }} Pages — Scrape Run Details</mat-card-title>
               <mat-card-subtitle>
                 Scraping run telemetry, execution status, and denomination analytics per task. Click any row to expand details.
               </mat-card-subtitle>
