@@ -13,6 +13,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import type { ScrapePageConfig, SchedulerState } from '../core/models/dashboard.model';
 
 export interface EnebaConfigDialogData {
+  providerDisplayName?: string;
   topDealsLimit: number;
   alertThresholdPct: number;
   pages?: ScrapePageConfig[];
@@ -45,10 +46,10 @@ export interface EnebaConfigDialogResult {
     <div class="dialog-header">
       <div class="header-left">
         <h2 mat-dialog-title class="dialog-title">
-          <span>⚙️ Eneba Store &amp; Schedule Configuration</span>
+          <span>⚙️ {{ providerTitle }} Store &amp; Schedule Configuration</span>
         </h2>
         <p class="dialog-subtitle">
-          Configure deal limits, alert thresholds, and assign scraping schedules across monitored Eneba categories.
+          Configure deal limits, alert thresholds, and assign scraping schedules across monitored {{ providerTitle }} categories.
         </p>
       </div>
       <button mat-icon-button mat-dialog-close aria-label="Close dialog">
@@ -359,6 +360,10 @@ export class EnebaConfigDialogComponent {
   categoryPages: ScrapePageConfig[] = [];
   schedulers: SchedulerState[] = [];
   pageSchedules: Record<string, string> = {};
+
+  get providerTitle(): string {
+    return this.data?.providerDisplayName || 'Provider';
+  }
 
   constructor(
     public dialogRef: MatDialogRef<EnebaConfigDialogComponent>,

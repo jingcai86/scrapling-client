@@ -34,7 +34,7 @@ import {
 } from '../../core/models/dashboard.model';
 
 @Component({
-  selector: 'app-eneba',
+  selector: 'app-provider',
   standalone: true,
   imports: [
     CommonModule,
@@ -164,7 +164,7 @@ import {
               </div>
             </div>
             <div class="kpi-actions-row">
-              <button mat-stroked-button type="button" class="kpi-btn-config" (click)="openEnebaConfigModal()">
+              <button mat-stroked-button type="button" class="kpi-btn-config" (click)="openProviderConfigModal()">
                 <mat-icon class="btn-mat-icon">settings</mat-icon>
                 <span>Config</span>
               </button>
@@ -1376,7 +1376,7 @@ import {
     }
   `],
 })
-export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
+export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('bestDiscountChartContainer') bestDiscountChartContainerRef?: ElementRef<HTMLDivElement>;
   private chartInstance?: echarts.ECharts;
   private resizeObserver?: ResizeObserver;
@@ -2519,7 +2519,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     return [];
   }
 
-  get enebaPages(): ScrapePageConfig[] {
+  get providerPages(): ScrapePageConfig[] {
     const pages = this.apiService.dashboardData()?.pages || [];
     return pages.filter(
       (p) =>
@@ -2531,12 +2531,18 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
-  openEnebaConfigModal() {
+  // Backward-compatible alias
+  get enebaPages(): ScrapePageConfig[] {
+    return this.providerPages;
+  }
+
+  openProviderConfigModal() {
     const dialogRef = this.dialog.open(EnebaConfigDialogComponent, {
       data: {
+        providerDisplayName: this.providerDisplayName,
         topDealsLimit: this.topDealsLimit,
         alertThresholdPct: this.alertThresholdPct,
-        pages: this.enebaPages,
+        pages: this.providerPages,
         schedulers: this.schedulersList,
       },
       width: '560px',
@@ -2547,11 +2553,11 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       if (res) {
         this.topDealsLimit = res.topDealsLimit;
         this.alertThresholdPct = res.alertThresholdPct;
-        this.saveEnebaConfig();
+        this.saveProviderConfig();
 
         if (res.pageSchedules) {
           for (const [pageId, schedId] of Object.entries(res.pageSchedules)) {
-            const page = this.enebaPages.find((p) => p.id === pageId);
+            const page = this.providerPages.find((p) => p.id === pageId);
             if (page && (page.scheduleId || 'default') !== schedId) {
               this.apiService.assignPageSchedule(pageId, schedId as string).subscribe();
             }
@@ -2561,15 +2567,23 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  saveEnebaConfig() {
+  openEnebaConfigModal() {
+    this.openProviderConfigModal();
+  }
+
+  saveProviderConfig() {
     this.apiService
       .updateEnebaConfig({
         top_deals_limit: String(this.topDealsLimit),
         alert_discount_threshold_pct: String(this.alertThresholdPct),
       })
       .subscribe(() => {
-        this.snackBar.open('Eneba configuration saved successfully!', 'OK', { duration: 3000 });
+        this.snackBar.open(`${this.providerDisplayName} configuration saved successfully!`, 'OK', { duration: 3000 });
       });
+  }
+
+  saveEnebaConfig() {
+    this.saveProviderConfig();
   }
 
   triggerScrape() {
