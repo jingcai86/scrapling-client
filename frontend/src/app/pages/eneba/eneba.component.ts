@@ -217,10 +217,13 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                 <ng-container matColumnDef="averageDiscount">
                   <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-avg">Avg Discount</th>
                   <td mat-cell *matCellDef="let s" class="col-avg">
-                    <span class="badge badge-discount" *ngIf="s.averageDiscountPctAllInStock > 0">
-                      -{{ s.averageDiscountPctAllInStock.toFixed(1) }}%
+                    <span class="badge badge-discount" *ngIf="getAvgDiscountDisplay(s).hasDiscount" [matTooltip]="getAvgDiscountDisplay(s).tooltip || ''">
+                      {{ getAvgDiscountDisplay(s).text }}
                     </span>
-                    <span class="muted" *ngIf="!s.averageDiscountPctAllInStock || s.averageDiscountPctAllInStock <= 0">—</span>
+                    <span class="badge badge-muted" *ngIf="!getAvgDiscountDisplay(s).hasDiscount && !getAvgDiscountDisplay(s).isMuted" [matTooltip]="getAvgDiscountDisplay(s).tooltip || ''">
+                      {{ getAvgDiscountDisplay(s).text }}
+                    </span>
+                    <span class="muted" *ngIf="getAvgDiscountDisplay(s).isMuted">—</span>
                   </td>
                 </ng-container>
 
@@ -229,26 +232,48 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                   <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-latest-deal">Latest Deal</th>
                   <td mat-cell *matCellDef="let s" class="col-latest-deal">
                     <a
-                      *ngIf="s.bestDeal && s.bestDeal.discountPct > 0"
-                      [href]="s.bestDeal.url"
+                      *ngIf="getLatestDealDisplay(s).hasDeal && getLatestDealDisplay(s).url"
+                      [href]="getLatestDealDisplay(s).url"
                       target="_blank"
                       rel="noopener"
                       class="deal-cell-link"
-                      [title]="s.bestDeal.title"
+                      [title]="getLatestDealDisplay(s).title"
                       (click)="$event.stopPropagation()"
                     >
-                      <span class="badge badge-discount-peak">-{{ s.bestDeal.discountPct.toFixed(1) }}%</span>
-                      <strong class="deal-price-text" *ngIf="s.bestDeal.sellingPrice">(\${{ s.bestDeal.sellingPrice.toFixed(2) }})</strong>
+                      <span class="badge badge-discount-peak" *ngIf="getLatestDealDisplay(s).discountPct > 0">
+                        -{{ getLatestDealDisplay(s).discountPct.toFixed(1) }}%
+                      </span>
+                      <span class="badge badge-muted" *ngIf="getLatestDealDisplay(s).discountPct <= 0">
+                        0.0%
+                      </span>
+                      <strong class="deal-price-text" *ngIf="getLatestDealDisplay(s).price">
+                        (\${{ getLatestDealDisplay(s).price }})
+                      </strong>
                     </a>
-                    <span class="muted" *ngIf="!s.bestDeal || s.bestDeal.discountPct <= 0">—</span>
+                    <span
+                      *ngIf="getLatestDealDisplay(s).hasDeal && !getLatestDealDisplay(s).url"
+                      class="deal-cell-static"
+                      [title]="getLatestDealDisplay(s).title"
+                    >
+                      <span class="badge badge-discount-peak" *ngIf="getLatestDealDisplay(s).discountPct > 0">
+                        -{{ getLatestDealDisplay(s).discountPct.toFixed(1) }}%
+                      </span>
+                      <span class="badge badge-muted" *ngIf="getLatestDealDisplay(s).discountPct <= 0">
+                        0.0%
+                      </span>
+                      <strong class="deal-price-text" *ngIf="getLatestDealDisplay(s).price">
+                        (\${{ getLatestDealDisplay(s).price }})
+                      </strong>
+                    </span>
+                    <span class="muted" *ngIf="!getLatestDealDisplay(s).hasDeal">—</span>
                   </td>
                 </ng-container>
 
-                <!-- Best Face Value Column -->
+                <!-- Best Face Value Column (Renamed to Best Value) -->
                 <ng-container matColumnDef="bestFace">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-face">Best Face</th>
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-face">Best Value</th>
                   <td mat-cell *matCellDef="let s" class="col-best-face">
-                    <span class="badge badge-face-pill" *ngIf="getPeakFace(s).faceValue !== '—'" matTooltip="Highest peak discount observed for this target">
+                    <span class="badge badge-face-pill" *ngIf="getPeakFace(s).faceValue !== '—'" matTooltip="Highest peak discount denomination observed for this page">
                       \${{ getPeakFace(s).faceValue }} <small>(-{{ getPeakFace(s).peakPct }}%)</small>
                     </span>
                     <span class="muted" *ngIf="getPeakFace(s).faceValue === '—'">—</span>
@@ -277,8 +302,8 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                             <mat-icon class="card-icon">percent</mat-icon>
                             <span class="card-label">Average Discount</span>
                           </div>
-                          <div class="analytics-card-val" [class.highlight-pct]="s.averageDiscountPctAllInStock > 0">
-                            {{ s.averageDiscountPctAllInStock > 0 ? '-' + s.averageDiscountPctAllInStock.toFixed(1) + '%' : '0.0%' }}
+                          <div class="analytics-card-val" [class.highlight-pct]="getAvgDiscountPct(s) > 0">
+                            {{ getAvgDiscountDisplay(s).text }}
                           </div>
                           <div class="analytics-card-sub">Across all in-stock listings</div>
                         </div>
@@ -289,11 +314,14 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                             <mat-icon class="card-icon">local_fire_department</mat-icon>
                             <span class="card-label">Latest Best Deal</span>
                           </div>
-                          <div class="analytics-card-val highlight-emerald" *ngIf="s.bestDeal && s.bestDeal.discountPct > 0">
-                            -{{ s.bestDeal.discountPct.toFixed(1) }}%
-                            <small class="savings-chip">Save \${{ getActualDiscountSavings(s) }}</small>
+                          <div class="analytics-card-val highlight-emerald" *ngIf="getLatestDealDisplay(s).hasDeal && getLatestDealDisplay(s).discountPct > 0">
+                            -{{ getLatestDealDisplay(s).discountPct.toFixed(1) }}%
+                            <small class="savings-chip" *ngIf="getActualDiscountSavings(s) !== '0.00'">Save \${{ getActualDiscountSavings(s) }}</small>
                           </div>
-                          <div class="analytics-card-val muted" *ngIf="!s.bestDeal || s.bestDeal.discountPct <= 0">
+                          <div class="analytics-card-val" *ngIf="getLatestDealDisplay(s).hasDeal && getLatestDealDisplay(s).discountPct <= 0">
+                            0.0% <small class="savings-chip" *ngIf="getLatestDealDisplay(s).price">(\${{ getLatestDealDisplay(s).price }})</small>
+                          </div>
+                          <div class="analytics-card-val muted" *ngIf="!getLatestDealDisplay(s).hasDeal">
                             No active discount
                           </div>
                           <div class="analytics-card-sub">{{ getPriceOnFaceSummary(s) }}</div>
@@ -773,6 +801,14 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
           text-decoration: underline;
         }
       }
+    }
+    .deal-cell-static {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--mat-sys-on-surface);
+      white-space: nowrap !important;
+      line-height: 1.3;
     }
     .badge-discount-peak {
       background: rgba(16, 185, 129, 0.16);
@@ -1320,6 +1356,115 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     return `${diffDays}d ago`;
   }
 
+  getAvgDiscountPct(s: PageDealStatus): number {
+    if (s.averageDiscountPctAllInStock && s.averageDiscountPctAllInStock > 0) {
+      return s.averageDiscountPctAllInStock;
+    }
+    if (s.faceAnalytics?.mostFrequentFace?.avgDiscountPct && s.faceAnalytics.mostFrequentFace.avgDiscountPct > 0) {
+      return s.faceAnalytics.mostFrequentFace.avgDiscountPct;
+    }
+    if (s.bestDeal && s.bestDeal.discountPct > 0) {
+      return s.bestDeal.discountPct;
+    }
+    if (s.faceAnalytics?.peakDiscountFace?.maxDiscountPct && s.faceAnalytics.peakDiscountFace.maxDiscountPct > 0) {
+      return s.faceAnalytics.peakDiscountFace.maxDiscountPct;
+    }
+    return 0;
+  }
+
+  getAvgDiscountDisplay(s: PageDealStatus): { text: string; hasDiscount: boolean; isMuted: boolean; tooltip?: string } {
+    const pct = this.getAvgDiscountPct(s);
+    if (pct > 0) {
+      return {
+        text: `-${pct.toFixed(1)}%`,
+        hasDiscount: true,
+        isMuted: false,
+        tooltip: s.averageDiscountPctAllInStock > 0
+          ? `Average discount across all in-stock listings: ${s.averageDiscountPctAllInStock.toFixed(1)}%`
+          : `Observed discount on monitored face values: ${pct.toFixed(1)}%`,
+      };
+    }
+    if (s.totalListings > 0 || (s.rankedDeals && s.rankedDeals.length > 0)) {
+      return {
+        text: '0.0%',
+        hasDiscount: false,
+        isMuted: false,
+        tooltip: 'Listings active at standard retail price (0% discount)',
+      };
+    }
+    return { text: '—', hasDiscount: false, isMuted: true };
+  }
+
+  getLatestDealPct(s: PageDealStatus): number {
+    if (s.bestDeal && s.bestDeal.discountPct > 0) {
+      return s.bestDeal.discountPct;
+    }
+    if (s.bestEffectiveDeal && s.bestEffectiveDeal.discountPct > 0) {
+      return s.bestEffectiveDeal.discountPct;
+    }
+    if (s.rankedDeals && s.rankedDeals.length > 0 && s.rankedDeals[0].discountPct > 0) {
+      return s.rankedDeals[0].discountPct;
+    }
+    if (s.faceAnalytics?.peakDiscountFace && s.faceAnalytics.peakDiscountFace.maxDiscountPct > 0) {
+      return s.faceAnalytics.peakDiscountFace.maxDiscountPct;
+    }
+    return 0;
+  }
+
+  getLatestDealDisplay(s: PageDealStatus): {
+    hasDeal: boolean;
+    discountPct: number;
+    price: string | null;
+    url: string | null;
+    title: string;
+  } {
+    if (s.bestDeal && (s.bestDeal.discountPct > 0 || (s.bestDeal.sellingPrice && s.bestDeal.sellingPrice > 0))) {
+      return {
+        hasDeal: true,
+        discountPct: s.bestDeal.discountPct || 0,
+        price: s.bestDeal.sellingPrice ? s.bestDeal.sellingPrice.toFixed(2) : null,
+        url: s.bestDeal.url || null,
+        title: s.bestDeal.title || 'Latest Deal',
+      };
+    }
+    if (s.bestEffectiveDeal && (s.bestEffectiveDeal.discountPct > 0 || (s.bestEffectiveDeal.sellingPrice && s.bestEffectiveDeal.sellingPrice > 0))) {
+      return {
+        hasDeal: true,
+        discountPct: s.bestEffectiveDeal.discountPct || 0,
+        price: s.bestEffectiveDeal.sellingPrice ? s.bestEffectiveDeal.sellingPrice.toFixed(2) : null,
+        url: s.bestEffectiveDeal.url || null,
+        title: s.bestEffectiveDeal.title || 'Latest Deal',
+      };
+    }
+    if (s.rankedDeals && s.rankedDeals.length > 0) {
+      const d = s.rankedDeals[0];
+      return {
+        hasDeal: true,
+        discountPct: d.discountPct || 0,
+        price: d.sellingPrice ? d.sellingPrice.toFixed(2) : null,
+        url: d.url || null,
+        title: d.title || 'Latest Deal',
+      };
+    }
+    if (s.faceAnalytics?.peakDiscountFace && s.faceAnalytics.peakDiscountFace.maxDiscountPct > 0) {
+      const pf = s.faceAnalytics.peakDiscountFace;
+      return {
+        hasDeal: true,
+        discountPct: pf.maxDiscountPct,
+        price: pf.minPrice ? pf.minPrice.toFixed(2) : null,
+        url: s.pageUrl || null,
+        title: `Peak discount: $${pf.faceValue} face at $${pf.minPrice.toFixed(2)}`,
+      };
+    }
+    return {
+      hasDeal: false,
+      discountPct: 0,
+      price: null,
+      url: null,
+      title: '',
+    };
+  }
+
   getActualDiscountSavings(s: PageDealStatus): string {
     if (s.bestDeal?.savingsAmount && s.bestDeal.savingsAmount > 0) {
       return s.bestDeal.savingsAmount.toFixed(2);
@@ -1328,16 +1473,29 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     if (orig && s.bestDeal?.sellingPrice && orig > s.bestDeal.sellingPrice) {
       return (orig - s.bestDeal.sellingPrice).toFixed(2);
     }
+    if (s.faceAnalytics?.peakDiscountFace?.savingsAmount && s.faceAnalytics.peakDiscountFace.savingsAmount > 0) {
+      return s.faceAnalytics.peakDiscountFace.savingsAmount.toFixed(2);
+    }
+    if (s.faceAnalytics?.peakDiscountFace?.faceValue && s.faceAnalytics?.peakDiscountFace?.minPrice) {
+      const diff = s.faceAnalytics.peakDiscountFace.faceValue - s.faceAnalytics.peakDiscountFace.minPrice;
+      if (diff > 0) return diff.toFixed(2);
+    }
     return '0.00';
   }
 
   getPriceOnFaceSummary(s: PageDealStatus): string {
-    if (!s.bestDeal || !s.bestDeal.sellingPrice) return 'No price data';
-    const face = s.bestDeal.faceValue || s.bestDeal.originalPrice;
-    if (face) {
-      return `\$${s.bestDeal.sellingPrice.toFixed(2)} on \$${face.toFixed(2)} ${s.bestDeal.faceValueCurrency || 'USD'} face`;
+    if (s.bestDeal && s.bestDeal.sellingPrice) {
+      const face = s.bestDeal.faceValue || s.bestDeal.originalPrice;
+      if (face) {
+        return `\$${s.bestDeal.sellingPrice.toFixed(2)} on \$${face.toFixed(2)} ${s.bestDeal.faceValueCurrency || 'USD'} face`;
+      }
+      return `\$${s.bestDeal.sellingPrice.toFixed(2)}`;
     }
-    return `\$${s.bestDeal.sellingPrice.toFixed(2)}`;
+    if (s.faceAnalytics?.peakDiscountFace && s.faceAnalytics.peakDiscountFace.minPrice) {
+      const pf = s.faceAnalytics.peakDiscountFace;
+      return `\$${pf.minPrice.toFixed(2)} on \$${pf.faceValue.toFixed(2)} ${pf.currency || 'USD'} face`;
+    }
+    return 'No price data';
   }
 
   getMostFrequentFace(s: PageDealStatus): { faceValue: number | string; timesText: string; avgPct: string } {
@@ -1688,12 +1846,23 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
             totalListings: preserveExisting ? deduplicatedStatuses[exIdx].totalListings : st.totalListings,
             inStockCount: preserveExisting ? deduplicatedStatuses[exIdx].inStockCount : st.inStockCount,
             discountedCount: preserveExisting ? deduplicatedStatuses[exIdx].discountedCount : st.discountedCount,
-            averageDiscountPctAllInStock: preserveExisting ? deduplicatedStatuses[exIdx].averageDiscountPctAllInStock : st.averageDiscountPctAllInStock,
-            bestDeal: st.bestDeal || deduplicatedStatuses[exIdx].bestDeal,
+            averageDiscountPctAllInStock:
+              st.averageDiscountPctAllInStock > 0
+                ? st.averageDiscountPctAllInStock
+                : deduplicatedStatuses[exIdx].averageDiscountPctAllInStock > 0
+                  ? deduplicatedStatuses[exIdx].averageDiscountPctAllInStock
+                  : st.averageDiscountPctAllInStock,
+            bestDeal:
+              st.bestDeal && st.bestDeal.discountPct > 0
+                ? st.bestDeal
+                : deduplicatedStatuses[exIdx].bestDeal && (deduplicatedStatuses[exIdx].bestDeal?.discountPct ?? 0) > 0
+                  ? deduplicatedStatuses[exIdx].bestDeal
+                  : (st.bestDeal || deduplicatedStatuses[exIdx].bestDeal),
             bestEffectiveDeal: st.bestEffectiveDeal || deduplicatedStatuses[exIdx].bestEffectiveDeal,
             rankedDeals: st.rankedDeals?.length ? st.rankedDeals : deduplicatedStatuses[exIdx].rankedDeals,
             topDeals: st.topDeals?.length ? st.topDeals : deduplicatedStatuses[exIdx].topDeals,
             bestDealOffers: st.bestDealOffers?.length ? st.bestDealOffers : deduplicatedStatuses[exIdx].bestDealOffers,
+            faceAnalytics: st.faceAnalytics || deduplicatedStatuses[exIdx].faceAnalytics,
             scrapeTargetId: st.scrapeTargetId || deduplicatedStatuses[exIdx].scrapeTargetId,
             targetId: st.targetId || deduplicatedStatuses[exIdx].targetId,
             targetName: bestName || st.targetName || deduplicatedStatuses[exIdx].targetName,
@@ -1707,6 +1876,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
             targetId: deduplicatedStatuses[exIdx].targetId || st.targetId,
             targetName: bestName || deduplicatedStatuses[exIdx].targetName || st.targetName,
             name: bestName || deduplicatedStatuses[exIdx].name || st.name,
+            faceAnalytics: deduplicatedStatuses[exIdx].faceAnalytics || st.faceAnalytics,
           };
         }
       }
@@ -1739,15 +1909,67 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
           if (!bestStatus) {
             bestStatus = m;
           } else {
-            const mHasData = m.totalListings > 0 || Boolean(m.bestDeal) || (m.rankedDeals && m.rankedDeals.length > 0);
-            const bestHasData = bestStatus.totalListings > 0 || Boolean(bestStatus.bestDeal) || (bestStatus.rankedDeals && bestStatus.rankedDeals.length > 0);
+            const mHasDiscount = (m.averageDiscountPctAllInStock > 0) || (m.bestDeal && m.bestDeal.discountPct > 0) || ((m.faceAnalytics?.peakDiscountFace?.maxDiscountPct ?? 0) > 0);
+            const bestHasDiscount = (bestStatus.averageDiscountPctAllInStock > 0) || (bestStatus.bestDeal && bestStatus.bestDeal.discountPct > 0) || ((bestStatus.faceAnalytics?.peakDiscountFace?.maxDiscountPct ?? 0) > 0);
+
+            const mHasData = m.totalListings > 0 || Boolean(m.bestDeal) || (m.rankedDeals && m.rankedDeals.length > 0) || Boolean(m.faceAnalytics);
+            const bestHasData = bestStatus.totalListings > 0 || Boolean(bestStatus.bestDeal) || (bestStatus.rankedDeals && bestStatus.rankedDeals.length > 0) || Boolean(bestStatus.faceAnalytics);
+
             const mTime = new Date(m.scrapedAt || 0).getTime();
             const bestTime = new Date(bestStatus.scrapedAt || 0).getTime();
 
-            if (mHasData && !bestHasData) {
-              bestStatus = m;
-            } else if (mHasData === bestHasData && mTime > bestTime) {
-              bestStatus = m;
+            if (mHasDiscount && !bestHasDiscount) {
+              bestStatus = {
+                ...bestStatus,
+                ...m,
+                scrapedAt: mTime > bestTime ? m.scrapedAt : bestStatus.scrapedAt,
+              };
+            } else if (!mHasDiscount && bestHasDiscount) {
+              bestStatus = {
+                ...m,
+                ...bestStatus,
+                scrapedAt: mTime > bestTime ? m.scrapedAt : bestStatus.scrapedAt,
+              };
+            } else if (mHasData && !bestHasData) {
+              bestStatus = {
+                ...bestStatus,
+                ...m,
+                scrapedAt: mTime > bestTime ? m.scrapedAt : bestStatus.scrapedAt,
+              };
+            } else if (!mHasData && bestHasData) {
+              bestStatus = {
+                ...m,
+                ...bestStatus,
+                scrapedAt: mTime > bestTime ? m.scrapedAt : bestStatus.scrapedAt,
+              };
+            } else if (mTime > bestTime) {
+              bestStatus = {
+                ...bestStatus,
+                ...m,
+                averageDiscountPctAllInStock:
+                  m.averageDiscountPctAllInStock > 0
+                    ? m.averageDiscountPctAllInStock
+                    : (bestStatus.averageDiscountPctAllInStock || 0),
+                bestDeal:
+                  m.bestDeal && m.bestDeal.discountPct > 0
+                    ? m.bestDeal
+                    : (bestStatus.bestDeal || m.bestDeal),
+                faceAnalytics: m.faceAnalytics || bestStatus.faceAnalytics,
+              };
+            } else {
+              bestStatus = {
+                ...m,
+                ...bestStatus,
+                averageDiscountPctAllInStock:
+                  bestStatus.averageDiscountPctAllInStock > 0
+                    ? bestStatus.averageDiscountPctAllInStock
+                    : (m.averageDiscountPctAllInStock || 0),
+                bestDeal:
+                  bestStatus.bestDeal && bestStatus.bestDeal.discountPct > 0
+                    ? bestStatus.bestDeal
+                    : (m.bestDeal || bestStatus.bestDeal),
+                faceAnalytics: bestStatus.faceAnalytics || m.faceAnalytics,
+              };
             }
           }
         }
@@ -2202,8 +2424,8 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
         case 'status':
         case 'inStockCount': return compare(a.totalListings || 0, b.totalListings || 0, isAsc);
         case 'averageDiscount':
-        case 'averageDiscountPctAllInStock': return compare(a.averageDiscountPctAllInStock || 0, b.averageDiscountPctAllInStock || 0, isAsc);
-        case 'latestDiscount': return compare(a.bestDeal?.discountPct || 0, b.bestDeal?.discountPct || 0, isAsc);
+        case 'averageDiscountPctAllInStock': return compare(this.getAvgDiscountPct(a), this.getAvgDiscountPct(b), isAsc);
+        case 'latestDiscount': return compare(this.getLatestDealPct(a), this.getLatestDealPct(b), isAsc);
         case 'bestFace': return compare(parseFloat(this.getPeakFace(a).peakPct) || 0, parseFloat(this.getPeakFace(b).peakPct) || 0, isAsc);
         default: return 0;
       }

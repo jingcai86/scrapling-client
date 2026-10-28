@@ -589,6 +589,17 @@ export async function deleteDbScheduler(
   }
 }
 
+const CANONICAL_TARGET_URLS: Record<string, string> = {
+  "a1000000-0000-4000-8000-000000000001": "https://www.eneba.com/us/store/psn-gift-cards",
+  "a1000000-0000-4000-8000-000000000002": "https://www.eneba.com/us/store/apple-gift-cards",
+  "a1000000-0000-4000-8000-000000000003": "https://www.eneba.com/us/store/google-play-gift-cards",
+  "a1000000-0000-4000-8000-000000000004": "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam",
+  "a1000000-0000-4000-8000-000000000005": "https://www.eneba.com/us/store/nintendo-gift-cards",
+  "a1000000-0000-4000-8000-000000000006": "https://www.eneba.com/us/store/amazon-gift-cards",
+  "a1000000-0000-4000-8000-000000000008": "https://www.g2a.com/search?query=google%20play",
+  "a1000000-0000-4000-8000-000000000009": "https://www.g2a.com/category/psn-c1567",
+};
+
 /**
  * Loads all configured scrape target pages from `scrapling.scrape_targets`.
  */
@@ -632,7 +643,7 @@ export async function getDbTargets(pool?: pg.Pool): Promise<TargetDbItem[]> {
       provider: r.provider || "eneba",
       category: r.provider || "eneba",
       name: r.name || r.product_title || "",
-      url: r.product_url || "",
+      url: CANONICAL_TARGET_URLS[r.id] || r.product_url || "",
       enabled: Boolean(r.enabled),
       withOffers: true,
       scheduleId: r.schedule_id || "default",

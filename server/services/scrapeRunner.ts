@@ -206,8 +206,18 @@ export class ScrapeRunner {
             totalListings: !statusHasData && existingHasData ? existing.totalListings : status.totalListings,
             inStockCount: !statusHasData && existingHasData ? existing.inStockCount : status.inStockCount,
             discountedCount: !statusHasData && existingHasData ? existing.discountedCount : status.discountedCount,
-            averageDiscountPctAllInStock: !statusHasData && existingHasData ? existing.averageDiscountPctAllInStock : status.averageDiscountPctAllInStock,
-            bestDeal: status.bestDeal || existing.bestDeal,
+            averageDiscountPctAllInStock:
+              status.averageDiscountPctAllInStock > 0
+                ? status.averageDiscountPctAllInStock
+                : existing.averageDiscountPctAllInStock > 0
+                  ? existing.averageDiscountPctAllInStock
+                  : status.averageDiscountPctAllInStock,
+            bestDeal:
+              status.bestDeal && status.bestDeal.discountPct > 0
+                ? status.bestDeal
+                : existing.bestDeal && existing.bestDeal.discountPct > 0
+                  ? existing.bestDeal
+                  : (status.bestDeal || existing.bestDeal),
             bestEffectiveDeal: status.bestEffectiveDeal || existing.bestEffectiveDeal,
             bestDealOffers: status.bestDealOffers?.length ? status.bestDealOffers : existing.bestDealOffers,
             rankedDeals: status.rankedDeals?.length ? status.rankedDeals : existing.rankedDeals,

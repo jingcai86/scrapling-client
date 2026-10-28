@@ -14,7 +14,7 @@
     "dev": "tsx watch server/index.ts",
     "build:ui": "npm run --prefix frontend build",
     "dev:ui": "npm run --prefix frontend start",
-    "test": "tsx --test */*.test.ts",
+    "test": "tsx --test --test-concurrency=1 */*.test.ts",
     "db:init": "tsx scripts/init-db.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
