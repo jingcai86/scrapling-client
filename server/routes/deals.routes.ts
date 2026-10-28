@@ -55,6 +55,7 @@ export function createDealsRouter(ctx: ServerContext): Router {
       const result = await searchDeals(
         searchParams,
         ctx.runner.getLatestStatuses(),
+        { pool: ctx.pool },
       );
       res.json(result);
     } catch (err) {

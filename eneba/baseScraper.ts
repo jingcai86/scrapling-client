@@ -78,6 +78,26 @@ const FACE_VALUE_PATTERNS: Array<{ regex: RegExp; currency?: string }> = [
     regex: /\b(\d+(?:[.,]\d{1,2})?)\s*\$/,
     currency: "USD",
   },
+  // e.g. "€50", "€10.00"
+  {
+    regex: /€\s*(\d+(?:[.,]\d{1,2})?)\b/,
+    currency: "EUR",
+  },
+  // e.g. "50€"
+  {
+    regex: /\b(\d+(?:[.,]\d{1,2})?)\s*€/,
+    currency: "EUR",
+  },
+  // e.g. "£50", "£10.00"
+  {
+    regex: /£\s*(\d+(?:[.,]\d{1,2})?)\b/,
+    currency: "GBP",
+  },
+  // e.g. "50£"
+  {
+    regex: /\b(\d+(?:[.,]\d{1,2})?)\s*£/,
+    currency: "GBP",
+  },
 ];
 
 /**

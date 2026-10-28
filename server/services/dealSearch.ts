@@ -210,13 +210,23 @@ export function matchesSearchTokens(
   return tokens.every((token) => normalizedHaystack.includes(token));
 }
 
+export interface DealSearchOptions {
+  pool?: pg.Pool;
+  useDb?: boolean;
+}
+
 /**
- * Searches historical and latest deals in PostgreSQL (`eneba.top_deals`) with fallback to cached statuses.
+ * Searches historical and latest deals in PostgreSQL (`scrapling.records`) with fallback to cached statuses.
  */
 export async function searchDeals(
   rawQuery: DealSearchQuery,
   cachedStatuses: PageDealStatus[] = [],
+  options?: DealSearchOptions | boolean,
 ): Promise<DealSearchResponse> {
+  const opts: DealSearchOptions =
+    typeof options === "boolean" ? { useDb: options } : options || {};
+  const useDb = opts.useDb ?? true;
+
   const searchText =
     (rawQuery.q ?? rawQuery.name ?? rawQuery.query ?? "").trim() || null;
   const categoryFilter = rawQuery.category?.trim() || null;
@@ -237,11 +247,12 @@ export async function searchDeals(
 
   const { from, to } = resolveTimeRange(rawQuery);
 
-  // 1. Try querying PostgreSQL first if DATABASE_URL is configured
-  if (process.env.DATABASE_URL?.trim()) {
+  // 1. Try querying PostgreSQL first if DATABASE_URL is configured or pool is provided
+  if (useDb && (opts.pool || process.env.DATABASE_URL?.trim())) {
+    const ownPool = !opts.pool;
     let pool: pg.Pool | null = null;
     try {
-      pool = createPgPool();
+      pool = opts.pool ?? createPgPool();
       await ensureEnebaSchema(pool);
 
       const conditions: string[] = [];
@@ -380,7 +391,10 @@ export async function searchDeals(
         return matchesSearchTokens(haystack, searchText);
       });
 
-      if (matchedRows.length > 0 || from || to) {
+      if (
+        matchedRows.length > 0 ||
+        (res.rows.length > 0 && (from || to) && cachedStatuses.length === 0)
+      ) {
         const sliced = matchedRows.slice(0, limit);
         const deals: SearchedDealItem[] = [];
 
@@ -448,7 +462,7 @@ export async function searchDeals(
     } catch {
       // Fall back to in-memory / disk cache if DB query fails
     } finally {
-      if (pool) {
+      if (ownPool && pool) {
         await pool.end().catch(() => {});
       }
     }
@@ -462,15 +476,19 @@ export async function searchDeals(
     if (to && scrapedTime > to.getTime()) continue;
     if (
       categoryFilter &&
-      !st.category.toLowerCase().includes(categoryFilter.toLowerCase())
+      !st.category.toLowerCase().includes(categoryFilter.toLowerCase()) &&
+      !(st.categoryName || "").toLowerCase().includes(categoryFilter.toLowerCase())
     ) {
       continue;
     }
-    if (providerFilter && providerFilter !== "eneba") continue;
+    const itemProvider = (st.provider || st.category || "eneba").toLowerCase();
+    if (providerFilter && !itemProvider.includes(providerFilter)) {
+      continue;
+    }
 
     for (let i = 0; i < st.rankedDeals.length; i++) {
       const deal = st.rankedDeals[i];
-      const haystack = `${deal.title} ${st.category} ${deal.region} eneba`;
+      const haystack = `${deal.title} ${st.category} ${st.categoryName || ""} ${deal.region} ${itemProvider}`;
       if (!matchesSearchTokens(haystack, searchText)) continue;
       if (
         minDiscount !== null &&
@@ -489,8 +507,8 @@ export async function searchDeals(
         st.bestEffectiveDeal?.url === deal.url || st.bestDeal?.url === deal.url;
 
       allCachedDeals.push({
-        provider: "eneba",
-        category: st.category,
+        provider: itemProvider,
+        category: st.categoryName || st.category,
         rank: i + 1,
         title: deal.title,
         url: deal.url,

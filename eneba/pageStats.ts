@@ -53,6 +53,7 @@ export interface PageDealStatus {
   targetId?: string;
   targetName?: string;
   name?: string; // alias for targetName
+  categoryName?: string; // alias for targetName
   pageUrl: string;
   pageNumber: number;
   totalListings: number;
@@ -192,6 +193,7 @@ export function analyzePageDeals(
     targetId: scrapeTargetId || targetId,
     targetName: resolvedTargetName,
     name: resolvedTargetName,
+    categoryName: resolvedTargetName,
     pageUrl,
     pageNumber,
     totalListings,

@@ -6,6 +6,7 @@ import {
   type GiftCardListing,
   type SellerOffer,
   type ScrapeOptions,
+  parseFaceValueFromTitle,
 } from "../eneba/baseScraper.js";
 import {
   analyzePageDeals,
@@ -59,20 +60,10 @@ export class G2aGiftCardScraper {
    * Parses title into face value and currency if present.
    */
   public parseFaceValue(title: string): { faceValue: number | null; currency: string | null } {
-    // E.g. "Amazon Gift Card 100 USD Key UNITED STATES", "$50", "25 EUR"
-    const usdPattern = /\$(\d+(?:\.\d{1,2})?)/i;
-    const codePattern = /(\d+(?:\.\d{1,2})?)\s*(USD|EUR|GBP|CAD|AUD)/i;
-
-    const usdMatch = title.match(usdPattern);
-    if (usdMatch) {
-      return { faceValue: parseFloat(usdMatch[1]), currency: "USD" };
+    const parsed = parseFaceValueFromTitle(title);
+    if (parsed) {
+      return { faceValue: parsed.amount, currency: parsed.currency };
     }
-
-    const codeMatch = title.match(codePattern);
-    if (codeMatch) {
-      return { faceValue: parseFloat(codeMatch[1]), currency: codeMatch[2].toUpperCase() };
-    }
-
     return { faceValue: null, currency: null };
   }
 
@@ -111,11 +102,17 @@ export class G2aGiftCardScraper {
         const sellingPrice = priceMatch ? parseFloat(priceMatch[1]) : null;
 
         const { faceValue, currency } = this.parseFaceValue(title);
-        const originalPrice = faceValue ?? (sellingPrice ? sellingPrice * 1.05 : null);
+        const discountMatch = context.match(/(\d+(?:\.\d{1,2})?)%\s*off/i);
+        const parsedDiscount = discountMatch ? parseFloat(discountMatch[1]) : null;
 
+        let originalPrice = faceValue ?? null;
         let discountPct = 0;
+
         if (sellingPrice && originalPrice && originalPrice > sellingPrice) {
           discountPct = parseFloat((((originalPrice - sellingPrice) / originalPrice) * 100).toFixed(2));
+        } else if (parsedDiscount && sellingPrice && parsedDiscount > 0 && parsedDiscount < 100) {
+          discountPct = parsedDiscount;
+          originalPrice = parseFloat((sellingPrice / (1 - parsedDiscount / 100)).toFixed(2));
         }
 
         const regionMatch = title.match(/\b(UNITED STATES|GLOBAL|EUROPE|US|EU|UK|CA)\b/i);
@@ -133,7 +130,7 @@ export class G2aGiftCardScraper {
           originalPrice,
           faceValue,
           faceValueCurrency: currency || "USD",
-          listedDiscountPct: discountPct > 0 ? discountPct : null,
+          listedDiscountPct: parsedDiscount ?? (discountPct > 0 ? discountPct : null),
           cashbackPct: 0,
           inStock: true,
           discountPct,

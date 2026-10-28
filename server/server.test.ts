@@ -85,6 +85,11 @@ function createInMemoryConfigPool(): {
         return { rows: [], rowCount: 0 };
       }
 
+      // Records table queries (scrapling.records)
+      if (lower.includes("scrapling.records")) {
+        return { rows: [], rowCount: 0 };
+      }
+
       // Scraping Targets table queries (scrapling.scrape_targets / scrapling.target_pages / scrapling.targets)
       if (lower.includes("scrapling.scrape_targets") || lower.includes("scrapling.target_pages") || lower.includes("scrapling.targets") || lower.includes("scrapling.scrape_pages")) {
         if (lower.includes("insert into") || lower.includes("on conflict")) {

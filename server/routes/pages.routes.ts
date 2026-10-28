@@ -212,6 +212,9 @@ export function createPagesRouter(ctx: ServerContext): Router {
           await upsertDbTarget(
             {
               id: updated.id,
+              productId: updated.productId,
+              productSlug: updated.productSlug,
+              productTitle: updated.productTitle,
               provider: updated.provider || updated.category || "eneba",
               category: updated.category || updated.provider || "eneba",
               name: updated.categoryName || updated.name || updated.id,

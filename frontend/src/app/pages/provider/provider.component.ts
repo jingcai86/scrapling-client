@@ -31,6 +31,8 @@ import {
   type FaceValueStatItem,
   CANONICAL_TARGET_URLS,
   CANONICAL_CATEGORY_URLS,
+  getCanonicalProvider,
+  getCanonicalTargetKey,
 } from '../../core/models/dashboard.model';
 
 @Component({
@@ -1111,55 +1113,8 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  getCanonicalProvider(s: {
-    provider?: string;
-    category?: string;
-    pageUrl?: string;
-    url?: string;
-    name?: string;
-    targetName?: string;
-    categoryName?: string;
-  }): string {
-    const url = (s.pageUrl || s.url || '').toLowerCase();
-    const name = (s.targetName || s.name || s.categoryName || '').toLowerCase();
-    const rawProv = (s.provider || s.category || '').toLowerCase().trim();
-
-    if (url.includes('g2a.com') || name.includes('(g2a)') || name.includes(' g2a') || rawProv === 'g2a') {
-      return 'g2a';
-    }
-    if (url.includes('eneba.com') || name.includes('(eneba)') || name.includes(' eneba') || rawProv === 'eneba') {
-      return 'eneba';
-    }
-    return rawProv || 'eneba';
-  }
-
-  getCanonicalTargetKey(s: Partial<PageDealStatus> | any): string {
-    if (!s) return '';
-    const prov = this.getCanonicalProvider(s);
-    const raw = `${s.scrapeTargetId || ''} ${s.targetId || ''} ${s.targetName || ''} ${s.name || ''} ${s.categoryName || ''} ${s.pageUrl || ''} ${s.url || ''}`.toLowerCase();
-
-    if (raw.includes('playstation') || raw.includes('psn')) return `${prov}:psn`;
-    if (raw.includes('nintendo') || raw.includes('eshop')) return `${prov}:nintendo`;
-    if (raw.includes('google') || raw.includes('android') || raw.includes('play store')) return `${prov}:google-play`;
-    if (raw.includes('amazon')) return `${prov}:amazon`;
-    if (raw.includes('apple') || raw.includes('itunes') || raw.includes('app store')) return `${prov}:apple`;
-    if (raw.includes('steam')) return `${prov}:steam`;
-
-    const fallback = (
-      s.targetName ||
-      s.name ||
-      s.categoryName ||
-      s.scrapeTargetId ||
-      s.targetId ||
-      s.pageUrl ||
-      s.category ||
-      ''
-    )
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '');
-
-    return `${prov}:${fallback}`;
-  }
+  readonly getCanonicalProvider = getCanonicalProvider;
+  readonly getCanonicalTargetKey = getCanonicalTargetKey;
 
   private syncData() {
     const data = this.apiService.dashboardData();

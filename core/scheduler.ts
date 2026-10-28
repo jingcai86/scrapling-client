@@ -318,7 +318,10 @@ export class RandomizedDailyScheduler {
     this.windowEndIso = computed.windowEnd.toISOString();
     this.nextRunAt = computed.nextRun.toISOString();
 
-    const delayMs = Math.max(1000, computed.nextRun.getTime() - Date.now());
+    const delayMs = Math.min(
+      2147483647,
+      Math.max(1000, computed.nextRun.getTime() - Date.now()),
+    );
     this.timer = setTimeout(() => {
       void this.executeScheduledRun();
     }, delayMs);

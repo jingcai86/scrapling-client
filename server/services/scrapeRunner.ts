@@ -42,10 +42,11 @@ export interface RunnerState {
  */
 export function statusesToAlertItems(
   statuses: PageDealStatus[],
-  provider = "eneba",
+  defaultProvider = "eneba",
 ): DealAlertItem[] {
   const items: DealAlertItem[] = [];
   for (const st of statuses) {
+    const itemProvider = getCanonicalProvider(st) || defaultProvider;
     const lowestSeller = st.bestDealOffers?.[0];
     for (const deal of st.rankedDeals) {
       const isBestDeal =
@@ -53,8 +54,8 @@ export function statusesToAlertItems(
         (st.bestDeal?.url && st.bestDeal.url === deal.url);
 
       items.push({
-        provider,
-        category: st.category,
+        provider: itemProvider,
+        category: st.categoryName || st.targetName || st.category,
         title: deal.title,
         url: deal.url,
         region: deal.region,
@@ -62,9 +63,9 @@ export function statusesToAlertItems(
         originalPrice: deal.originalPrice,
         faceValue: deal.faceValue,
         discountPct: deal.discountPct,
-        cashbackPct: 0,
-        effectiveDiscountPct: deal.discountPct,
-        effectivePrice: deal.sellingPrice,
+        cashbackPct: deal.cashbackPct ?? 0,
+        effectiveDiscountPct: deal.effectiveDiscountPct ?? deal.discountPct,
+        effectivePrice: deal.effectivePrice ?? deal.sellingPrice,
         savingsAmount: deal.savingsAmount,
         lowestSellerName: isBestDeal ? lowestSeller?.sellerName : undefined,
         lowestSellerRating: isBestDeal ? lowestSeller?.ratingScore : undefined,
