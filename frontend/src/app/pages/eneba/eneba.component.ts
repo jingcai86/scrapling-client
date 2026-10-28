@@ -1570,12 +1570,66 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       return resolvedProvider === this.provider;
     });
 
+    // Ensure all configured pages for this provider are represented
+    const configuredPages = (data.pages || []).filter((p) => {
+      const pProv = (p.provider || p.category || '').toLowerCase();
+      return pProv === this.provider && p.enabled !== false;
+    });
+
+    for (const page of configuredPages) {
+      const pKey = this.getCanonicalTargetKey(page);
+      const pId = (page.id || '').trim();
+      const pName = (page.name || page.categoryName || page.productTitle || '').trim().toLowerCase();
+      const pUrl = (page.url || '').trim().toLowerCase();
+
+      const exists = statuses.some((st) => {
+        const stKey = this.getCanonicalTargetKey(st);
+        if (pKey && stKey && pKey === stKey) return true;
+        const stId = (st.scrapeTargetId || st.targetId || '').trim();
+        if (pId && stId && pId === stId) return true;
+        const stName = (st.targetName || st.name || '').trim().toLowerCase();
+        if (pName && stName && pName === stName) return true;
+        const stUrl = (st.pageUrl || '').trim().toLowerCase();
+        if (pUrl && stUrl && (pUrl === stUrl || pUrl.split('?')[0] === stUrl.split('?')[0])) return true;
+        return false;
+      });
+
+      if (!exists) {
+        statuses.push({
+          category: this.provider,
+          provider: this.provider,
+          scrapeTargetId: page.id,
+          targetId: page.id,
+          targetName: page.name || page.categoryName || page.productTitle || 'Monitored Page',
+          name: page.name || page.categoryName || page.productTitle || 'Monitored Page',
+          pageUrl: page.url,
+          pageNumber: 1,
+          totalListings: 0,
+          inStockCount: 0,
+          outOfStockCount: 0,
+          discountedCount: 0,
+          averageDiscountPctOnDiscounted: 0,
+          averageDiscountPctAllInStock: 0,
+          averageEffectiveDiscountPct: 0,
+          maxDiscountPct: 0,
+          maxEffectiveDiscountPct: 0,
+          bestDeal: null,
+          bestEffectiveDeal: null,
+          bestDealOffers: [],
+          topDeals: [],
+          rankedDeals: [],
+          scrapedAt: page.createdAt || new Date().toISOString(),
+          runStatus: 'idle',
+        });
+      }
+    }
+
     // Deduplicate by canonical target key, target ID, target name, or URL within this provider
     const deduplicatedStatuses: PageDealStatus[] = [];
     for (const st of statuses) {
       const stKey = this.getCanonicalTargetKey(st);
       const stId = (st.scrapeTargetId || st.targetId || '').trim();
-      const stName = (st.targetName || st.name || st.category || '').trim().toLowerCase();
+      const stName = (st.targetName || st.name || '').trim().toLowerCase();
       const stUrl = (st.pageUrl || '').trim().toLowerCase();
 
       const exIdx = deduplicatedStatuses.findIndex((ex) => {
@@ -1585,7 +1639,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
         const exId = (ex.scrapeTargetId || ex.targetId || '').trim();
         if (stId && exId && stId === exId) return true;
 
-        const exName = (ex.targetName || ex.name || ex.category || '').trim().toLowerCase();
+        const exName = (ex.targetName || ex.name || '').trim().toLowerCase();
         if (stName && exName && stName === exName) return true;
 
         const exUrl = (ex.pageUrl || '').trim().toLowerCase();

@@ -412,24 +412,32 @@ export class ScrapeRunner {
             break;
         }
 
-        const status = await scraper.scrapeAndAnalyze({
-          page: 1,
-          withOffers: useWithOffers,
-          showProgress: true,
-        });
+        try {
+          const status = await scraper.scrapeAndAnalyze({
+            page: 1,
+            withOffers: useWithOffers,
+            showProgress: true,
+          });
 
-        scrapedResults.push(status);
-        this.setStatus(status);
-        this.completedPages = i + 1;
+          scrapedResults.push(status);
+          this.setStatus(status);
+          this.completedPages = i + 1;
 
-        const best = status.bestEffectiveDeal || status.bestDeal;
-        this.addLog(
-          `Finished ${pageCfg.name || pageCfg.categoryName}: ${status.inStockCount}/${status.totalListings} in stock, best effective discount ${best ? best.effectiveDiscountPct.toFixed(2) + "%" : "0%"} (${status.bestDealOffers?.length ?? 0} competing offers).`,
-        );
+          const best = status.bestEffectiveDeal || status.bestDeal;
+          this.addLog(
+            `Finished ${pageCfg.name || pageCfg.categoryName}: ${status.inStockCount}/${status.totalListings} in stock, best effective discount ${best ? best.effectiveDiscountPct.toFixed(2) + "%" : "0%"} (${status.bestDealOffers?.length ?? 0} competing offers).`,
+          );
+        } catch (pageErr) {
+          const errMsg = pageErr instanceof Error ? pageErr.message : String(pageErr);
+          this.addLog(
+            `[Warning] Scrape failed for ${pageCfg.name || pageCfg.categoryName}: ${errMsg}`,
+          );
+          this.completedPages = i + 1;
+        }
       }
 
       // Persist to local disk snapshot
-      this.pageStore.saveLatestStatuses(scrapedResults);
+      this.pageStore.saveLatestStatuses(this.getLatestStatuses());
 
       // Persist to PostgreSQL (fault-tolerant)
       this.currentStep = `Saving ${scrapedResults.length} page run(s) to PostgreSQL (scrapling.records)...`;

@@ -92,6 +92,7 @@ export interface TargetScrapeRunLog {
 
 export interface PageDealStatus {
   category: string;
+  provider?: string;
   scrapeTargetId?: string;
   targetId?: string;
   targetName?: string;

@@ -244,13 +244,20 @@ export class EnebaGiftCardScraper {
         cssSelector: ENEBA_PRODUCT_CARD_SELECTOR,
       });
 
+      if (response.status === 404 || response.status === 410) {
+        return [];
+      }
+
       const validCards = response.content.filter((c) =>
         c.includes("[View offers]"),
       );
       if (validCards.length > 0) {
         return validCards;
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.message?.includes("404") || err?.status === 404) {
+        return [];
+      }
       // Fall through to full-page / stealth fallback
     }
 
@@ -258,11 +265,17 @@ export class EnebaGiftCardScraper {
       const fullPage = await fetchFn(targetUrl, {
         extractionType: "markdown",
       });
+      if (fullPage.status === 404 || fullPage.status === 410) {
+        return [];
+      }
       const splitCards = this.splitFullPageMarkdownIntoCards(fullPage.text);
       if (splitCards.length > 0) {
         return splitCards;
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.message?.includes("404") || err?.status === 404) {
+        return [];
+      }
       // Fall through to stealthyFetch with waitSelector & Cloudflare solver
     }
 
