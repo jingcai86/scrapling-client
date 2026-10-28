@@ -172,9 +172,9 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
             <div class="table-header-titles">
-              <mat-card-title>{{ providerDisplayName }} Pages — Deal Discounts &amp; Status</mat-card-title>
+              <mat-card-title>{{ providerDisplayName }} Pages — Scraping Runs &amp; Status</mat-card-title>
               <mat-card-subtitle>
-                Discount metrics, denomination analytics, and page telemetry. Click any row to expand face value details.
+                Scraping run telemetry, execution status, and denomination analytics per task. Click any row to expand details.
               </mat-card-subtitle>
             </div>
             <div class="table-actions">
@@ -352,6 +352,12 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                           <mat-icon class="meta-icon">schedule</mat-icon>
                           <span class="config-label">Last Scraped:</span>
                           <strong class="config-val">{{ formatScrapedAt(s.scrapedAt) }} ({{ formatTimeAgo(s.scrapedAt) }})</strong>
+                        </div>
+                        <div class="config-divider"></div>
+                        <div class="config-item">
+                          <mat-icon class="meta-icon">history</mat-icon>
+                          <span class="config-label">Scrapes:</span>
+                          <strong class="config-val">{{ s.scrapeCount || 1 }} runs</strong>
                         </div>
                         <div class="config-divider"></div>
                         <div class="config-item">
@@ -1706,7 +1712,94 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }
 
-    this.sortedCategories = [...deduplicatedStatuses];
+    // 1 Scraping Task (configured page) = Exactly 1 Row in the table
+    if (configuredPages.length > 0) {
+      const taskRows: PageDealStatus[] = configuredPages.map((page) => {
+        const pKey = this.getCanonicalTargetKey(page);
+        const pId = (page.id || '').trim();
+        const pName = (page.name || page.categoryName || page.productTitle || '').trim().toLowerCase();
+        const pUrl = (page.url || '').trim().toLowerCase();
+
+        // Find all matching status records for this task from latest statuses
+        const matches = statuses.filter((st) => {
+          const stKey = this.getCanonicalTargetKey(st);
+          if (pKey && stKey && pKey === stKey) return true;
+          const stId = (st.scrapeTargetId || st.targetId || '').trim();
+          if (pId && stId && pId === stId) return true;
+          const stName = (st.targetName || st.name || '').trim().toLowerCase();
+          if (pName && stName && pName === stName) return true;
+          const stUrl = (st.pageUrl || '').trim().toLowerCase();
+          if (pUrl && stUrl && (pUrl === stUrl || pUrl.split('?')[0] === stUrl.split('?')[0])) return true;
+          return false;
+        });
+
+        // Pick the best match with data, or the latest scrape
+        let bestStatus: PageDealStatus | undefined;
+        for (const m of matches) {
+          if (!bestStatus) {
+            bestStatus = m;
+          } else {
+            const mHasData = m.totalListings > 0 || Boolean(m.bestDeal) || (m.rankedDeals && m.rankedDeals.length > 0);
+            const bestHasData = bestStatus.totalListings > 0 || Boolean(bestStatus.bestDeal) || (bestStatus.rankedDeals && bestStatus.rankedDeals.length > 0);
+            const mTime = new Date(m.scrapedAt || 0).getTime();
+            const bestTime = new Date(bestStatus.scrapedAt || 0).getTime();
+
+            if (mHasData && !bestHasData) {
+              bestStatus = m;
+            } else if (mHasData === bestHasData && mTime > bestTime) {
+              bestStatus = m;
+            }
+          }
+        }
+
+        const taskTitle = page.name || page.categoryName || page.productTitle || bestStatus?.targetName || 'Monitored Task';
+
+        if (bestStatus) {
+          return {
+            ...bestStatus,
+            scrapeTargetId: page.id,
+            targetId: page.id,
+            targetName: taskTitle,
+            name: taskTitle,
+            pageUrl: page.url || bestStatus.pageUrl,
+            provider: this.provider,
+            category: this.provider,
+            runStatus: bestStatus.runStatus || (bestStatus.totalListings > 0 ? 'success' : 'idle'),
+          };
+        }
+
+        return {
+          category: this.provider,
+          provider: this.provider,
+          scrapeTargetId: page.id,
+          targetId: page.id,
+          targetName: taskTitle,
+          name: taskTitle,
+          pageUrl: page.url,
+          pageNumber: 1,
+          totalListings: 0,
+          inStockCount: 0,
+          outOfStockCount: 0,
+          discountedCount: 0,
+          averageDiscountPctOnDiscounted: 0,
+          averageDiscountPctAllInStock: 0,
+          averageEffectiveDiscountPct: 0,
+          maxDiscountPct: 0,
+          maxEffectiveDiscountPct: 0,
+          bestDeal: null,
+          bestEffectiveDeal: null,
+          bestDealOffers: [],
+          topDeals: [],
+          rankedDeals: [],
+          scrapedAt: page.createdAt || new Date().toISOString(),
+          runStatus: 'idle',
+        };
+      });
+
+      this.sortedCategories = [...taskRows];
+    } else {
+      this.sortedCategories = [...deduplicatedStatuses];
+    }
 
     // Gather categories
     this.availableCategories = Array.from(new Set(deduplicatedStatuses.map((s) => s.targetName || s.name || s.category)));
