@@ -1428,12 +1428,41 @@ export async function fetchScrapeHistoryFromDb(
       }
     }
 
+    const lastKnownByProvider = new Map<
+      string,
+      {
+        title: string;
+        category: string;
+        provider?: string;
+        sellerName: string;
+        cost: number;
+        faceValue: number;
+        discountPct: number;
+        url?: string;
+      }
+    >();
+
     return res.map((r) => {
       const totalPages = Number(r.totalPages) || 1;
       const successfulPages = Number(r.successfulPages) || 0;
       const successRate = Number(
         ((successfulPages / totalPages) * 100).toFixed(1),
       );
+
+      const batchDeals = dealsByBatchAndProvider.get(r.batchId) || {};
+      for (const [prov, deal] of Object.entries(batchDeals)) {
+        if (deal && deal.discountPct > 0) {
+          lastKnownByProvider.set(prov, deal);
+        }
+      }
+
+      const mergedDealsByProvider: Record<string, any> = { ...batchDeals };
+      for (const [prov, lastDeal] of lastKnownByProvider.entries()) {
+        if (!mergedDealsByProvider[prov]) {
+          mergedDealsByProvider[prov] = lastDeal;
+        }
+      }
+
       return {
         id: r.batchId,
         timestamp: new Date(r.scrapedAt).toISOString(),
@@ -1442,8 +1471,8 @@ export async function fetchScrapeHistoryFromDb(
         successRate,
         totalListings: Number(r.totalListings) || 0,
         inStockCount: Number(r.inStockCount) || 0,
-        bestDeal: dealsByBatch.get(r.batchId),
-        bestDealsByProvider: dealsByBatchAndProvider.get(r.batchId) || {},
+        bestDeal: dealsByBatch.get(r.batchId) || Object.values(mergedDealsByProvider)[0],
+        bestDealsByProvider: mergedDealsByProvider,
       };
     });
   } catch {
