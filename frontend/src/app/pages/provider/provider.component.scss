@@ -100,35 +100,50 @@
       min-width: 900px !important;
     }
     .col-page {
-      width: 30% !important;
+      width: 28% !important;
       min-width: 125px !important;
       padding-left: 0.85rem !important;
       white-space: nowrap !important;
     }
     .col-avg {
-      width: 18% !important;
+      width: 16% !important;
       min-width: 75px !important;
       white-space: nowrap !important;
       text-align: center;
     }
-    .col-latest-deal {
-      width: 25% !important;
-      min-width: 110px !important;
-      white-space: nowrap !important;
-      text-align: left;
-    }
     .col-best-face {
-      width: 15% !important;
+      width: 16% !important;
       min-width: 85px !important;
       white-space: nowrap !important;
       text-align: center;
     }
     .col-last-scraped {
-      width: 12% !important;
+      width: 16% !important;
       min-width: 75px !important;
+      white-space: nowrap !important;
+      text-align: center;
+
+      .scraped-time-cell {
+        display: flex;
+        justify-content: center;
+      }
+    }
+    .col-latest-deal {
+      width: 24% !important;
+      min-width: 110px !important;
       white-space: nowrap !important;
       text-align: right;
       padding-right: 0.85rem !important;
+
+      ::ng-deep .mat-sort-header-container,
+      .mat-sort-header-container {
+        justify-content: flex-end !important;
+      }
+
+      .deal-cell-link,
+      .deal-cell-static {
+        justify-content: flex-end;
+      }
     }
     .badge-face-pill {
       background: rgba(99, 102, 241, 0.12);

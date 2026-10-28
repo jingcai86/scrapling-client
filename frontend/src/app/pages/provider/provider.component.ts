@@ -240,9 +240,30 @@ import {
                   </td>
                 </ng-container>
 
-                <!-- Latest Deal Column -->
+                <!-- Best Face Value Column (Renamed to Best Value) -->
+                <ng-container matColumnDef="bestFace">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-face">Best Value</th>
+                  <td mat-cell *matCellDef="let s" class="col-best-face">
+                    <span class="badge badge-face-pill" *ngIf="getPeakFace(s).faceValue !== '—'" matTooltip="Highest peak discount denomination observed for this page">
+                      \${{ getPeakFace(s).faceValue }} <small>(-{{ getPeakFace(s).peakPct }}%)</small>
+                    </span>
+                    <span class="muted" *ngIf="getPeakFace(s).faceValue === '—'">—</span>
+                  </td>
+                </ng-container>
+
+                <!-- Last Scraped Column -->
+                <ng-container matColumnDef="lastScraped">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-last-scraped">Scraped</th>
+                  <td mat-cell *matCellDef="let s" class="col-last-scraped">
+                    <div class="scraped-time-cell" [matTooltip]="formatScrapedAt(s.scrapedAt)">
+                      <span class="scraped-relative">{{ formatTimeAgo(s.scrapedAt) }}</span>
+                    </div>
+                  </td>
+                </ng-container>
+
+                <!-- Best Deal Seen Column (Last column on the right) -->
                 <ng-container matColumnDef="latestDiscount">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-latest-deal">Latest Deal</th>
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-latest-deal">Best Deal Seen</th>
                   <td mat-cell *matCellDef="let s" class="col-latest-deal">
                     <a
                       *ngIf="getLatestDealDisplay(s).hasDeal && getLatestDealDisplay(s).url"
@@ -279,27 +300,6 @@ import {
                       </strong>
                     </span>
                     <span class="muted" *ngIf="!getLatestDealDisplay(s).hasDeal">—</span>
-                  </td>
-                </ng-container>
-
-                <!-- Best Face Value Column (Renamed to Best Value) -->
-                <ng-container matColumnDef="bestFace">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-face">Best Value</th>
-                  <td mat-cell *matCellDef="let s" class="col-best-face">
-                    <span class="badge badge-face-pill" *ngIf="getPeakFace(s).faceValue !== '—'" matTooltip="Highest peak discount denomination observed for this page">
-                      \${{ getPeakFace(s).faceValue }} <small>(-{{ getPeakFace(s).peakPct }}%)</small>
-                    </span>
-                    <span class="muted" *ngIf="getPeakFace(s).faceValue === '—'">—</span>
-                  </td>
-                </ng-container>
-
-                <!-- Last Scraped Column -->
-                <ng-container matColumnDef="lastScraped">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-last-scraped">Scraped</th>
-                  <td mat-cell *matCellDef="let s" class="col-last-scraped">
-                    <div class="scraped-time-cell" [matTooltip]="formatScrapedAt(s.scrapedAt)">
-                      <span class="scraped-relative">{{ formatTimeAgo(s.scrapedAt) }}</span>
-                    </div>
                   </td>
                 </ng-container>
 
@@ -649,9 +649,9 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
   categoryColumns: string[] = [
     'page',
     'averageDiscount',
-    'latestDiscount',
     'bestFace',
     'lastScraped',
+    'latestDiscount',
   ];
 
   dealColumns: string[] = [
@@ -791,7 +791,7 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
         discountPct: s.bestDeal.discountPct || 0,
         price: s.bestDeal.sellingPrice ? s.bestDeal.sellingPrice.toFixed(2) : null,
         url: s.bestDeal.url || null,
-        title: s.bestDeal.title || 'Latest Deal',
+        title: s.bestDeal.title || 'Best Deal Seen',
       };
     }
     if (s.bestEffectiveDeal && (s.bestEffectiveDeal.discountPct > 0 || (s.bestEffectiveDeal.sellingPrice && s.bestEffectiveDeal.sellingPrice > 0))) {
@@ -800,7 +800,7 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
         discountPct: s.bestEffectiveDeal.discountPct || 0,
         price: s.bestEffectiveDeal.sellingPrice ? s.bestEffectiveDeal.sellingPrice.toFixed(2) : null,
         url: s.bestEffectiveDeal.url || null,
-        title: s.bestEffectiveDeal.title || 'Latest Deal',
+        title: s.bestEffectiveDeal.title || 'Best Deal Seen',
       };
     }
     if (s.rankedDeals && s.rankedDeals.length > 0) {
@@ -810,7 +810,7 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
         discountPct: d.discountPct || 0,
         price: d.sellingPrice ? d.sellingPrice.toFixed(2) : null,
         url: d.url || null,
-        title: d.title || 'Latest Deal',
+        title: d.title || 'Best Deal Seen',
       };
     }
     if (s.faceAnalytics?.peakDiscountFace && s.faceAnalytics.peakDiscountFace.maxDiscountPct > 0) {
