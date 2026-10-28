@@ -354,6 +354,21 @@ export class RandomizedDailyScheduler {
   }
 
   getState(): SchedulerState {
+    let effectiveLastRun = this.lastRunAt;
+    if (!effectiveLastRun && this.getLastScrapeTime) {
+      try {
+        const t = this.getLastScrapeTime();
+        if (t) {
+          const d = typeof t === "string" ? new Date(t) : t;
+          if (!isNaN(d.getTime())) {
+            effectiveLastRun = d.toISOString();
+          }
+        }
+      } catch {
+        // Non-blocking fallback
+      }
+    }
+
     return {
       id: this.id,
       name: this.name,
@@ -366,7 +381,7 @@ export class RandomizedDailyScheduler {
       windowEndIso: this.windowEndIso,
       nextRunAt: this.nextRunAt,
       isRunningJob: this.isRunningJob,
-      lastRunAt: this.lastRunAt,
+      lastRunAt: effectiveLastRun,
       lastRunStatus: this.lastRunStatus,
       lastRunSummary: this.lastRunSummary,
     };

@@ -111,22 +111,7 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
                 </div>
                 <div class="telemetry-box">
                   <span class="telemetry-label">Last Run:</span>
-                  <span class="telemetry-val">{{ formatNextRun(s.lastRunAt) }}</span>
-                </div>
-              </div>
-
-              <!-- Assigned Target Pages for this Schedule -->
-              <div class="assigned-pages-box">
-                <div class="assigned-title-row">
-                  <span class="assigned-label">Assigned Pages ({{ getPagesForSchedule(s.id).length }}):</span>
-                </div>
-                <div class="page-chips-wrap">
-                  <span *ngFor="let p of getPagesForSchedule(s.id)" class="page-chip">
-                    {{ p.categoryName }}
-                  </span>
-                  <span *ngIf="getPagesForSchedule(s.id).length === 0" class="no-pages-hint">
-                    No pages assigned. Runs will be skipped until assigned.
-                  </span>
+                  <span class="telemetry-val">{{ formatLastRun(s) }}</span>
                 </div>
               </div>
             </div>
@@ -411,35 +396,6 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
         color: var(--mat-sys-primary);
       }
     }
-    .assigned-pages-box {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-    .assigned-label {
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--mat-sys-on-surface-variant);
-    }
-    .page-chips-wrap {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-    }
-    .page-chip {
-      background: var(--mat-sys-surface-container-highest);
-      color: var(--mat-sys-on-surface);
-      border: 1px solid var(--mat-sys-outline-variant);
-      padding: 0.2rem 0.55rem;
-      border-radius: 6px;
-      font-size: 0.76rem;
-      font-weight: 600;
-    }
-    .no-pages-hint {
-      font-size: 0.78rem;
-      color: var(--mat-sys-outline);
-      font-style: italic;
-    }
     .card-table-content {
       padding: 0 1.25rem 1.25rem !important;
       overflow-x: auto;
@@ -693,6 +649,39 @@ export class ScrapingComponent {
       return `Today, ${timeStr}`;
     }
     return `${dateStrFormatted}, ${timeStr}`;
+  }
+
+  formatLastRun(s: SchedulerState): string {
+    if (s.lastRunAt) {
+      return this.formatNextRun(s.lastRunAt);
+    }
+    const dash = this.apiService.dashboardData();
+    const assignedIds = this.getPagesForSchedule(s.id).map((p) => p.id);
+    const candidateTimes: number[] = [];
+    if (dash?.statuses) {
+      for (const st of dash.statuses) {
+        const id = st.scrapeTargetId || st.targetId;
+        if (!assignedIds.length || (id && assignedIds.includes(id)) || s.id === 'default') {
+          if (st.scrapedAt) {
+            const t = new Date(st.scrapedAt).getTime();
+            if (!isNaN(t)) candidateTimes.push(t);
+          }
+        }
+      }
+    }
+    if (dash?.history) {
+      for (const h of dash.history) {
+        if (h.timestamp) {
+          const t = new Date(h.timestamp).getTime();
+          if (!isNaN(t)) candidateTimes.push(t);
+        }
+      }
+    }
+    if (candidateTimes.length > 0) {
+      const maxTime = new Date(Math.max(...candidateTimes)).toISOString();
+      return this.formatNextRun(maxTime);
+    }
+    return 'N/A';
   }
 
   scrapeAll() {

@@ -109,7 +109,7 @@ export async function createDashboardServer(options: {
     },
     {
       initialSchedules,
-      getLastScrapeTime: () => runner.getLatestScrapeTime(),
+      getLastScrapeTime: (sId?: string) => runner.getLatestScrapeTime(sId),
     },
   );
 
@@ -121,7 +121,7 @@ export async function createDashboardServer(options: {
         return `Scraped ${results.length} page(s) via daily randomized schedule.`;
       },
       {
-        getLastScrapeTime: () => runner.getLatestScrapeTime(),
+        getLastScrapeTime: () => runner.getLatestScrapeTime("default"),
       },
     );
 

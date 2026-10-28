@@ -283,16 +283,40 @@ export class ScrapeRunner {
     return deduplicatePageDealStatuses(Array.from(this.statusesByCategory.values()));
   }
 
-  getLatestScrapeTime(): Date | null {
+  getLatestScrapeTime(scheduleId?: string): Date | null {
+    const timestamps: number[] = [];
+
+    if (this.lastCompletedAt && !scheduleId) {
+      const dt = new Date(this.lastCompletedAt);
+      if (!isNaN(dt.getTime())) timestamps.push(dt.getTime());
+    }
+
+    const statuses = this.getLatestStatuses();
+    const assignedMap = this.pageStore.getAssignedPagesMap();
+    const targetPageIds = scheduleId ? assignedMap[scheduleId] : null;
+
+    for (const s of statuses) {
+      const sId = (s.scrapeTargetId || s.targetId || "").trim();
+      if (!targetPageIds || targetPageIds.includes(sId) || scheduleId === "default") {
+        if (s.scrapedAt) {
+          const t = new Date(s.scrapedAt).getTime();
+          if (!isNaN(t)) timestamps.push(t);
+        }
+      }
+    }
+
+    for (const h of this.scrapeHistory) {
+      if (h.timestamp) {
+        const t = new Date(h.timestamp).getTime();
+        if (!isNaN(t)) timestamps.push(t);
+      }
+    }
+
     if (this.lastCompletedAt) {
       const dt = new Date(this.lastCompletedAt);
-      if (!isNaN(dt.getTime())) return dt;
+      if (!isNaN(dt.getTime())) timestamps.push(dt.getTime());
     }
-    const statuses = this.getLatestStatuses();
-    if (!statuses.length) return null;
-    const timestamps = statuses
-      .map((s) => new Date(s.scrapedAt).getTime())
-      .filter((t) => !isNaN(t));
+
     if (!timestamps.length) return null;
     return new Date(Math.max(...timestamps));
   }
