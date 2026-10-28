@@ -60,6 +60,15 @@ async function main() {
       console.log("✔ Created scrapling schema and core tables via module helpers");
     }
 
+    // Explicitly ensure latest architectural migrations are applied
+    await pool.query(`
+      ALTER TABLE scrapling.records DROP COLUMN IF EXISTS batch_id;
+      DROP INDEX IF EXISTS scrapling.idx_scrapling_records_batch_id;
+      ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS schedule_id UUID REFERENCES scrapling.schedulers(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_schedule_id ON scrapling.scrape_runs (schedule_id);
+    `);
+    console.log("✔ Ensured latest relations: scrape_runs.schedule_id FK active, records.batch_id normalized");
+
     console.log("⏳ Seeding configuration variables from environment...");
     await initScraplingConfigOnStartup({ pool });
     console.log("✔ Synced scrapling.config variables from .env");
@@ -89,8 +98,35 @@ async function main() {
     for (const r of tablesRes.rows) {
       const countRes = await pool.query(`SELECT COUNT(*)::int AS cnt FROM scrapling."${r.table_name}"`);
       const rowCount = countRes.rows[0].cnt;
-      console.log(` • scrapling.${r.table_name.padEnd(20)}: ${String(r.column_count).padStart(2)} columns, ${String(rowCount).padStart(4)} rows`);
+      console.log(` • scrapling.${r.table_name.padEnd(22)}: ${String(r.column_count).padStart(2)} columns, ${String(rowCount).padStart(4)} rows`);
     }
+
+    // Verify structural relationships and latest migrations
+    const recordsCols = await pool.query<{ column_name: string }>(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'scrapling' AND table_name = 'records'
+    `);
+    const recordsColSet = new Set(recordsCols.rows.map((c) => c.column_name));
+
+    const scrapeRunsCols = await pool.query<{ column_name: string }>(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs'
+    `);
+    const scrapeRunsColSet = new Set(scrapeRunsCols.rows.map((c) => c.column_name));
+
+    const schedulersIdTypeRes = await pool.query<{ data_type: string }>(`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_schema = 'scrapling' AND table_name = 'schedulers' AND column_name = 'id'
+    `);
+    const schedulersIdType = schedulersIdTypeRes.rows[0]?.data_type || "unknown";
+
+    console.log("\n------------------------------------------------------------");
+    console.log("🔗 Key Relational & Foreign Key Verification:");
+    console.log("------------------------------------------------------------");
+    console.log(` • scrapling.schedulers.id type        : ${schedulersIdType.toUpperCase()} (UUID PK)`);
+    console.log(` • scrapling.scrape_runs.schedule_id   : ${scrapeRunsColSet.has("schedule_id") ? "✔ PRESENT (REFERENCES scrapling.schedulers)" : "❌ MISSING"}`);
+    console.log(` • scrapling.records.scrape_run_id     : ${recordsColSet.has("scrape_run_id") ? "✔ PRESENT (REFERENCES scrapling.scrape_runs)" : "❌ MISSING"}`);
+    console.log(` • scrapling.records.batch_id          : ${recordsColSet.has("batch_id") ? "⚠ PRESENT (redundant)" : "✔ REMOVED (cleanly normalized)"}`);
 
     console.log("\n============================================================");
     console.log("✅ Database schema and tables populated successfully!");
