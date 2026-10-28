@@ -20,7 +20,18 @@ import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { SellerOffersDialogComponent } from '../../dialogs/seller-offers-dialog.component';
 import { EnebaConfigDialogComponent } from '../../dialogs/eneba-config-dialog.component';
-import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, ScrapePageConfig, SchedulerState, TargetFaceValueAnalytics, FaceValueStatItem } from '../../core/models/dashboard.model';
+import {
+  type PageDealStatus,
+  type RankedDeal,
+  type SellerOffer,
+  type ScrapeHistoryItem,
+  type ScrapePageConfig,
+  type SchedulerState,
+  type TargetFaceValueAnalytics,
+  type FaceValueStatItem,
+  CANONICAL_TARGET_URLS,
+  CANONICAL_CATEGORY_URLS,
+} from '../../core/models/dashboard.model';
 
 @Component({
   selector: 'app-eneba',
@@ -446,7 +457,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                         </div>
                         <div class="config-divider"></div>
                         <div class="config-item target-url-item">
-                          <a [href]="s.pageUrl" target="_blank" rel="noopener" class="config-url-link" (click)="$event.stopPropagation()">
+                          <a [href]="getStorePageUrl(s)" target="_blank" rel="noopener noreferrer" class="config-url-link" (click)="$event.stopPropagation()">
                             <span class="url-text">Open Store Page ↗</span>
                           </a>
                         </div>
@@ -1747,6 +1758,25 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     return history.length > 0 ? history.length : 1;
   }
 
+  getStorePageUrl(s: Partial<PageDealStatus>): string {
+    const id = (s.scrapeTargetId || s.targetId || '').trim();
+    if (id && CANONICAL_TARGET_URLS[id]) {
+      return CANONICAL_TARGET_URLS[id];
+    }
+    const key = this.getCanonicalTargetKey(s);
+    if (key && CANONICAL_CATEGORY_URLS[key]) {
+      return CANONICAL_CATEGORY_URLS[key];
+    }
+    if (s.pageUrl && s.pageUrl.startsWith('http')) {
+      return s.pageUrl;
+    }
+    const prov = (s.provider || s.category || this.provider).toLowerCase();
+    if (prov === 'g2a') {
+      return 'https://www.g2a.com';
+    }
+    return 'https://www.eneba.com/store/gift-cards';
+  }
+
   constructor(
     private apiService: ApiService,
     private dialog: MatDialog,
@@ -2148,6 +2178,10 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
         }
 
         const taskTitle = page.name || page.categoryName || page.productTitle || bestStatus?.targetName || 'Monitored Task';
+        const canonicalPageUrl =
+          (page.id && CANONICAL_TARGET_URLS[page.id]) ||
+          CANONICAL_CATEGORY_URLS[pKey] ||
+          page.url;
 
         if (bestStatus) {
           return {
@@ -2156,7 +2190,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
             targetId: page.id,
             targetName: taskTitle,
             name: taskTitle,
-            pageUrl: page.url || bestStatus.pageUrl,
+            pageUrl: canonicalPageUrl || bestStatus.pageUrl,
             provider: this.provider,
             category: this.provider,
             runStatus: bestStatus.runStatus || (bestStatus.totalListings > 0 ? 'success' : 'idle'),
@@ -2170,7 +2204,7 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
           targetId: page.id,
           targetName: taskTitle,
           name: taskTitle,
-          pageUrl: page.url,
+          pageUrl: canonicalPageUrl,
           pageNumber: 1,
           totalListings: 0,
           inStockCount: 0,

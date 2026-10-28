@@ -14,6 +14,8 @@ import {
   scraplingScrapeTargets,
   scraplingSellers,
   scraplingTargets,
+  CANONICAL_TARGET_URLS,
+  CANONICAL_CATEGORY_URLS,
   TerminalSpinner,
   type ScraplingDb,
 } from "../core/index.js";
@@ -21,6 +23,7 @@ import type { SellerOffer } from "./baseScraper.js";
 import {
   deduplicatePageDealStatuses,
   deduplicateRankedDeals,
+  getCanonicalTargetKey,
   type FaceValueStatItem,
   type PageDealStatus,
   type TargetFaceValueAnalytics,
@@ -1334,7 +1337,16 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
 
       const provider = target?.provider || records[0]?.record.provider || "eneba";
       const targetTitle = target?.name || provider;
-      const targetUrl = records[0]?.record.url || "";
+      const targetKey = getCanonicalTargetKey({
+        scrapeTargetId: target?.id,
+        targetName: target?.name,
+        provider,
+      });
+      const targetUrl =
+        (target?.id && CANONICAL_TARGET_URLS[target.id]) ||
+        CANONICAL_CATEGORY_URLS[targetKey] ||
+        records[0]?.record.url ||
+        "";
       const totalListings = records.length;
       const inStockCount = records.filter(({ record: r }) => r.inStock).length;
       const discountedCount = records.filter(

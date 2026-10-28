@@ -31,6 +31,8 @@ export {
   upsertDbSchedule,
   upsertDbScheduler,
   upsertDbTarget,
+  CANONICAL_TARGET_URLS,
+  CANONICAL_CATEGORY_URLS,
   type DbPoolOptions,
   type ScheduleDbItem,
   type ScrapePageDbItem,

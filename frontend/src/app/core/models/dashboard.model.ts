@@ -227,3 +227,25 @@ export interface DashboardData {
 }
 
 export type ThemeMode = 'system' | 'light' | 'dark';
+
+export const CANONICAL_TARGET_URLS: Record<string, string> = {
+  'a1000000-0000-4000-8000-000000000001': 'https://www.eneba.com/us/store/psn-gift-cards',
+  'a1000000-0000-4000-8000-000000000002': 'https://www.eneba.com/us/store/apple-gift-cards',
+  'a1000000-0000-4000-8000-000000000003': 'https://www.eneba.com/us/store/google-play-gift-cards',
+  'a1000000-0000-4000-8000-000000000004': 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam',
+  'a1000000-0000-4000-8000-000000000005': 'https://www.eneba.com/us/store/nintendo-gift-cards',
+  'a1000000-0000-4000-8000-000000000006': 'https://www.eneba.com/us/store/amazon-gift-cards',
+  'a1000000-0000-4000-8000-000000000008': 'https://www.g2a.com/search?query=google%20play',
+  'a1000000-0000-4000-8000-000000000009': 'https://www.g2a.com/category/psn-c1567',
+};
+
+export const CANONICAL_CATEGORY_URLS: Record<string, string> = {
+  'eneba:psn': 'https://www.eneba.com/us/store/psn-gift-cards',
+  'eneba:apple': 'https://www.eneba.com/us/store/apple-gift-cards',
+  'eneba:google-play': 'https://www.eneba.com/us/store/google-play-gift-cards',
+  'eneba:steam': 'https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam',
+  'eneba:nintendo': 'https://www.eneba.com/us/store/nintendo-gift-cards',
+  'eneba:amazon': 'https://www.eneba.com/us/store/amazon-gift-cards',
+  'g2a:google-play': 'https://www.g2a.com/search?query=google%20play',
+  'g2a:psn': 'https://www.g2a.com/category/psn-c1567',
+};
