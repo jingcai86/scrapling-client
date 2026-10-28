@@ -80,24 +80,26 @@ import {
           </div>
         </mat-card>
 
-        <!-- Card 2: Cards In Stock (Sky Blue / Cyan) -->
+        <!-- Card 2: Next Scheduled Run (Sky Blue / Cyan) -->
         <mat-card class="kpi-card kpi-cyan" appearance="outlined">
           <div class="kpi-top-bar"></div>
           <div class="kpi-card-inner">
             <div class="kpi-header-row">
-              <span class="kpi-eyebrow">{{ providerDisplayName }} Cards In Stock</span>
-              <div class="kpi-icon-pill">
-                <mat-icon>inventory_2</mat-icon>
+              <span class="kpi-eyebrow">Next {{ providerDisplayName }} Run</span>
+              <div class="kpi-icon-pill" [matTooltip]="nextRunTooltip()">
+                <mat-icon>alarm</mat-icon>
               </div>
             </div>
             <div class="kpi-value-row">
-              <span class="kpi-metric-num">{{ totalInStock() }}</span>
-              <span class="kpi-unit-badge">active cards</span>
+              <span class="kpi-metric-num kpi-time-text">{{ nextRunTime() }}</span>
             </div>
             <div class="kpi-sub-row">
-              <span class="kpi-highlight-pill">
-                <mat-icon class="pill-icon">local_fire_department</mat-icon>
-                <strong>{{ totalDiscounted() }}</strong> with direct discount
+              <span class="kpi-highlight-pill" *ngIf="hasNextRun()">
+                <mat-icon class="pill-icon">schedule</mat-icon>
+                <strong>{{ nextRunCountdown() }}</strong> · {{ nextRunWindow() }}
+              </span>
+              <span class="kpi-sub-muted" *ngIf="!hasNextRun()">
+                {{ nextRunWindow() }}
               </span>
             </div>
           </div>
@@ -1515,6 +1517,170 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
 
   totalDiscounted(): number {
     return this.sortedCategories.reduce((acc, s) => acc + (s.discountedCount || 0), 0);
+  }
+
+  getProviderActivePages(): ScrapePageConfig[] {
+    const data = this.apiService.dashboardData();
+    const pages = data?.pages || [];
+    const provLower = (this.provider || '').toLowerCase().trim();
+    return pages.filter(
+      (p) =>
+        (((p.provider || p.category || '').toLowerCase().trim() === provLower) ||
+          (p.url && p.url.toLowerCase().includes(provLower))) &&
+        p.enabled,
+    );
+  }
+
+  getEarliestProviderScheduler(): SchedulerState | undefined {
+    const data = this.apiService.dashboardData();
+    if (!data) return undefined;
+
+    const activePages = this.getProviderActivePages();
+    if (activePages.length === 0) return undefined;
+
+    const activePageIds = new Set(activePages.map((p) => p.id));
+    const activeScheduleIds = new Set(
+      activePages
+        .map((p) => p.scheduleId)
+        .filter((id): id is string => Boolean(id && id.trim())),
+    );
+
+    const schedulers =
+      data.schedulers && data.schedulers.length > 0
+        ? data.schedulers
+        : data.scheduler
+          ? [data.scheduler]
+          : [];
+
+    const matchingSchedulers = schedulers.filter((s) => {
+      if (!s.enabled) return false;
+      if (s.assignedPageIds?.some((id) => activePageIds.has(id))) return true;
+      if (s.id && activeScheduleIds.has(s.id)) return true;
+      const isDefaultSched =
+        s.isDefault ||
+        s.id === 'default' ||
+        s.id === '00000000-0000-0000-0000-000000000000';
+      if (
+        isDefaultSched &&
+        activePages.some(
+          (p) =>
+            !p.scheduleId ||
+            p.scheduleId === 'default' ||
+            p.scheduleId === '00000000-0000-0000-0000-000000000000',
+        )
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    const withUpcoming = matchingSchedulers.filter(
+      (s) => s.nextRunAt && !isNaN(new Date(s.nextRunAt).getTime()),
+    );
+
+    if (withUpcoming.length === 0) {
+      return matchingSchedulers[0];
+    }
+
+    return withUpcoming.sort(
+      (a, b) => new Date(a.nextRunAt!).getTime() - new Date(b.nextRunAt!).getTime(),
+    )[0];
+  }
+
+  hasNextRun(): boolean {
+    const sched = this.getEarliestProviderScheduler();
+    return Boolean(sched && sched.enabled && sched.nextRunAt && !isNaN(new Date(sched.nextRunAt).getTime()));
+  }
+
+  nextRunTime(): string {
+    const data = this.apiService.dashboardData();
+    if (!data) return 'Loading...';
+
+    const activePages = this.getProviderActivePages();
+    if (activePages.length === 0) return 'No Active Targets';
+
+    const sched = this.getEarliestProviderScheduler();
+    if (!sched || !sched.enabled) return 'Scheduler Disabled';
+    if (!sched.nextRunAt) return 'Pending Roll';
+
+    const nextDate = new Date(sched.nextRunAt);
+    if (isNaN(nextDate.getTime())) return 'Pending Roll';
+
+    const now = new Date();
+    const isToday = nextDate.toDateString() === now.toDateString();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const isTomorrow = nextDate.toDateString() === tomorrow.toDateString();
+
+    const timeStr = nextDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+    if (isToday) {
+      return `Today, ${timeStr}`;
+    }
+    if (isTomorrow) {
+      return `Tomorrow, ${timeStr}`;
+    }
+    const dateStr = nextDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return `${dateStr}, ${timeStr}`;
+  }
+
+  nextRunCountdown(): string {
+    const sched = this.getEarliestProviderScheduler();
+    if (!sched?.nextRunAt) return '';
+
+    const nextDate = new Date(sched.nextRunAt);
+    if (isNaN(nextDate.getTime())) return '';
+
+    const diffMs = nextDate.getTime() - Date.now();
+    if (diffMs <= 0) return 'Running soon';
+
+    const totalSec = Math.floor(diffMs / 1000);
+    const hours = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+
+    if (hours >= 24) {
+      const days = Math.floor(hours / 24);
+      const remHours = hours % 24;
+      return `in ${days}d ${remHours}h`;
+    }
+    if (hours > 0) {
+      return `in ${hours}h ${mins}m`;
+    }
+    if (mins > 0) {
+      return `in ${mins}m`;
+    }
+    return 'in <1m';
+  }
+
+  nextRunWindow(): string {
+    const activePages = this.getProviderActivePages();
+    if (activePages.length === 0) {
+      const provLower = (this.provider || '').toLowerCase().trim();
+      const allProvPages = (this.apiService.dashboardData()?.pages || []).filter(
+        (p) =>
+          ((p.provider || p.category || '').toLowerCase().trim() === provLower) ||
+          (p.url && p.url.toLowerCase().includes(provLower)),
+      );
+      return allProvPages.length === 0 ? 'No targets configured' : 'All targets disabled';
+    }
+
+    const sched = this.getEarliestProviderScheduler();
+    if (!sched || !sched.enabled) {
+      return 'Scheduled run is paused';
+    }
+    if (!sched.nextRunAt) {
+      return 'Calculating next window...';
+    }
+
+    const name = sched.name && sched.name !== 'Default Schedule' ? `${sched.name} · ` : '';
+    return `${name}Base ${sched.baseTime} (+0..${sched.jitterMinutes}m)`;
+  }
+
+  nextRunTooltip(): string {
+    const sched = this.getEarliestProviderScheduler();
+    if (!sched || !sched.nextRunAt) return 'No scheduled scrape for ' + this.providerDisplayName;
+    const fullDate = new Date(sched.nextRunAt).toLocaleString();
+    return `Next run: ${fullDate} (${sched.name || 'Default Schedule'}, Base ${sched.baseTime} + 0..${sched.jitterMinutes}m jitter)`;
   }
 
   get topBestDeals(): (RankedDeal & { scrapedAt?: string })[] {
