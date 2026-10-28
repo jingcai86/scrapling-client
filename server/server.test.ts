@@ -8,6 +8,7 @@ import {
   computeNextRandomizedRun,
   filterAlertableDeals,
   renderDealAlertEmailTemplate,
+  DEFAULT_SCHEDULER_ID,
   type DealAlertItem,
 } from "../core/index.js";
 import { createDashboardServer } from "./index.js";
@@ -66,6 +67,9 @@ function createInMemoryConfigPool(): {
           const created_at = sqlParams[5] ? new Date(String(sqlParams[5])) : new Date();
           if (id) {
             scheduleRows.set(id, { id, name, base_time, jitter_minutes, enabled, created_at });
+            if (id === DEFAULT_SCHEDULER_ID) {
+              scheduleRows.set("default", { id, name, base_time, jitter_minutes, enabled, created_at });
+            }
           }
           return { rows: [], rowCount: 1 };
         }
@@ -506,8 +510,8 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       };
       assert.equal(defData.scheduler.baseTime, "20:00");
       assert.equal(defData.scheduler.jitterMinutes, 45);
-      assert.equal(scheduleRows.get("default")?.base_time, "20:00");
-      assert.equal(scheduleRows.get("default")?.jitter_minutes, 45);
+      assert.equal((scheduleRows.get(DEFAULT_SCHEDULER_ID) || scheduleRows.get("default"))?.base_time, "20:00");
+      assert.equal((scheduleRows.get(DEFAULT_SCHEDULER_ID) || scheduleRows.get("default"))?.jitter_minutes, 45);
 
       // 5. GET /api/email/preview
       const prevRes = await fetch(`${baseUrl}/api/email/preview`);
@@ -663,7 +667,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       };
       assert.ok(Array.isArray(schedData.schedulers));
       assert.equal(schedData.schedulers.length, 1);
-      assert.equal(schedData.schedulers[0].id, "default");
+      assert.equal(schedData.schedulers[0].id, DEFAULT_SCHEDULER_ID);
 
       // 7.2 POST /api/scheduler creates a new schedule
       const createSchedRes = await fetch(`${baseUrl}/api/scheduler`, {
@@ -737,7 +741,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
         pages: Array<{ id: string; scheduleId?: string }>;
       };
       const appleAfter = dashAfterJson.pages.find((p) => p.id === testTargetPageId);
-      assert.equal(appleAfter?.scheduleId, "default");
+      assert.equal(appleAfter?.scheduleId, DEFAULT_SCHEDULER_ID);
     } finally {
       await app.close();
       if (originalDbUrl !== undefined) {

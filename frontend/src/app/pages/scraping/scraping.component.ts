@@ -82,7 +82,7 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
                   <span class="badge" [class.badge-active]="s.enabled" [class.badge-muted]="!s.enabled">
                     {{ s.enabled ? 'Active' : 'Disabled' }}
                   </span>
-                  <span *ngIf="s.id === 'default'" class="default-pill">Default</span>
+                  <span *ngIf="isDefaultSchedule(s)" class="default-pill">Default</span>
                 </div>
                 <div class="schedule-actions">
                   <button mat-icon-button (click)="rerollSchedule(s)" matTooltip="Re-roll randomized time" aria-label="Re-roll time">
@@ -94,7 +94,7 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
                   <button mat-icon-button color="primary" (click)="runSchedule(s)" [disabled]="isScraping()" matTooltip="Run assigned pages now" aria-label="Run now">
                     <mat-icon>play_arrow</mat-icon>
                   </button>
-                  <button *ngIf="s.id !== 'default'" mat-icon-button color="warn" (click)="deleteSchedule(s)" matTooltip="Delete schedule" aria-label="Delete schedule">
+                  <button *ngIf="!isDefaultSchedule(s)" mat-icon-button color="warn" (click)="deleteSchedule(s)" matTooltip="Delete schedule" aria-label="Delete schedule">
                     <mat-icon>delete</mat-icon>
                   </button>
                 </div>
@@ -409,6 +409,11 @@ export class ScrapingComponent {
     return `${dateStrFormatted}, ${timeStr}`;
   }
 
+  isDefaultSchedule(s: SchedulerState | { id?: string; isDefault?: boolean } | null | undefined): boolean {
+    if (!s) return false;
+    return Boolean(s.isDefault || s.id === 'default' || s.id === 'c1000000-0000-4000-8000-000000000001');
+  }
+
   formatLastRun(s: SchedulerState): string {
     if (s.lastRunAt) {
       return this.formatNextRun(s.lastRunAt);
@@ -419,7 +424,7 @@ export class ScrapingComponent {
     if (dash?.statuses) {
       for (const st of dash.statuses) {
         const id = st.scrapeTargetId || st.targetId;
-        if (!assignedIds.length || (id && assignedIds.includes(id)) || s.id === 'default') {
+        if (!assignedIds.length || (id && assignedIds.includes(id)) || this.isDefaultSchedule(s)) {
           if (st.scrapedAt) {
             const t = new Date(st.scrapedAt).getTime();
             if (!isNaN(t)) candidateTimes.push(t);

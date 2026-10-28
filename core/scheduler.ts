@@ -1,5 +1,11 @@
 import { loadEnv, updateEnvValues } from "./env.js";
 
+export const DEFAULT_SCHEDULER_ID = "c1000000-0000-4000-8000-000000000001";
+
+export function isDefaultSchedulerId(id?: string | null): boolean {
+  return !id || id === "default" || id === DEFAULT_SCHEDULER_ID;
+}
+
 export interface SchedulerConfig {
   id?: string;
   name?: string;
@@ -11,6 +17,7 @@ export interface SchedulerConfig {
 export interface SchedulerState extends SchedulerConfig {
   id: string;
   name: string;
+  isDefault?: boolean;
   chosenOffsetMinutes: number;
   chosenOffsetSeconds: number;
   windowStartIso: string | null;
@@ -163,11 +170,11 @@ export class RandomizedDailyScheduler {
       syncWithEnv?: boolean;
     },
   ) {
-    this.id = options?.id || "default";
+    this.id = options?.id || DEFAULT_SCHEDULER_ID;
     this.name = options?.name || "Daily Randomized Schedule";
     this.jobCallback = jobCallback;
     this.getLastScrapeTime = options?.getLastScrapeTime;
-    this.syncWithEnv = options?.syncWithEnv ?? (this.id === "default");
+    this.syncWithEnv = options?.syncWithEnv ?? isDefaultSchedulerId(this.id);
 
     if (options?.lastRunAt) {
       const dt =
@@ -375,6 +382,7 @@ export class RandomizedDailyScheduler {
     return {
       id: this.id,
       name: this.name,
+      isDefault: isDefaultSchedulerId(this.id),
       enabled: this.enabled,
       baseTime: this.baseTime,
       jitterMinutes: this.jitterMinutes,
@@ -415,7 +423,7 @@ export class MultiSchedulerManager {
         ? options.initialSchedules
         : [
             {
-              id: "default",
+              id: DEFAULT_SCHEDULER_ID,
               name: "Primary Daily Schedule",
               enabled: true,
               baseTime: "19:00",
@@ -429,21 +437,27 @@ export class MultiSchedulerManager {
   }
 
   getScheduler(id: string): RandomizedDailyScheduler | undefined {
-    return this.schedulers.get(id);
+    return (
+      this.schedulers.get(id) ||
+      (isDefaultSchedulerId(id) ? this.schedulers.get(DEFAULT_SCHEDULER_ID) : undefined)
+    );
   }
 
   getStates(assignedPagesMap?: Record<string, string[]>): SchedulerState[] {
     const list: SchedulerState[] = [];
     for (const [id, sched] of this.schedulers.entries()) {
       const state = sched.getState();
-      state.assignedPageIds = assignedPagesMap?.[id] || [];
+      state.assignedPageIds =
+        assignedPagesMap?.[id] ||
+        (isDefaultSchedulerId(id) ? assignedPagesMap?.["default"] || assignedPagesMap?.[DEFAULT_SCHEDULER_ID] : []) ||
+        [];
       list.push(state);
     }
     return list;
   }
 
   getState(id: string, assignedPageIds?: string[]): SchedulerState | undefined {
-    const s = this.schedulers.get(id);
+    const s = this.getScheduler(id);
     if (!s) return undefined;
     const state = s.getState();
     state.assignedPageIds = assignedPageIds || [];
@@ -451,7 +465,8 @@ export class MultiSchedulerManager {
   }
 
   addOrUpdateSchedule(config: ScheduleItemConfig): SchedulerState {
-    const existing = this.schedulers.get(config.id);
+    const canonicalId = isDefaultSchedulerId(config.id) ? DEFAULT_SCHEDULER_ID : config.id;
+    const existing = this.schedulers.get(canonicalId);
     if (existing) {
       existing.updateConfig({
         name: config.name,
@@ -465,37 +480,39 @@ export class MultiSchedulerManager {
     const scheduler = new RandomizedDailyScheduler(
       async (sId) => this.jobCallback(sId),
       {
-        id: config.id,
+        id: canonicalId,
         name: config.name,
-        initialConfig: config,
-        syncWithEnv: config.id === "default",
-        getLastScrapeTime: () => this.getLastScrapeTime?.(config.id),
+        initialConfig: { ...config, id: canonicalId },
+        syncWithEnv: isDefaultSchedulerId(canonicalId),
+        getLastScrapeTime: () => this.getLastScrapeTime?.(canonicalId),
       },
     );
-    this.schedulers.set(config.id, scheduler);
+    this.schedulers.set(canonicalId, scheduler);
     return scheduler.getState();
   }
 
   removeSchedule(id: string): boolean {
-    if (id === "default") return false; // Default schedule cannot be deleted
-    const existing = this.schedulers.get(id);
+    if (isDefaultSchedulerId(id)) return false; // Default schedule cannot be deleted
+    const canonicalId = id;
+    const existing = this.schedulers.get(canonicalId);
     if (existing) {
       existing.stop();
-      this.schedulers.delete(id);
+      this.schedulers.delete(canonicalId);
       return true;
     }
     return false;
   }
 
   reroll(id: string): SchedulerState | undefined {
-    const s = this.schedulers.get(id);
+    const s = this.getScheduler(id);
     if (!s) return undefined;
     return s.rerollNextRun();
   }
 
   recordRunCompleted(scheduleId?: string, date: Date = new Date()): void {
-    if (scheduleId && this.schedulers.has(scheduleId)) {
-      this.schedulers.get(scheduleId)!.recordRunCompleted(date);
+    const target = scheduleId ? this.getScheduler(scheduleId) : undefined;
+    if (target) {
+      target.recordRunCompleted(date);
     } else {
       for (const s of this.schedulers.values()) {
         s.recordRunCompleted(date);

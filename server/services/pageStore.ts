@@ -3,6 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  DEFAULT_SCHEDULER_ID,
+  isDefaultSchedulerId,
+} from "../../core/index.js";
+import {
   PLAYSTATION_GIFT_CARDS_URL,
   NINTENDO_GIFT_CARDS_URL,
   ANDROID_GIFT_CARDS_URL,
@@ -79,7 +83,7 @@ export interface ScrapeHistoryItem {
 
 export const DEFAULT_SCHEDULES: ScheduleConfigItem[] = [
   {
-    id: "default",
+    id: DEFAULT_SCHEDULER_ID,
     name: "Primary Daily Schedule",
     enabled: true,
     baseTime: "19:00",
@@ -101,7 +105,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     enabled: true,
     withOffers: true,
     createdAt: "2026-10-25T00:00:00.000Z",
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000005",
@@ -115,7 +119,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     enabled: true,
     withOffers: true,
     createdAt: "2026-10-25T00:00:00.000Z",
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000003",
@@ -129,7 +133,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     enabled: true,
     withOffers: true,
     createdAt: "2026-10-25T00:00:00.000Z",
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000006",
@@ -143,7 +147,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     enabled: true,
     withOffers: true,
     createdAt: "2026-10-25T00:00:00.000Z",
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000002",
@@ -156,7 +160,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     url: APPLE_GIFT_CARDS_URL,
     enabled: true,
     createdAt: "2026-10-25T00:00:00.000Z",
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000004",
@@ -169,7 +173,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     url: "https://www.eneba.com/store/gift-cards?regions[]=united_states&types[]=gift_card&platforms[]=steam",
     enabled: true,
     createdAt: "2026-10-25T00:00:00.000Z",
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000008",
@@ -183,7 +187,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     url: "https://www.g2a.com/search?query=google%20play",
     enabled: true,
     createdAt: "2026-10-25T00:00:00.000Z",
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000009",
@@ -197,7 +201,7 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
     url: "https://www.g2a.com/category/psn-c1567",
     enabled: true,
     createdAt: "2026-10-25T00:00:00.000Z",
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
 ];
 
@@ -220,19 +224,19 @@ export class PageStore {
   listPages(): ScrapePageConfig[] {
     return this.pages.map((p) => ({
       ...p,
-      scheduleId: p.scheduleId || "default",
+      scheduleId: p.scheduleId ? (isDefaultSchedulerId(p.scheduleId) ? DEFAULT_SCHEDULER_ID : p.scheduleId) : DEFAULT_SCHEDULER_ID,
     }));
   }
 
   savePages(pages: ScrapePageConfig[]): void {
     this.pages = pages.map((p) => ({
       ...p,
-      scheduleId: p.scheduleId || "default",
+      scheduleId: p.scheduleId ? (isDefaultSchedulerId(p.scheduleId) ? DEFAULT_SCHEDULER_ID : p.scheduleId) : DEFAULT_SCHEDULER_ID,
     }));
   }
 
   listSchedules(): ScheduleConfigItem[] {
-    if (!this.schedules.some((s) => s.id === "default")) {
+    if (!this.schedules.some((s) => isDefaultSchedulerId(s.id))) {
       this.schedules.unshift(DEFAULT_SCHEDULES[0]);
     }
     return [...this.schedules];
@@ -243,7 +247,7 @@ export class PageStore {
   }
 
   getSchedule(id: string): ScheduleConfigItem | undefined {
-    return this.listSchedules().find((s) => s.id === id);
+    return this.listSchedules().find((s) => s.id === id || (isDefaultSchedulerId(s.id) && isDefaultSchedulerId(id)));
   }
 
   addSchedule(input: {
@@ -253,7 +257,7 @@ export class PageStore {
     enabled?: boolean;
   }): ScheduleConfigItem {
     const list = this.listSchedules();
-    const id = `sched-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
+    const id = crypto.randomUUID();
     const item: ScheduleConfigItem = {
       id,
       name: input.name?.trim() || "Custom Schedule",
@@ -272,7 +276,7 @@ export class PageStore {
     patch: Partial<Omit<ScheduleConfigItem, "id" | "createdAt">>,
   ): ScheduleConfigItem | null {
     const list = this.listSchedules();
-    const idx = list.findIndex((s) => s.id === id);
+    const idx = list.findIndex((s) => s.id === id || (isDefaultSchedulerId(s.id) && isDefaultSchedulerId(id)));
     if (idx === -1) return null;
 
     const current = list[idx];
@@ -292,19 +296,19 @@ export class PageStore {
   }
 
   deleteSchedule(id: string): boolean {
-    if (id === "default") return false; // Default cannot be deleted
+    if (isDefaultSchedulerId(id)) return false; // Default cannot be deleted
     const list = this.listSchedules();
     const filtered = list.filter((s) => s.id !== id);
     if (filtered.length === list.length) return false;
 
     this.saveSchedules(filtered);
 
-    // Reassign any pages that used this schedule back to 'default'
+    // Reassign any pages that used this schedule back to DEFAULT_SCHEDULER_ID
     const pages = this.listPages();
     let pagesChanged = false;
     for (const p of pages) {
       if (p.scheduleId === id) {
-        p.scheduleId = "default";
+        p.scheduleId = DEFAULT_SCHEDULER_ID;
         pagesChanged = true;
       }
     }
@@ -319,7 +323,7 @@ export class PageStore {
     const page = pages.find((p) => p.id === pageId);
     if (!page) return null;
 
-    page.scheduleId = scheduleId?.trim() || "default";
+    page.scheduleId = scheduleId?.trim() ? (isDefaultSchedulerId(scheduleId) ? DEFAULT_SCHEDULER_ID : scheduleId.trim()) : DEFAULT_SCHEDULER_ID;
     this.savePages(pages);
     return page;
   }
@@ -328,7 +332,7 @@ export class PageStore {
     const map: Record<string, string[]> = {};
     const pages = this.listPages();
     for (const p of pages) {
-      const sId = p.scheduleId || "default";
+      const sId = p.scheduleId ? (isDefaultSchedulerId(p.scheduleId) ? DEFAULT_SCHEDULER_ID : p.scheduleId) : DEFAULT_SCHEDULER_ID;
       if (!map[sId]) map[sId] = [];
       map[sId].push(p.id);
     }
@@ -385,7 +389,7 @@ export class PageStore {
       enabled: input.enabled ?? true,
       withOffers: input.withOffers ?? true,
       createdAt: new Date().toISOString(),
-      scheduleId: input.scheduleId?.trim() || "default",
+      scheduleId: input.scheduleId?.trim() ? (isDefaultSchedulerId(input.scheduleId) ? DEFAULT_SCHEDULER_ID : input.scheduleId.trim()) : DEFAULT_SCHEDULER_ID,
     };
 
     pages.push(newPage);
@@ -450,7 +454,14 @@ export class PageStore {
       url,
       enabled: patch.enabled !== undefined ? Boolean(patch.enabled) : current.enabled,
       withOffers: patch.withOffers !== undefined ? Boolean(patch.withOffers) : current.withOffers,
-      scheduleId: patch.scheduleId !== undefined ? patch.scheduleId.trim() || "default" : current.scheduleId,
+      scheduleId:
+        patch.scheduleId !== undefined
+          ? patch.scheduleId.trim()
+            ? isDefaultSchedulerId(patch.scheduleId)
+              ? DEFAULT_SCHEDULER_ID
+              : patch.scheduleId.trim()
+            : DEFAULT_SCHEDULER_ID
+          : current.scheduleId,
     };
 
     pages[idx] = updated;

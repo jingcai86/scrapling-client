@@ -140,6 +140,7 @@ export interface RunnerState {
 export interface SchedulerState {
   id?: string;
   name?: string;
+  isDefault?: boolean;
   enabled: boolean;
   baseTime: string;
   jitterMinutes: number;

@@ -11,6 +11,10 @@ import {
   resolveEnvFilePath,
 } from "./env.js";
 import {
+  DEFAULT_SCHEDULER_ID,
+  isDefaultSchedulerId,
+} from "./scheduler.js";
+import {
   createDrizzleDb,
   scraplingConfig,
   type ScraplingDb,
@@ -21,6 +25,12 @@ loadEnv();
 const { Pool } = pg;
 
 export const SCRAPLING_SCHEMA_NAME = "scrapling";
+export { DEFAULT_SCHEDULER_ID, isDefaultSchedulerId };
+
+export function resolveSchedulerId(id?: string | null): string {
+  if (!id || id === "default") return DEFAULT_SCHEDULER_ID;
+  return id;
+}
 
 export interface DbPoolOptions {
   connectionString?: string;
@@ -382,9 +392,10 @@ export async function upsertDbScheduler(
   const p = pool ?? createPgPool();
   try {
     await ensureScraplingConfigTable(p);
+    const resolvedId = resolveSchedulerId(item.id);
     await p.query(
       `INSERT INTO scrapling.schedulers (id, name, base_time, jitter_minutes, enabled, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW()), NOW())
+       VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, $4, $5, COALESCE($6::timestamptz, NOW()), NOW())
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          base_time = EXCLUDED.base_time,
@@ -392,7 +403,7 @@ export async function upsertDbScheduler(
          enabled = EXCLUDED.enabled,
          updated_at = NOW()`,
       [
-        item.id,
+        resolvedId,
         item.name,
         item.baseTime,
         item.jitterMinutes,
@@ -406,21 +417,22 @@ export async function upsertDbScheduler(
 }
 
 /**
- * Deletes a schedule from `scrapling.schedulers` and reassigns any orphaned targets to 'default'.
+ * Deletes a schedule from `scrapling.schedulers` and reassigns any orphaned targets to the default schedule.
  */
 export async function deleteDbScheduler(
   id: string,
   pool?: pg.Pool,
 ): Promise<void> {
-  if (id === "default") return;
+  const resolvedId = resolveSchedulerId(id);
+  if (resolvedId === DEFAULT_SCHEDULER_ID) return;
   const ownPool = !pool;
   const p = pool ?? createPgPool();
   try {
     await ensureScraplingConfigTable(p);
-    await p.query("DELETE FROM scrapling.schedulers WHERE id = $1", [id]);
+    await p.query("DELETE FROM scrapling.schedulers WHERE id = $1::uuid", [resolvedId]);
     await p.query(
-      "UPDATE scrapling.scrape_targets SET schedule_id = 'default', updated_at = NOW() WHERE schedule_id = $1",
-      [id],
+      "UPDATE scrapling.scrape_targets SET schedule_id = $1::uuid, updated_at = NOW() WHERE schedule_id = $2::uuid",
+      [DEFAULT_SCHEDULER_ID, resolvedId],
     );
   } finally {
     if (ownPool) await p.end();
@@ -552,7 +564,7 @@ export async function upsertDbTarget(
 
     await p.query(
       `INSERT INTO scrapling.scrape_targets (id, product_id, provider, name, enabled, schedule_id, created_at, updated_at)
-       VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, COALESCE($4, ''), $5, $6, COALESCE($7::timestamptz, NOW()), NOW())
+       VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, COALESCE($4, ''), $5, $6::uuid, COALESCE($7::timestamptz, NOW()), NOW())
        ON CONFLICT (id) DO UPDATE SET
          product_id = COALESCE(EXCLUDED.product_id, scrapling.scrape_targets.product_id),
          provider = EXCLUDED.provider,
@@ -566,7 +578,7 @@ export async function upsertDbTarget(
         provider,
         target.name || "",
         target.enabled,
-        target.scheduleId || "default",
+        resolveSchedulerId(target.scheduleId),
         target.createdAt || new Date().toISOString(),
       ],
     );
@@ -602,7 +614,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     category: "eneba",
     name: "PlayStation (PSN) Gift Cards",
     enabled: true,
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000002",
@@ -611,7 +623,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     category: "eneba",
     name: "Apple iTunes / App Store Gift Cards",
     enabled: true,
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000003",
@@ -620,7 +632,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     category: "eneba",
     name: "Google Play Gift Cards",
     enabled: true,
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000004",
@@ -629,7 +641,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     category: "eneba",
     name: "Steam Gift Cards & Wallet Codes",
     enabled: true,
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000005",
@@ -638,7 +650,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     category: "eneba",
     name: "Nintendo eShop Gift Cards",
     enabled: true,
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000006",
@@ -647,7 +659,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     category: "eneba",
     name: "Amazon Gift Cards",
     enabled: true,
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000008",
@@ -659,7 +671,7 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     name: "Google Play Gift Cards (G2A)",
     url: "https://www.g2a.com/search?query=google%20play",
     enabled: true,
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
   {
     id: "a1000000-0000-4000-8000-000000000009",
@@ -671,14 +683,14 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     name: "PlayStation (PSN) Gift Cards (G2A)",
     url: "https://www.g2a.com/category/psn-c1567",
     enabled: true,
-    scheduleId: "default",
+    scheduleId: DEFAULT_SCHEDULER_ID,
   },
 ];
 export const DEFAULT_INITIAL_TARGET_PAGES = DEFAULT_INITIAL_TARGETS;
 
 const DEFAULT_INITIAL_SCHEDULERS: ScheduleDbItem[] = [
   {
-    id: "default",
+    id: DEFAULT_SCHEDULER_ID,
     name: "Primary Daily Schedule",
     baseTime: "19:00",
     jitterMinutes: 60,
@@ -723,14 +735,15 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
       }
     } else {
       for (const sch of initialSchedulers) {
-        if (!dbSchedulers.some((s) => s.id === sch.id)) {
+        const resolvedId = resolveSchedulerId(sch.id);
+        if (!dbSchedulers.some((s) => s.id === resolvedId || (isDefaultSchedulerId(s.id) && isDefaultSchedulerId(sch.id)))) {
           await upsertDbScheduler(sch, pool);
         }
       }
       dbSchedulers = await getDbSchedulers(pool);
-      if (!dbSchedulers.some((s) => s.id === "default")) {
-        const def = initialSchedulers.find((s) => s.id === "default") || {
-          id: "default",
+      if (!dbSchedulers.some((s) => isDefaultSchedulerId(s.id))) {
+        const def = initialSchedulers.find((s) => isDefaultSchedulerId(s.id)) || {
+          id: DEFAULT_SCHEDULER_ID,
           name: "Primary Daily Schedule",
           baseTime: "19:00",
           jitterMinutes: 60,
@@ -738,7 +751,7 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
         };
         await upsertDbScheduler(def, pool);
         dbSchedulers = await getDbSchedulers(pool);
-        if (!dbSchedulers.some((s) => s.id === "default")) {
+        if (!dbSchedulers.some((s) => isDefaultSchedulerId(s.id))) {
           dbSchedulers.unshift(def);
         }
       }

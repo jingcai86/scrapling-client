@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   upsertDbScheduler,
   deleteDbScheduler,
+  isDefaultSchedulerId,
 } from "../../core/index.js";
 import type { ServerContext } from "../types.js";
 
@@ -61,7 +62,7 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
 
   router.delete("/:id", async (req, res) => {
     const id = req.params.id;
-    if (id === "default") {
+    if (isDefaultSchedulerId(id)) {
       res.status(400).json({ error: "The default schedule cannot be deleted." });
       return;
     }

@@ -15,6 +15,8 @@ import {
   scraplingScrapeTargets,
   scraplingSellers,
   scraplingTargets,
+  DEFAULT_SCHEDULER_ID,
+  isDefaultSchedulerId,
   CANONICAL_TARGET_URLS,
   CANONICAL_CATEGORY_URLS,
   TerminalSpinner,
@@ -44,6 +46,7 @@ export interface SaveDealsResult {
 export interface SaveDealsOptions {
   pool?: pg.Pool;
   batchId?: string;
+  scheduleId?: string | null;
   scrapedAt?: Date | string;
   maxRank?: number;
 }
@@ -279,6 +282,11 @@ export async function savePageDealsToDb(
           ? new Date(statusList[0].scrapedAt)
           : new Date();
   const batchTimestamp = batchDate.toISOString();
+  const runScheduleId = options.scheduleId
+    ? isDefaultSchedulerId(options.scheduleId)
+      ? DEFAULT_SCHEDULER_ID
+      : options.scheduleId
+    : null;
 
   try {
     await ensureEnebaSchema(pool);
@@ -351,6 +359,7 @@ export async function savePageDealsToDb(
           .insert(scraplingScrapeRuns)
           .values({
             batchId,
+            scheduleId: runScheduleId,
             scrapeTargetId,
             provider: siteProvider,
             status: (status.totalListings || 0) > 0 ? "success" : "empty",
@@ -731,6 +740,7 @@ export async function tryPersistScrapeResult(
     maxRank?: number;
     showProgress?: boolean;
     pool?: pg.Pool;
+    scheduleId?: string | null;
   } = {},
 ): Promise<DbPersistenceStatus> {
   const statusList = Array.isArray(statuses) ? statuses : [statuses];
@@ -762,6 +772,7 @@ export async function tryPersistScrapeResult(
     const savedDeals = await savePageDealsToDb(statusList, {
       pool,
       maxRank,
+      scheduleId: options.scheduleId,
     });
 
     let totalSellers = 0;

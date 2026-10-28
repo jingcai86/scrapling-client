@@ -35,11 +35,13 @@ export const scraplingConfig = scraplingSchema.table("config", {
 // Backward-compatibility alias: eneba_config has been merged into config
 export const enebaConfig = scraplingConfig;
 
+export const DEFAULT_SCHEDULER_ID = "c1000000-0000-4000-8000-000000000001";
+
 /**
  * 2b. Multi-Scheduler Configurations (`scrapling.schedulers`)
  */
 export const scraplingSchedulers = scraplingSchema.table("schedulers", {
-  id: text("id").primaryKey(),
+  id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   baseTime: text("base_time").notNull().default("19:00"),
   jitterMinutes: integer("jitter_minutes").notNull().default(60),
@@ -65,7 +67,9 @@ export const scraplingScrapeTargets = scraplingSchema.table(
     provider: text("provider").notNull().default("eneba"), // scraper provider (e.g. 'eneba', 'g2a')
     name: text("name").default(""), // display title (e.g. 'PlayStation (PSN) Gift Cards')
     enabled: boolean("enabled").notNull().default(true),
-    scheduleId: text("schedule_id").notNull().default("default"),
+    scheduleId: uuid("schedule_id")
+      .references(() => scraplingSchedulers.id, { onDelete: "set null" })
+      .default(DEFAULT_SCHEDULER_ID),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -75,6 +79,7 @@ export const scraplingScrapeTargets = scraplingSchema.table(
   },
   (table) => [
     index("idx_scrapling_scrape_targets_product_id").on(table.productId),
+    index("idx_scrapling_scrape_targets_schedule_id").on(table.scheduleId),
   ],
 );
 
@@ -113,6 +118,10 @@ export const scraplingScrapeRuns = scraplingSchema.table(
     batchId: uuid("batch_id").notNull(),
     scrapeTargetId: uuid("scrape_target_id").references(
       () => scraplingScrapeTargets.id,
+      { onDelete: "set null" },
+    ),
+    scheduleId: uuid("schedule_id").references(
+      () => scraplingSchedulers.id,
       { onDelete: "set null" },
     ),
     provider: text("provider").notNull().default("eneba"),
@@ -157,6 +166,7 @@ export const scraplingScrapeRuns = scraplingSchema.table(
     index("idx_scrapling_scrape_runs_scraped_at").on(table.scrapedAt),
     index("idx_scrapling_scrape_runs_batch_id").on(table.batchId),
     index("idx_scrapling_scrape_runs_target_id").on(table.scrapeTargetId),
+    index("idx_scrapling_scrape_runs_schedule_id").on(table.scheduleId),
     index("idx_scrapling_scrape_runs_provider").on(table.provider),
   ],
 );
@@ -367,12 +377,24 @@ export const scraplingNotificationRecords = scraplingSchema.table(
 /**
  * Relational definitions for Drizzle relational query builder
  */
+export const scraplingSchedulersRelations = relations(
+  scraplingSchedulers,
+  ({ many }) => ({
+    targets: many(scraplingScrapeTargets),
+    scrapeRuns: many(scraplingScrapeRuns),
+  }),
+);
+
 export const scraplingScrapeRunsRelations = relations(
   scraplingScrapeRuns,
   ({ one, many }) => ({
     target: one(scraplingScrapeTargets, {
       fields: [scraplingScrapeRuns.scrapeTargetId],
       references: [scraplingScrapeTargets.id],
+    }),
+    schedule: one(scraplingSchedulers, {
+      fields: [scraplingScrapeRuns.scheduleId],
+      references: [scraplingSchedulers.id],
     }),
     records: many(scraplingRecords),
   }),
@@ -396,6 +418,10 @@ export const scraplingScrapeTargetsRelations = relations(
     product: one(scraplingProducts, {
       fields: [scraplingScrapeTargets.productId],
       references: [scraplingProducts.id],
+    }),
+    schedule: one(scraplingSchedulers, {
+      fields: [scraplingScrapeTargets.scheduleId],
+      references: [scraplingSchedulers.id],
     }),
     records: many(scraplingRecords),
   }),

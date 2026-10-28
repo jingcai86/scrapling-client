@@ -480,6 +480,7 @@ export class ScrapeRunner {
       const dbStatus = await tryPersistScrapeResult(scrapedResults, {
         maxRank: enebaLimit,
         showProgress: true,
+        scheduleId: options.scheduleId ?? null,
       });
       this.lastDbStatus = dbStatus;
       if (dbStatus.saved) {

@@ -325,6 +325,34 @@ BEGIN
       FOREIGN KEY (seller_id) REFERENCES scrapling.sellers(id) ON DELETE SET NULL;
   END IF;
 
+  -- Ensure schedulers.id is UUID and scrape_targets.schedule_id is UUID
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'scrapling' AND table_name = 'schedulers' AND column_name = 'id' AND data_type != 'uuid'
+  ) THEN
+    ALTER TABLE scrapling.schedulers ADD COLUMN IF NOT EXISTS new_id UUID;
+    UPDATE scrapling.schedulers SET new_id = 'c1000000-0000-4000-8000-000000000001'::uuid WHERE id = 'default';
+    UPDATE scrapling.schedulers SET new_id = gen_random_uuid() WHERE new_id IS NULL;
+
+    ALTER TABLE scrapling.scrape_targets ADD COLUMN IF NOT EXISTS new_schedule_id UUID;
+    UPDATE scrapling.scrape_targets st
+    SET new_schedule_id = s.new_id
+    FROM scrapling.schedulers s
+    WHERE st.schedule_id = s.id;
+    UPDATE scrapling.scrape_targets SET new_schedule_id = 'c1000000-0000-4000-8000-000000000001'::uuid WHERE new_schedule_id IS NULL;
+
+    ALTER TABLE scrapling.schedulers DROP CONSTRAINT IF EXISTS schedulers_pkey CASCADE;
+    ALTER TABLE scrapling.schedulers DROP COLUMN IF EXISTS id CASCADE;
+    ALTER TABLE scrapling.schedulers RENAME COLUMN new_id TO id;
+    ALTER TABLE scrapling.schedulers ADD PRIMARY KEY (id);
+    ALTER TABLE scrapling.schedulers ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+    ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS schedule_id CASCADE;
+    ALTER TABLE scrapling.scrape_targets RENAME COLUMN new_schedule_id TO schedule_id;
+    ALTER TABLE scrapling.scrape_targets ALTER COLUMN schedule_id SET DEFAULT 'c1000000-0000-4000-8000-000000000001'::uuid;
+    ALTER TABLE scrapling.scrape_targets ADD CONSTRAINT scrape_targets_schedule_id_fk FOREIGN KEY (schedule_id) REFERENCES scrapling.schedulers(id) ON DELETE SET NULL;
+  END IF;
+
   -- Drop redundant is_lowest_price column from records (inferable from rank = 1)
   ALTER TABLE scrapling.records DROP COLUMN IF EXISTS is_lowest_price CASCADE;
 END $$;
@@ -336,7 +364,7 @@ DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_target_time;
 -- 2. Multi-Scheduler Configurations Table
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.schedulers (
-  id TEXT PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   base_time TEXT NOT NULL DEFAULT '19:00',
   jitter_minutes INTEGER NOT NULL DEFAULT 60,
@@ -348,7 +376,7 @@ CREATE TABLE IF NOT EXISTS scrapling.schedulers (
 -- Seed default primary scheduler
 INSERT INTO scrapling.schedulers (id, name, base_time, jitter_minutes, enabled, created_at, updated_at)
 VALUES
-  ('default', 'Primary Daily Schedule', '19:00', 60, true, NOW(), NOW())
+  ('c1000000-0000-4000-8000-000000000001'::uuid, 'Primary Daily Schedule', '19:00', 60, true, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -390,23 +418,24 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_targets (
   provider TEXT NOT NULL DEFAULT 'eneba',
   name TEXT DEFAULT '',
   enabled BOOLEAN NOT NULL DEFAULT true,
-  schedule_id TEXT NOT NULL DEFAULT 'default',
+  schedule_id UUID REFERENCES scrapling.schedulers(id) ON DELETE SET NULL DEFAULT 'c1000000-0000-4000-8000-000000000001'::uuid,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_targets_product_id ON scrapling.scrape_targets(product_id);
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_targets_schedule_id ON scrapling.scrape_targets(schedule_id);
 
 -- Seed default initial scrape targets
 INSERT INTO scrapling.scrape_targets (id, product_id, provider, name, enabled, schedule_id, created_at, updated_at)
 VALUES
-  ('a1000000-0000-4000-8000-000000000001'::uuid, '0cbae1f0-59b3-4ac3-bcd1-3b7bbde05686'::uuid, 'eneba', 'PlayStation (PSN) Gift Cards', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000002'::uuid, 'c56cb9eb-0773-472e-a530-ee72d5863c3a'::uuid, 'eneba', 'Apple iTunes / App Store Gift Cards', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000003'::uuid, '3a8bd30c-620d-48a3-aa66-f976f9ecaa50'::uuid, 'eneba', 'Google Play Gift Cards', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000004'::uuid, 'b1000000-0000-4000-8000-000000000004'::uuid, 'eneba', 'Steam Gift Cards & Wallet Codes', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000005'::uuid, 'f700d89a-919a-4e82-9eb6-c92f7853c2a2'::uuid, 'eneba', 'Nintendo eShop Gift Cards', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000006'::uuid, '28519d1d-0742-4e92-b28f-f8e34cd60630'::uuid, 'eneba', 'Amazon Gift Cards', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000008'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b4'::uuid, 'g2a', 'Google Play Gift Cards (G2A)', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000009'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b5'::uuid, 'g2a', 'PlayStation (PSN) Gift Cards (G2A)', true, 'default', NOW(), NOW())
+  ('a1000000-0000-4000-8000-000000000001'::uuid, '0cbae1f0-59b3-4ac3-bcd1-3b7bbde05686'::uuid, 'eneba', 'PlayStation (PSN) Gift Cards', true, 'c1000000-0000-4000-8000-000000000001'::uuid, NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000002'::uuid, 'c56cb9eb-0773-472e-a530-ee72d5863c3a'::uuid, 'eneba', 'Apple iTunes / App Store Gift Cards', true, 'c1000000-0000-4000-8000-000000000001'::uuid, NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000003'::uuid, '3a8bd30c-620d-48a3-aa66-f976f9ecaa50'::uuid, 'eneba', 'Google Play Gift Cards', true, 'c1000000-0000-4000-8000-000000000001'::uuid, NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000004'::uuid, 'b1000000-0000-4000-8000-000000000004'::uuid, 'eneba', 'Steam Gift Cards & Wallet Codes', true, 'c1000000-0000-4000-8000-000000000001'::uuid, NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000005'::uuid, 'f700d89a-919a-4e82-9eb6-c92f7853c2a2'::uuid, 'eneba', 'Nintendo eShop Gift Cards', true, 'c1000000-0000-4000-8000-000000000001'::uuid, NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000006'::uuid, '28519d1d-0742-4e92-b28f-f8e34cd60630'::uuid, 'eneba', 'Amazon Gift Cards', true, 'c1000000-0000-4000-8000-000000000001'::uuid, NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000008'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b4'::uuid, 'g2a', 'Google Play Gift Cards (G2A)', true, 'c1000000-0000-4000-8000-000000000001'::uuid, NOW(), NOW()),
+  ('a1000000-0000-4000-8000-000000000009'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b5'::uuid, 'g2a', 'PlayStation (PSN) Gift Cards (G2A)', true, 'c1000000-0000-4000-8000-000000000001'::uuid, NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET
   product_id = EXCLUDED.product_id,
   provider = EXCLUDED.provider,
@@ -421,6 +450,7 @@ CREATE TABLE IF NOT EXISTS scrapling.scrape_runs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL,
   scrape_target_id UUID REFERENCES scrapling.scrape_targets(id) ON DELETE SET NULL,
+  schedule_id UUID REFERENCES scrapling.schedulers(id) ON DELETE SET NULL,
   provider TEXT NOT NULL DEFAULT 'eneba',
   status TEXT NOT NULL DEFAULT 'success',
   error_message TEXT,
@@ -459,6 +489,8 @@ ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS best_deal_price NUMER
 ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS best_deal_discount_pct NUMERIC(6, 2);
 ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS best_deal_url TEXT;
 ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS best_deals_by_provider JSONB;
+ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS schedule_id UUID REFERENCES scrapling.schedulers(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_schedule_id ON scrapling.scrape_runs (schedule_id);
 
 -- Backfill scrape_runs summary metrics from records if unpopulated
 UPDATE scrapling.scrape_runs sr
