@@ -42,13 +42,13 @@ export async function createDashboardServer(options: {
 
   // Mandatory startup check: Ensure PostgreSQL is reachable and initialize `scrapling` schema and tables.
   // Fails fast if DATABASE_URL is missing or PostgreSQL is unreachable.
-  const startupPool = options.pool ?? createPgPool();
+  const appPool = options.pool ?? createPgPool();
   try {
     await initScraplingConfigOnStartup({
-      pool: startupPool,
+      pool: appPool,
       envPath: options.envPath,
     });
-    await ensureEnebaSchema(startupPool);
+    await ensureEnebaSchema(appPool);
 
     // Sync schedulers and scrape targets with PostgreSQL
     try {
@@ -64,7 +64,7 @@ export async function createDashboardServer(options: {
         createdAt: p.createdAt,
       }));
       const synced = await syncSchedulersAndTargetsOnStartup({
-        pool: startupPool,
+        pool: appPool,
         initialSchedulers: pageStore.listSchedules(),
         initialTargets,
       });
@@ -92,10 +92,11 @@ export async function createDashboardServer(options: {
     } catch (syncErr) {
       console.warn("[PostgreSQL Warn] Could not sync schedulers/targets on startup:", syncErr);
     }
-  } finally {
+  } catch (err) {
     if (!options.pool) {
-      await startupPool.end();
+      await appPool.end().catch(() => {});
     }
+    throw err;
   }
 
   const runner = new ScrapeRunner(pageStore);
@@ -135,7 +136,7 @@ export async function createDashboardServer(options: {
     runner,
     scheduler: defaultScheduler,
     schedulerManager,
-    pool: options.pool,
+    pool: appPool,
     envPath: options.envPath,
   });
 
@@ -164,6 +165,9 @@ export async function createDashboardServer(options: {
     close: async () => {
       schedulerManager.stopAll();
       defaultScheduler.stop();
+      if (!options.pool) {
+        await appPool.end().catch(() => {});
+      }
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };

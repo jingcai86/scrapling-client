@@ -21,7 +21,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import * as echarts from 'echarts';
 import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
-import type { ScrapeHistoryItem } from '../../core/models/dashboard.model';
+import type { ScrapeHistoryItem, SchedulerState } from '../../core/models/dashboard.model';
 
 interface ProviderRow {
   provider: string;
@@ -872,8 +872,28 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     return new Date(Math.max(...dates)).toLocaleString();
   }
 
+  getEarliestUpcomingScheduler(): SchedulerState | undefined {
+    const data = this.apiService.dashboardData();
+    const list =
+      data?.schedulers && data.schedulers.length > 0
+        ? data.schedulers.filter((s) => s.enabled && s.nextRunAt)
+        : data?.scheduler && data.scheduler.enabled && data.scheduler.nextRunAt
+          ? [data.scheduler]
+          : [];
+
+    if (list.length === 0) {
+      return data?.scheduler?.enabled
+        ? data.scheduler
+        : data?.schedulers?.find((s) => s.enabled) || undefined;
+    }
+
+    return list.sort(
+      (a, b) => new Date(a.nextRunAt!).getTime() - new Date(b.nextRunAt!).getTime(),
+    )[0];
+  }
+
   nextCronTime(): string {
-    const sched = this.apiService.dashboardData()?.scheduler;
+    const sched = this.getEarliestUpcomingScheduler();
     if (!sched || !sched.enabled) return 'Disabled';
     if (!sched.nextRunAt) return 'Pending Roll';
     const nextDate = new Date(sched.nextRunAt);
@@ -898,9 +918,10 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
   }
 
   cronWindow(): string {
-    const sched = this.apiService.dashboardData()?.scheduler;
+    const sched = this.getEarliestUpcomingScheduler();
     if (!sched || !sched.enabled) return 'Cron scheduler is currently off';
-    return `Base ${sched.baseTime} + 0..${sched.jitterMinutes}m random jitter`;
+    const schedPrefix = sched.name ? `${sched.name}: ` : '';
+    return `${schedPrefix}Base ${sched.baseTime} + 0..${sched.jitterMinutes}m random jitter`;
   }
 
   private updateProvidersList() {

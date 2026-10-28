@@ -884,6 +884,12 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
         dbSchedulers = [...initialSchedulers];
       }
     } else {
+      for (const sch of initialSchedulers) {
+        if (!dbSchedulers.some((s) => s.id === sch.id)) {
+          await upsertDbScheduler(sch, pool);
+        }
+      }
+      dbSchedulers = await getDbSchedulers(pool);
       if (!dbSchedulers.some((s) => s.id === "default")) {
         const def = initialSchedulers.find((s) => s.id === "default") || {
           id: "default",
