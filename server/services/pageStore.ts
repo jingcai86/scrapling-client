@@ -202,81 +202,44 @@ export const DEFAULT_SCRAPE_PAGES: ScrapePageConfig[] = [
 ];
 
 export class PageStore {
-  private readonly pagesFilePath: string;
-  private readonly schedulesFilePath: string;
+  private pages: ScrapePageConfig[];
+  private schedules: ScheduleConfigItem[];
+  private history: ScrapeHistoryItem[] = [];
   private readonly resultsFilePath: string;
-  private readonly historyFilePath: string;
 
   constructor(dataDir: string = DEFAULT_DATA_DIR) {
     fs.mkdirSync(dataDir, { recursive: true });
-    this.pagesFilePath = path.join(dataDir, "scrape-pages.json");
-    this.schedulesFilePath = path.join(dataDir, "schedules.json");
     this.resultsFilePath = path.join(dataDir, "latest-results.json");
-    this.historyFilePath = path.join(dataDir, "scrape-history.json");
+    this.pages = [...DEFAULT_SCRAPE_PAGES];
+    this.schedules = [...DEFAULT_SCHEDULES];
   }
 
   /**
-   * Lists all configured scraping pages. Initializes with default pages if none exist on disk yet.
+   * Lists all configured scraping pages.
    */
   listPages(): ScrapePageConfig[] {
-    if (!fs.existsSync(this.pagesFilePath)) {
-      this.savePages(DEFAULT_SCRAPE_PAGES);
-      return [...DEFAULT_SCRAPE_PAGES];
-    }
-
-    try {
-      const raw = fs.readFileSync(this.pagesFilePath, "utf8");
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.map((p) => ({
-          ...p,
-          scheduleId: p.scheduleId || "default",
-        }));
-      }
-    } catch {
-      // Fallback to defaults if corrupted
-    }
-    this.savePages(DEFAULT_SCRAPE_PAGES);
-    return [...DEFAULT_SCRAPE_PAGES];
+    return this.pages.map((p) => ({
+      ...p,
+      scheduleId: p.scheduleId || "default",
+    }));
   }
 
   savePages(pages: ScrapePageConfig[]): void {
-    fs.mkdirSync(path.dirname(this.pagesFilePath), { recursive: true });
-    fs.writeFileSync(
-      this.pagesFilePath,
-      JSON.stringify(pages, null, 2) + "\n",
-      "utf8",
-    );
+    this.pages = pages.map((p) => ({
+      ...p,
+      scheduleId: p.scheduleId || "default",
+    }));
   }
 
   listSchedules(): ScheduleConfigItem[] {
-    if (!fs.existsSync(this.schedulesFilePath)) {
-      this.saveSchedules(DEFAULT_SCHEDULES);
-      return [...DEFAULT_SCHEDULES];
+    if (!this.schedules.some((s) => s.id === "default")) {
+      this.schedules.unshift(DEFAULT_SCHEDULES[0]);
     }
-    try {
-      const raw = fs.readFileSync(this.schedulesFilePath, "utf8");
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        if (!parsed.some((s) => s.id === "default")) {
-          parsed.unshift(DEFAULT_SCHEDULES[0]);
-        }
-        return parsed;
-      }
-    } catch {
-      // Fallback
-    }
-    this.saveSchedules(DEFAULT_SCHEDULES);
-    return [...DEFAULT_SCHEDULES];
+    return [...this.schedules];
   }
 
   saveSchedules(schedules: ScheduleConfigItem[]): void {
-    fs.mkdirSync(path.dirname(this.schedulesFilePath), { recursive: true });
-    fs.writeFileSync(
-      this.schedulesFilePath,
-      JSON.stringify(schedules, null, 2) + "\n",
-      "utf8",
-    );
+    this.schedules = [...schedules];
   }
 
   getSchedule(id: string): ScheduleConfigItem | undefined {
@@ -537,40 +500,26 @@ export class PageStore {
   }
 
   /**
-   * Loads the scraping success rate and execution history log from disk.
+   * Loads the scraping success rate and execution history log from memory.
    */
   loadHistory(): ScrapeHistoryItem[] {
-    if (!fs.existsSync(this.historyFilePath)) return [];
-    try {
-      const parsed = JSON.parse(fs.readFileSync(this.historyFilePath, "utf8"));
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    return [...this.history];
   }
 
   /**
-   * Saves scraping history on disk.
+   * Saves scraping history in memory.
    */
   saveHistory(history: ScrapeHistoryItem[]): void {
-    try {
-      const trimmed = history.slice(-60);
-      fs.writeFileSync(
-        this.historyFilePath,
-        JSON.stringify(trimmed, null, 2) + "\n",
-        "utf8",
-      );
-    } catch {
-      // Ignore write failures
-    }
+    this.history = history.slice(-60);
   }
 
   /**
-   * Appends a new scrape history item and persists to disk.
+   * Appends a new scrape history item and stores in memory.
    */
   addHistoryItem(item: ScrapeHistoryItem): void {
-    const list = this.loadHistory();
-    list.push(item);
-    this.saveHistory(list);
+    this.history.push(item);
+    if (this.history.length > 60) {
+      this.history = this.history.slice(-60);
+    }
   }
 }
