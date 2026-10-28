@@ -171,6 +171,7 @@ export class ScrapeRunner {
             category: stProvider,
             scrapeCount: status.scrapeCount || existing.scrapeCount || 1,
             runStatus: status.runStatus || existing.runStatus || (existing.totalListings > 0 ? "success" : "warning"),
+            faceAnalytics: status.faceAnalytics || existing.faceAnalytics,
             recentRuns: status.recentRuns?.length ? status.recentRuns : existing.recentRuns,
           };
         } else if (stTime < exTime) {
@@ -185,6 +186,7 @@ export class ScrapeRunner {
             category: stProvider,
             scrapeCount: existing.scrapeCount || status.scrapeCount || 1,
             runStatus: existing.runStatus || status.runStatus || (existing.totalListings > 0 ? "success" : "warning"),
+            faceAnalytics: existing.faceAnalytics || status.faceAnalytics,
             recentRuns: existing.recentRuns?.length ? existing.recentRuns : status.recentRuns,
           };
         } else {
@@ -199,6 +201,7 @@ export class ScrapeRunner {
             category: stProvider,
             scrapeCount: status.scrapeCount || existing.scrapeCount || 1,
             runStatus: status.runStatus || existing.runStatus || (status.totalListings > 0 ? "success" : "warning"),
+            faceAnalytics: status.faceAnalytics || existing.faceAnalytics,
             recentRuns: status.recentRuns?.length ? status.recentRuns : existing.recentRuns,
             totalListings: !statusHasData && existingHasData ? existing.totalListings : status.totalListings,
             inStockCount: !statusHasData && existingHasData ? existing.inStockCount : status.inStockCount,

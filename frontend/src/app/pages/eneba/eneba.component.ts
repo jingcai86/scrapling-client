@@ -20,7 +20,7 @@ import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { SellerOffersDialogComponent } from '../../dialogs/seller-offers-dialog.component';
 import { EnebaConfigDialogComponent } from '../../dialogs/eneba-config-dialog.component';
-import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, ScrapePageConfig, SchedulerState, TargetScrapeRunLog } from '../../core/models/dashboard.model';
+import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, ScrapePageConfig, SchedulerState, TargetFaceValueAnalytics, FaceValueStatItem } from '../../core/models/dashboard.model';
 
 @Component({
   selector: 'app-eneba',
@@ -172,9 +172,9 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
             <div class="table-header-titles">
-              <mat-card-title>{{ providerDisplayName }} Pages — Scraping Runs &amp; Status</mat-card-title>
+              <mat-card-title>{{ providerDisplayName }} Pages — Deal Discounts &amp; Status</mat-card-title>
               <mat-card-subtitle>
-                Scrape execution telemetry and run history per target page. Click any row to expand run details.
+                Discount metrics, denomination analytics, and page telemetry. Click any row to expand face value details.
               </mat-card-subtitle>
             </div>
             <div class="table-actions">
@@ -188,10 +188,10 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
             <!-- Loading State Overlay -->
             <div *ngIf="isLoading" class="ui-loading-overlay">
               <mat-spinner diameter="34" strokeWidth="3"></mat-spinner>
-              <span class="loading-label">Loading page scraping run telemetry...</span>
+              <span class="loading-label">Loading page statuses &amp; deal analytics...</span>
             </div>
 
-            <div class="table-wrapper no-scroll-wrapper" [class.table-loading-dimmed]="isLoading">
+            <div class="table-wrapper" [class.table-loading-dimmed]="isLoading">
               <table
                 mat-table
                 [dataSource]="sortedCategories"
@@ -213,9 +213,51 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                   </td>
                 </ng-container>
 
+                <!-- Average Discount Column -->
+                <ng-container matColumnDef="averageDiscount">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-avg">Avg Discount</th>
+                  <td mat-cell *matCellDef="let s" class="col-avg">
+                    <span class="badge badge-discount" *ngIf="s.averageDiscountPctAllInStock > 0">
+                      -{{ s.averageDiscountPctAllInStock.toFixed(1) }}%
+                    </span>
+                    <span class="muted" *ngIf="!s.averageDiscountPctAllInStock || s.averageDiscountPctAllInStock <= 0">—</span>
+                  </td>
+                </ng-container>
+
+                <!-- Latest Deal Column -->
+                <ng-container matColumnDef="latestDiscount">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-latest-deal">Latest Deal</th>
+                  <td mat-cell *matCellDef="let s" class="col-latest-deal">
+                    <a
+                      *ngIf="s.bestDeal && s.bestDeal.discountPct > 0"
+                      [href]="s.bestDeal.url"
+                      target="_blank"
+                      rel="noopener"
+                      class="deal-cell-link"
+                      [title]="s.bestDeal.title"
+                      (click)="$event.stopPropagation()"
+                    >
+                      <span class="badge badge-discount-peak">-{{ s.bestDeal.discountPct.toFixed(1) }}%</span>
+                      <strong class="deal-price-text" *ngIf="s.bestDeal.sellingPrice">(\${{ s.bestDeal.sellingPrice.toFixed(2) }})</strong>
+                    </a>
+                    <span class="muted" *ngIf="!s.bestDeal || s.bestDeal.discountPct <= 0">—</span>
+                  </td>
+                </ng-container>
+
+                <!-- Best Face Value Column -->
+                <ng-container matColumnDef="bestFace">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-best-face">Best Face</th>
+                  <td mat-cell *matCellDef="let s" class="col-best-face">
+                    <span class="badge badge-face-pill" *ngIf="getPeakFace(s).faceValue !== '—'" matTooltip="Highest peak discount observed for this target">
+                      \${{ getPeakFace(s).faceValue }} <small>(-{{ getPeakFace(s).peakPct }}%)</small>
+                    </span>
+                    <span class="muted" *ngIf="getPeakFace(s).faceValue === '—'">—</span>
+                  </td>
+                </ng-container>
+
                 <!-- Last Scraped Column -->
                 <ng-container matColumnDef="lastScraped">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-last-scraped">Last Scraped</th>
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-last-scraped">Scraped</th>
                   <td mat-cell *matCellDef="let s" class="col-last-scraped">
                     <div class="scraped-time-cell" [matTooltip]="formatScrapedAt(s.scrapedAt)">
                       <span class="scraped-relative">{{ formatTimeAgo(s.scrapedAt) }}</span>
@@ -223,138 +265,106 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                   </td>
                 </ng-container>
 
-                <!-- Scrape Count Column -->
-                <ng-container matColumnDef="scrapeCount">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-scrape-count">Runs</th>
-                  <td mat-cell *matCellDef="let s" class="col-scrape-count">
-                    <span class="badge badge-runs" matTooltip="Total scrape executions recorded in history">
-                      {{ getScrapeCount(s) }} runs
-                    </span>
-                  </td>
-                </ng-container>
-
-                <!-- Latest Status Column -->
-                <ng-container matColumnDef="status">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-status">Latest Status</th>
-                  <td mat-cell *matCellDef="let s" class="col-status">
-                    <span class="badge badge-status-success" *ngIf="s.totalListings > 0" matTooltip="{{ s.inStockCount }} of {{ s.totalListings }} listings in stock">
-                      <span class="status-dot green-dot"></span>
-                      {{ s.totalListings }} items
-                    </span>
-                    <span class="badge badge-status-warning" *ngIf="!s.totalListings || s.totalListings === 0" matTooltip="No active items extracted during the last run">
-                      <span class="status-dot amber-dot"></span>
-                      0 items
-                    </span>
-                  </td>
-                </ng-container>
-
-                <!-- Expandable Detail Row (Colspan = 4) -->
+                <!-- Expandable Detail Row (Colspan = 5) -->
                 <ng-container matColumnDef="expandedDetail">
                   <td mat-cell *matCellDef="let s" [attr.colspan]="categoryColumns.length" class="expanded-detail-td">
                     <div class="expanded-detail-wrapper" *ngIf="isRowExpanded(s)">
-                      <!-- 1. Scraping Run Telemetry Cards -->
-                      <div class="scrape-telemetry-grid">
-                        <div class="telemetry-card">
-                          <div class="telemetry-card-header">
-                            <mat-icon class="card-icon">schedule</mat-icon>
-                            <span class="card-label">Last Scraped</span>
+                      <!-- 1. Minimal Deal Detail Analytics Grid -->
+                      <div class="deal-analytics-grid">
+                        <!-- Metric 1: Average % Discount -->
+                        <div class="analytics-card">
+                          <div class="analytics-card-header">
+                            <mat-icon class="card-icon">percent</mat-icon>
+                            <span class="card-label">Average Discount</span>
                           </div>
-                          <div class="telemetry-card-val">{{ formatScrapedAt(s.scrapedAt) }}</div>
-                          <div class="telemetry-card-sub">{{ formatTimeAgo(s.scrapedAt) }}</div>
+                          <div class="analytics-card-val" [class.highlight-pct]="s.averageDiscountPctAllInStock > 0">
+                            {{ s.averageDiscountPctAllInStock > 0 ? '-' + s.averageDiscountPctAllInStock.toFixed(1) + '%' : '0.0%' }}
+                          </div>
+                          <div class="analytics-card-sub">Across all in-stock listings</div>
                         </div>
 
-                        <div class="telemetry-card">
-                          <div class="telemetry-card-header">
-                            <mat-icon class="card-icon">history</mat-icon>
-                            <span class="card-label">Total Scrape Runs</span>
+                        <!-- Metric 2: Latest Deal % Discount & Actual Savings -->
+                        <div class="analytics-card">
+                          <div class="analytics-card-header">
+                            <mat-icon class="card-icon">local_fire_department</mat-icon>
+                            <span class="card-label">Latest Best Deal</span>
                           </div>
-                          <div class="telemetry-card-val">{{ getScrapeCount(s) }} executions</div>
-                          <div class="telemetry-card-sub">Recorded in history batches</div>
+                          <div class="analytics-card-val highlight-emerald" *ngIf="s.bestDeal && s.bestDeal.discountPct > 0">
+                            -{{ s.bestDeal.discountPct.toFixed(1) }}%
+                            <small class="savings-chip">Save \${{ getActualDiscountSavings(s) }}</small>
+                          </div>
+                          <div class="analytics-card-val muted" *ngIf="!s.bestDeal || s.bestDeal.discountPct <= 0">
+                            No active discount
+                          </div>
+                          <div class="analytics-card-sub">{{ getPriceOnFaceSummary(s) }}</div>
                         </div>
 
-                        <div class="telemetry-card">
-                          <div class="telemetry-card-header">
-                            <mat-icon class="card-icon">inventory_2</mat-icon>
-                            <span class="card-label">Latest Extraction</span>
+                        <!-- Metric 3: Which Face Value Has Discount Most of Time -->
+                        <div class="analytics-card">
+                          <div class="analytics-card-header">
+                            <mat-icon class="card-icon">repeat</mat-icon>
+                            <span class="card-label">Most Frequent Discount</span>
                           </div>
-                          <div class="telemetry-card-val">{{ s.totalListings }} listings found</div>
-                          <div class="telemetry-card-sub">{{ s.inStockCount }} in stock · {{ s.outOfStockCount }} out of stock</div>
+                          <div class="analytics-card-val" *ngIf="getMostFrequentFace(s).faceValue !== '—'">
+                            \${{ getMostFrequentFace(s).faceValue }} Face
+                          </div>
+                          <div class="analytics-card-val muted" *ngIf="getMostFrequentFace(s).faceValue === '—'">
+                            —
+                          </div>
+                          <div class="analytics-card-sub">Discounted {{ getMostFrequentFace(s).timesText }} (avg -{{ getMostFrequentFace(s).avgPct }}%)</div>
                         </div>
 
-                        <div class="telemetry-card">
-                          <div class="telemetry-card-header">
-                            <mat-icon class="card-icon">verified</mat-icon>
-                            <span class="card-label">Scraper Health</span>
+                        <!-- Metric 4: Which Face Value Has the Most Discount -->
+                        <div class="analytics-card">
+                          <div class="analytics-card-header">
+                            <mat-icon class="card-icon">trending_down</mat-icon>
+                            <span class="card-label">Highest Peak Discount</span>
                           </div>
-                          <div class="telemetry-card-val status-ok">
-                            <span class="status-dot green-dot"></span>
-                            {{ s.totalListings > 0 ? 'Healthy (200 OK)' : 'Empty / Idle' }}
+                          <div class="analytics-card-val highlight-emerald" *ngIf="getPeakFace(s).faceValue !== '—'">
+                            \${{ getPeakFace(s).faceValue }} Face (-{{ getPeakFace(s).peakPct }}%)
                           </div>
-                          <div class="telemetry-card-sub">WAF passed · Scrapling parser OK</div>
+                          <div class="analytics-card-val muted" *ngIf="getPeakFace(s).faceValue === '—'">
+                            —
+                          </div>
+                          <div class="analytics-card-sub">Lowest price \${{ getPeakFace(s).minPrice }} (Save \${{ getPeakFace(s).savings }})</div>
                         </div>
                       </div>
 
-                      <!-- 2. Target Config & Monitored URL Strip -->
+                      <!-- 2. Face Value / Denominations Breakdown Strip -->
+                      <div class="face-values-strip" *ngIf="getFaceValuesList(s).length > 0">
+                        <div class="strip-header">
+                          <mat-icon class="strip-icon">view_list</mat-icon>
+                          <span class="strip-title">Monitored Denominations &amp; Current Pricing:</span>
+                        </div>
+                        <div class="face-pills-row">
+                          <div class="face-pill" *ngFor="let face of getFaceValuesList(s)" [class.has-discount]="face.discountPct > 0">
+                            <strong class="face-val-num">\${{ face.faceValue }}</strong>
+                            <span class="face-discount-tag" *ngIf="face.discountPct > 0">-{{ face.discountPct.toFixed(1) }}%</span>
+                            <span class="face-price-num">\${{ face.sellingPrice.toFixed(2) }}</span>
+                            <span class="face-save-tag" *ngIf="face.savingsAmount > 0">(save \${{ face.savingsAmount.toFixed(2) }})</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- 3. Target Metadata Strip -->
                       <div class="target-config-strip">
                         <div class="config-item">
-                          <span class="config-label">Provider:</span>
-                          <strong class="config-val">{{ getProviderDisplayName(s.category) }}</strong>
+                          <mat-icon class="meta-icon">schedule</mat-icon>
+                          <span class="config-label">Last Scraped:</span>
+                          <strong class="config-val">{{ formatScrapedAt(s.scrapedAt) }} ({{ formatTimeAgo(s.scrapedAt) }})</strong>
                         </div>
                         <div class="config-divider"></div>
                         <div class="config-item">
-                          <span class="config-label">Scraping:</span>
-                          <span class="badge badge-enabled-pill">On (Scheduled &amp; Batch)</span>
+                          <mat-icon class="meta-icon">inventory_2</mat-icon>
+                          <span class="config-label">In Stock:</span>
+                          <strong class="config-val">{{ s.inStockCount }} / {{ s.totalListings }} listings</strong>
                         </div>
                         <div class="config-divider"></div>
                         <div class="config-item target-url-item">
-                          <span class="config-label">Target URL:</span>
                           <a [href]="s.pageUrl" target="_blank" rel="noopener" class="config-url-link" (click)="$event.stopPropagation()">
-                            <span class="url-text">{{ s.pageUrl }}</span>
-                            <mat-icon class="external-icon">open_in_new</mat-icon>
+                            <span class="url-text">Open Store Page ↗</span>
                           </a>
                         </div>
-                      </div>
-
-                      <!-- 3. Recent Scrape Runs Table / History Log -->
-                      <div class="target-runs-section">
-                        <div class="runs-header">
-                          <div class="runs-title-row">
-                            <mat-icon class="runs-icon">dataset</mat-icon>
-                            <span class="runs-title">Recent Scrape Runs Log ({{ getRecentRuns(s).length }} Batches)</span>
-                          </div>
-                          <a mat-stroked-button routerLink="/schedulers" class="runs-schedule-link" (click)="$event.stopPropagation()">
-                            <mat-icon class="btn-icon-xs">settings</mat-icon>
-                            <span>Scheduler Settings</span>
-                          </a>
-                        </div>
-
-                        <div class="runs-table-container" *ngIf="getRecentRuns(s).length > 0; else noRecentRunsTpl">
-                          <div class="runs-row runs-table-head">
-                            <span class="run-col-batch">Batch ID</span>
-                            <span class="run-col-time">Execution Time</span>
-                            <span class="run-col-items">Items Scraped</span>
-                            <span class="run-col-stock">In Stock</span>
-                            <span class="run-col-result">Result</span>
-                          </div>
-                          <div class="runs-row runs-table-data" *ngFor="let run of getRecentRuns(s)">
-                            <span class="run-col-batch code-hash" [title]="run.batchId">{{ run.batchId.slice(0, 8) }}…</span>
-                            <span class="run-col-time">{{ formatScrapedAt(run.runTime) }}</span>
-                            <span class="run-col-items">{{ run.itemsCount }} listings</span>
-                            <span class="run-col-stock">{{ run.inStockCount }} cards</span>
-                            <span class="run-col-result">
-                              <span class="run-result-pill" [class.success]="run.status === 'success'">
-                                {{ run.status === 'success' ? '✓ Success' : '⚠ Warning' }}
-                              </span>
-                            </span>
-                          </div>
-                        </div>
-
-                        <ng-template #noRecentRunsTpl>
-                          <div class="no-runs-notice">
-                            <mat-icon class="notice-icon">info</mat-icon>
-                            <span>No previous batch runs recorded for this target yet.</span>
-                          </div>
-                        </ng-template>
                       </div>
                     </div>
                   </td>
@@ -567,6 +577,31 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
     .card-table-content {
       padding: 0 1.25rem 1.25rem !important;
       overflow-x: auto;
+      max-width: 100%;
+    }
+    .table-wrapper {
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: auto !important;
+      overflow-y: hidden;
+      display: block;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(99, 102, 241, 0.45) rgba(255, 255, 255, 0.04);
+    }
+    .table-wrapper::-webkit-scrollbar {
+      height: 7px;
+    }
+    .table-wrapper::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 4px;
+    }
+    .table-wrapper::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.4);
+      border-radius: 4px;
+    }
+    .table-wrapper::-webkit-scrollbar-thumb:hover {
+      background: rgba(99, 102, 241, 0.65);
     }
     .data-table {
       width: 100%;
@@ -574,13 +609,8 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
     }
     .category-table {
       width: 100% !important;
-      min-width: 0 !important;
-      max-width: 100% !important;
+      min-width: 520px !important;
       table-layout: auto !important;
-    }
-    .no-scroll-wrapper {
-      overflow-x: hidden !important;
-      width: 100% !important;
     }
     .clickable-row {
       cursor: pointer;
@@ -591,32 +621,54 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
       }
     }
     .deals-table {
-      min-width: 920px !important;
+      min-width: 900px !important;
     }
     .col-page {
-      width: 38% !important;
-      min-width: 130px !important;
+      width: 30% !important;
+      min-width: 125px !important;
       padding-left: 0.85rem !important;
       white-space: nowrap !important;
     }
-    .col-last-scraped {
-      width: 28% !important;
-      min-width: 90px !important;
-      white-space: nowrap !important;
-      text-align: left;
-    }
-    .col-scrape-count {
-      width: 16% !important;
-      min-width: 65px !important;
+    .col-avg {
+      width: 18% !important;
+      min-width: 75px !important;
       white-space: nowrap !important;
       text-align: center;
     }
-    .col-status {
-      width: 18% !important;
+    .col-latest-deal {
+      width: 25% !important;
+      min-width: 110px !important;
+      white-space: nowrap !important;
+      text-align: left;
+    }
+    .col-best-face {
+      width: 15% !important;
+      min-width: 85px !important;
+      white-space: nowrap !important;
+      text-align: center;
+    }
+    .col-last-scraped {
+      width: 12% !important;
       min-width: 75px !important;
       white-space: nowrap !important;
       text-align: right;
       padding-right: 0.85rem !important;
+    }
+    .badge-face-pill {
+      background: rgba(99, 102, 241, 0.12);
+      color: var(--mat-sys-primary);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      font-weight: 600;
+      font-size: 0.74rem;
+      padding: 0.12rem 0.45rem;
+      border-radius: 5px;
+      display: inline-block;
+      white-space: nowrap;
+
+      small {
+        color: #10b981;
+        font-weight: 700;
+      }
     }
     .scraped-time-cell {
       display: inline-flex;
@@ -814,12 +866,12 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
         text-decoration: underline;
       }
     }
-    .scrape-telemetry-grid {
+    .deal-analytics-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
       gap: 0.65rem;
     }
-    .telemetry-card {
+    .analytics-card {
       background: var(--mat-sys-surface-container-high);
       border: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.08));
       border-radius: 8px;
@@ -828,7 +880,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
       flex-direction: column;
       gap: 0.2rem;
     }
-    .telemetry-card-header {
+    .analytics-card-header {
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
@@ -844,7 +896,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
       line-height: 15px !important;
       color: var(--mat-sys-primary);
     }
-    .telemetry-card-val {
+    .analytics-card-val {
       font-size: 0.88rem;
       font-weight: 700;
       color: var(--mat-sys-on-surface);
@@ -852,15 +904,95 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .telemetry-card-val.status-ok {
+    .analytics-card-val.highlight-pct {
+      color: #10b981;
+    }
+    .analytics-card-val.highlight-emerald {
+      color: #10b981;
+    }
+    .savings-chip {
+      font-size: 0.7rem;
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+      padding: 0.08rem 0.35rem;
+      border-radius: 4px;
+      margin-left: 0.25rem;
+      font-weight: 600;
+    }
+    .analytics-card-sub {
+      font-size: 0.72rem;
+      color: var(--mat-sys-on-surface-variant);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .face-values-strip {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      background: rgba(255, 255, 255, 0.015);
+      border: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.06));
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+    }
+    .strip-header {
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
-      color: #10b981;
-    }
-    .telemetry-card-sub {
-      font-size: 0.72rem;
+      font-size: 0.74rem;
+      font-weight: 600;
       color: var(--mat-sys-on-surface-variant);
+    }
+    .strip-icon {
+      font-size: 15px !important;
+      width: 15px !important;
+      height: 15px !important;
+      line-height: 15px !important;
+      color: var(--mat-sys-primary);
+    }
+    .face-pills-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .face-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.74rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--mat-sys-on-surface-variant);
+
+      &.has-discount {
+        border-color: rgba(16, 185, 129, 0.3);
+        background: rgba(16, 185, 129, 0.06);
+
+        .face-val-num {
+          color: var(--mat-sys-on-surface);
+        }
+      }
+    }
+    .face-val-num {
+      font-weight: 700;
+    }
+    .face-discount-tag {
+      background: rgba(16, 185, 129, 0.16);
+      color: #10b981;
+      font-weight: 700;
+      font-size: 0.7rem;
+      padding: 0.05rem 0.3rem;
+      border-radius: 3px;
+    }
+    .face-price-num {
+      font-weight: 600;
+      color: var(--mat-sys-on-surface);
+    }
+    .face-save-tag {
+      color: #10b981;
+      font-size: 0.68rem;
     }
     .target-config-strip {
       display: flex;
@@ -889,18 +1021,6 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
       height: 14px;
       background: rgba(255, 255, 255, 0.1);
     }
-    .badge-enabled-pill {
-      background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
-      font-size: 0.72rem;
-      padding: 0.08rem 0.45rem;
-      border-radius: 4px;
-      font-weight: 600;
-    }
-    .target-url-item {
-      flex: 1;
-      min-width: 0;
-    }
     .config-url-link {
       display: inline-flex;
       align-items: center;
@@ -908,156 +1028,17 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
       color: var(--mat-sys-primary);
       text-decoration: none;
       font-weight: 500;
-      max-width: 240px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-size: 0.78rem;
 
       &:hover {
         text-decoration: underline;
       }
     }
-    .url-text {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .external-icon {
-      font-size: 13px !important;
-      width: 13px !important;
-      height: 13px !important;
-      line-height: 13px !important;
-      flex-shrink: 0;
-    }
-    .target-runs-section {
+    .half-card {
       display: flex;
       flex-direction: column;
-      gap: 0.45rem;
-    }
-    .runs-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-    }
-    .runs-title-row {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-    .runs-icon {
-      font-size: 16px !important;
-      width: 16px !important;
-      height: 16px !important;
-      line-height: 16px !important;
-      color: var(--mat-sys-primary);
-    }
-    .runs-title {
-      font-weight: 600;
-      font-size: 0.8rem;
-      color: var(--mat-sys-on-surface);
-    }
-    .runs-schedule-link {
-      height: 24px !important;
-      line-height: 24px !important;
-      font-size: 0.72rem !important;
-      padding: 0 0.5rem !important;
-      border-radius: 4px !important;
-
-      .btn-icon-xs {
-        font-size: 13px !important;
-        width: 13px !important;
-        height: 13px !important;
-        line-height: 13px !important;
-        margin-right: 2px !important;
-      }
-    }
-    .runs-table-container {
-      display: flex;
-      flex-direction: column;
-      border: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.08));
-      border-radius: 6px;
+      min-width: 0 !important;
       overflow: hidden;
-    }
-    .runs-row {
-      display: flex;
-      align-items: center;
-      padding: 0.35rem 0.65rem;
-      font-size: 0.76rem;
-      gap: 0.5rem;
-    }
-    .runs-table-head {
-      background: var(--mat-sys-surface-container-high);
-      font-weight: 600;
-      color: var(--mat-sys-outline);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-    .runs-table-data {
-      background: rgba(255, 255, 255, 0.015);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-      color: var(--mat-sys-on-surface-variant);
-
-      &:last-child {
-        border-bottom: none;
-      }
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.04);
-      }
-    }
-    .run-col-batch {
-      width: 20%;
-      min-width: 60px;
-    }
-    .run-col-time {
-      width: 35%;
-      min-width: 110px;
-    }
-    .run-col-items {
-      width: 20%;
-      min-width: 60px;
-    }
-    .run-col-stock {
-      width: 15%;
-      min-width: 50px;
-    }
-    .run-col-result {
-      width: 10%;
-      min-width: 50px;
-      text-align: right;
-    }
-    .code-hash {
-      font-family: monospace;
-      font-size: 0.72rem;
-      color: var(--mat-sys-primary);
-    }
-    .run-result-pill {
-      font-size: 0.7rem;
-      padding: 0.05rem 0.35rem;
-      border-radius: 3px;
-      font-weight: 600;
-      color: #f59e0b;
-      background: rgba(245, 158, 11, 0.1);
-
-      &.success {
-        color: #10b981;
-        background: rgba(16, 185, 129, 0.1);
-      }
-    }
-    .no-runs-notice {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.76rem;
-      color: var(--mat-sys-outline);
-      padding: 0.4rem 0.25rem;
-
-      .notice-icon {
-        font-size: 15px !important;
-        width: 15px !important;
-        height: 15px !important;
-        line-height: 15px !important;
-      }
     }
     .cat-title {
       font-weight: 700;
@@ -1258,9 +1239,10 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
 
   categoryColumns: string[] = [
     'page',
+    'averageDiscount',
+    'latestDiscount',
+    'bestFace',
     'lastScraped',
-    'scrapeCount',
-    'status',
   ];
 
   dealColumns: string[] = [
@@ -1332,35 +1314,100 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     return `${diffDays}d ago`;
   }
 
+  getActualDiscountSavings(s: PageDealStatus): string {
+    if (s.bestDeal?.savingsAmount && s.bestDeal.savingsAmount > 0) {
+      return s.bestDeal.savingsAmount.toFixed(2);
+    }
+    const orig = s.bestDeal?.originalPrice || s.bestDeal?.faceValue;
+    if (orig && s.bestDeal?.sellingPrice && orig > s.bestDeal.sellingPrice) {
+      return (orig - s.bestDeal.sellingPrice).toFixed(2);
+    }
+    return '0.00';
+  }
+
+  getPriceOnFaceSummary(s: PageDealStatus): string {
+    if (!s.bestDeal || !s.bestDeal.sellingPrice) return 'No price data';
+    const face = s.bestDeal.faceValue || s.bestDeal.originalPrice;
+    if (face) {
+      return `\$${s.bestDeal.sellingPrice.toFixed(2)} on \$${face.toFixed(2)} ${s.bestDeal.faceValueCurrency || 'USD'} face`;
+    }
+    return `\$${s.bestDeal.sellingPrice.toFixed(2)}`;
+  }
+
+  getMostFrequentFace(s: PageDealStatus): { faceValue: number | string; timesText: string; avgPct: string } {
+    if (s.faceAnalytics?.mostFrequentFace) {
+      const mf = s.faceAnalytics.mostFrequentFace;
+      return {
+        faceValue: mf.faceValue,
+        timesText: `${mf.timesDiscounted} times`,
+        avgPct: mf.avgDiscountPct.toFixed(1),
+      };
+    }
+    if (s.rankedDeals && s.rankedDeals.length > 0) {
+      const discounted = s.rankedDeals.filter((d) => d.discountPct > 0 && d.faceValue);
+      if (discounted.length > 0) {
+        return {
+          faceValue: discounted[0].faceValue!,
+          timesText: 'most runs',
+          avgPct: discounted[0].discountPct.toFixed(1),
+        };
+      }
+    }
+    return { faceValue: '—', timesText: 'N/A', avgPct: '0.0' };
+  }
+
+  getPeakFace(s: PageDealStatus): { faceValue: number | string; peakPct: string; minPrice: string; savings: string } {
+    if (s.faceAnalytics?.peakDiscountFace) {
+      const pf = s.faceAnalytics.peakDiscountFace;
+      return {
+        faceValue: pf.faceValue,
+        peakPct: pf.maxDiscountPct.toFixed(1),
+        minPrice: pf.minPrice.toFixed(2),
+        savings: (pf.savingsAmount || (pf.faceValue - pf.minPrice)).toFixed(2),
+      };
+    }
+    if (s.bestDeal && s.bestDeal.faceValue) {
+      const sv = s.bestDeal.savingsAmount || ((s.bestDeal.faceValue || 0) - s.bestDeal.sellingPrice);
+      return {
+        faceValue: s.bestDeal.faceValue,
+        peakPct: s.bestDeal.discountPct.toFixed(1),
+        minPrice: s.bestDeal.sellingPrice.toFixed(2),
+        savings: sv > 0 ? sv.toFixed(2) : '0.00',
+      };
+    }
+    return { faceValue: '—', peakPct: '0.0', minPrice: '—', savings: '0.00' };
+  }
+
+  getFaceValuesList(s: PageDealStatus): FaceValueStatItem[] {
+    if (s.faceAnalytics?.faceValues && s.faceAnalytics.faceValues.length > 0) {
+      return s.faceAnalytics.faceValues;
+    }
+    if (s.rankedDeals && s.rankedDeals.length > 0) {
+      const map = new Map<number, FaceValueStatItem>();
+      for (const d of s.rankedDeals) {
+        if (d.faceValue && d.faceValue > 0) {
+          const fv = d.faceValue;
+          const curr = map.get(fv);
+          if (!curr || d.discountPct > curr.discountPct) {
+            map.set(fv, {
+              faceValue: fv,
+              currency: d.faceValueCurrency || 'USD',
+              discountPct: d.discountPct,
+              sellingPrice: d.sellingPrice,
+              savingsAmount: d.savingsAmount || 0,
+            });
+          }
+        }
+      }
+      return Array.from(map.values()).sort((a, b) => a.faceValue - b.faceValue);
+    }
+    return [];
+  }
+
   getScrapeCount(s: PageDealStatus): number {
     if (s.scrapeCount && s.scrapeCount > 0) return s.scrapeCount;
     const history = this.apiService.dashboardData()?.history || [];
     return history.length > 0 ? history.length : 1;
-  }
-
-  getRecentRuns(s: PageDealStatus): TargetScrapeRunLog[] {
-    if (s.recentRuns && s.recentRuns.length > 0) {
-      return s.recentRuns;
-    }
-    const history = this.apiService.dashboardData()?.history || [];
-    if (history.length > 0) {
-      return history.slice(-6).reverse().map((h) => ({
-        batchId: h.id || 'batch-' + (h.timestamp || '').slice(0, 10),
-        runTime: h.timestamp,
-        itemsCount: s.totalListings || h.totalListings || 0,
-        inStockCount: s.inStockCount || h.inStockCount || 0,
-        status: (s.totalListings || h.totalListings || 0) > 0 ? ('success' as const) : ('warning' as const),
-      }));
-    }
-    return [
-      {
-        batchId: 'latest-run',
-        runTime: s.scrapedAt || new Date().toISOString(),
-        itemsCount: s.totalListings,
-        inStockCount: s.inStockCount,
-        status: s.totalListings > 0 ? ('success' as const) : ('warning' as const),
-      },
-    ];
   }
 
   constructor(
@@ -2007,7 +2054,10 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
         case 'scrapeCount': return compare(this.getScrapeCount(a), this.getScrapeCount(b), isAsc);
         case 'status':
         case 'inStockCount': return compare(a.totalListings || 0, b.totalListings || 0, isAsc);
-        case 'averageDiscountPctAllInStock': return compare(a.averageDiscountPctAllInStock, b.averageDiscountPctAllInStock, isAsc);
+        case 'averageDiscount':
+        case 'averageDiscountPctAllInStock': return compare(a.averageDiscountPctAllInStock || 0, b.averageDiscountPctAllInStock || 0, isAsc);
+        case 'latestDiscount': return compare(a.bestDeal?.discountPct || 0, b.bestDeal?.discountPct || 0, isAsc);
+        case 'bestFace': return compare(parseFloat(this.getPeakFace(a).peakPct) || 0, parseFloat(this.getPeakFace(b).peakPct) || 0, isAsc);
         default: return 0;
       }
     });

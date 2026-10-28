@@ -56,6 +56,31 @@ export interface RankedDeal {
   lowestSellerRating?: number | null;
 }
 
+export interface FaceValueStatItem {
+  faceValue: number;
+  currency?: string;
+  discountPct: number;
+  sellingPrice: number;
+  savingsAmount: number;
+}
+
+export interface TargetFaceValueAnalytics {
+  mostFrequentFace?: {
+    faceValue: number;
+    currency?: string;
+    timesDiscounted: number;
+    avgDiscountPct: number;
+  };
+  peakDiscountFace?: {
+    faceValue: number;
+    currency?: string;
+    maxDiscountPct: number;
+    minPrice: number;
+    savingsAmount?: number;
+  };
+  faceValues?: FaceValueStatItem[];
+}
+
 export interface TargetScrapeRunLog {
   batchId: string;
   runTime: string;
@@ -80,6 +105,7 @@ export interface PageDealStatus {
   discountedCount: number;
   scrapeCount?: number;
   runStatus?: 'success' | 'warning' | 'error' | 'idle';
+  faceAnalytics?: TargetFaceValueAnalytics;
   recentRuns?: TargetScrapeRunLog[];
   averageDiscountPctOnDiscounted: number;
   averageDiscountPctAllInStock: number;

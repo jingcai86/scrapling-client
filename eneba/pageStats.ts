@@ -5,6 +5,31 @@ export interface RankedGiftCardListing extends GiftCardListing {
   rank: number;
 }
 
+export interface FaceValueStatItem {
+  faceValue: number;
+  currency?: string;
+  discountPct: number;
+  sellingPrice: number;
+  savingsAmount: number;
+}
+
+export interface TargetFaceValueAnalytics {
+  mostFrequentFace?: {
+    faceValue: number;
+    currency?: string;
+    timesDiscounted: number;
+    avgDiscountPct: number;
+  };
+  peakDiscountFace?: {
+    faceValue: number;
+    currency?: string;
+    maxDiscountPct: number;
+    minPrice: number;
+    savingsAmount?: number;
+  };
+  faceValues?: FaceValueStatItem[];
+}
+
 export interface TargetScrapeRunLog {
   batchId: string;
   runTime: string;
@@ -32,6 +57,8 @@ export interface PageDealStatus {
   scrapeCount?: number;
   /** Status of the latest scrape run */
   runStatus?: "success" | "warning" | "error" | "idle";
+  /** Face value deal analytics: frequency leader, peak discount leader, and denominations */
+  faceAnalytics?: TargetFaceValueAnalytics;
   /** Recent historical scrape runs for this target */
   recentRuns?: TargetScrapeRunLog[];
   /** Average discount (%) across items that have a positive discount */

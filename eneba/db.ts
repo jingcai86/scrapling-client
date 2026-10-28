@@ -21,7 +21,9 @@ import type { SellerOffer } from "./baseScraper.js";
 import {
   deduplicatePageDealStatuses,
   deduplicateRankedDeals,
+  type FaceValueStatItem,
   type PageDealStatus,
+  type TargetFaceValueAnalytics,
   type TargetScrapeRunLog,
 } from "./pageStats.js";
 
@@ -1221,6 +1223,81 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
       // Ignore if aggregate query fails
     }
 
+    const faceStatsMap = new Map<string, {
+      freq_face: number;
+      freq_currency: string;
+      freq_times: number;
+      freq_avg_pct: number;
+      peak_face: number;
+      peak_currency: string;
+      peak_max_pct: number;
+      peak_min_price: number;
+    }>();
+
+    try {
+      const faceStatsRes = await pool.query<{
+        target_id: string;
+        freq_face: number;
+        freq_currency: string;
+        freq_times: number;
+        freq_avg_pct: number;
+        peak_face: number;
+        peak_currency: string;
+        peak_max_pct: number;
+        peak_min_price: number;
+      }>(`
+        WITH face_stats AS (
+          SELECT 
+            st.id as target_id,
+            r.face_value::float as face_value,
+            COALESCE(r.face_value_currency, 'USD') as currency,
+            COUNT(*)::int as total_seen,
+            COUNT(CASE WHEN r.discount_pct > 0 THEN 1 END)::int as times_discounted,
+            ROUND(AVG(r.discount_pct)::numeric, 1)::float as avg_discount,
+            MAX(r.discount_pct)::float as max_discount,
+            MIN(r.selling_price)::float as min_price,
+            ROUND(AVG(r.savings_amount)::numeric, 2)::float as avg_savings
+          FROM scrapling.records r
+          JOIN scrapling.scrape_targets st ON r.scrape_target_id = st.id
+          WHERE r.face_value IS NOT NULL AND r.face_value > 0
+          GROUP BY st.id, r.face_value, r.face_value_currency
+        ),
+        ranked_stats AS (
+          SELECT *,
+            ROW_NUMBER() OVER(PARTITION BY target_id ORDER BY times_discounted DESC, total_seen DESC) as rn_freq,
+            ROW_NUMBER() OVER(PARTITION BY target_id ORDER BY max_discount DESC) as rn_peak
+          FROM face_stats
+        )
+        SELECT 
+          f.target_id,
+          f.face_value as freq_face,
+          f.currency as freq_currency,
+          f.times_discounted as freq_times,
+          f.avg_discount as freq_avg_pct,
+          p.face_value as peak_face,
+          p.currency as peak_currency,
+          p.max_discount as peak_max_pct,
+          p.min_price as peak_min_price
+        FROM ranked_stats f
+        JOIN ranked_stats p ON f.target_id = p.target_id AND p.rn_peak = 1
+        WHERE f.rn_freq = 1;
+      `);
+      for (const row of faceStatsRes.rows) {
+        faceStatsMap.set(row.target_id, {
+          freq_face: Number(row.freq_face),
+          freq_currency: row.freq_currency || "USD",
+          freq_times: Number(row.freq_times),
+          freq_avg_pct: Number(row.freq_avg_pct),
+          peak_face: Number(row.peak_face),
+          peak_currency: row.peak_currency || "USD",
+          peak_max_pct: Number(row.peak_max_pct),
+          peak_min_price: Number(row.peak_min_price),
+        });
+      }
+    } catch {
+      // Ignore if query fails
+    }
+
     for (const { run, target } of runsWithTargets) {
       const records = await db
         .select({
@@ -1293,9 +1370,57 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         [...rankedDeals].sort((a, b) => b.discountPct - a.discountPct)[0] ??
         null;
 
+      const faceMap = new Map<number, FaceValueStatItem>();
+      for (const { record: r } of records) {
+        if (r.faceValue && Number(r.faceValue) > 0) {
+          const fv = Number(r.faceValue);
+          const current = faceMap.get(fv);
+          const rDiscount = Number(r.discountPct || 0);
+          if (!current || rDiscount > current.discountPct) {
+            faceMap.set(fv, {
+              faceValue: fv,
+              currency: r.faceValueCurrency || "USD",
+              discountPct: rDiscount,
+              sellingPrice: Number(r.sellingPrice || 0),
+              savingsAmount: Number(r.savingsAmount || 0),
+            });
+          }
+        }
+      }
+      const faceValues = Array.from(faceMap.values()).sort((a, b) => a.faceValue - b.faceValue);
+
       const targetId = target?.id;
       const scrapeCount = targetId ? (scrapeCountMap.get(targetId) ?? 1) : 1;
       const recentRuns = targetId ? (recentRunsMap.get(targetId) ?? []) : [];
+      const fs = targetId ? faceStatsMap.get(targetId) : undefined;
+
+      const faceAnalytics: TargetFaceValueAnalytics = {
+        mostFrequentFace: fs?.freq_face ? {
+          faceValue: fs.freq_face,
+          currency: fs.freq_currency,
+          timesDiscounted: fs.freq_times,
+          avgDiscountPct: fs.freq_avg_pct,
+        } : (faceValues.length > 0 ? {
+          faceValue: faceValues[0].faceValue,
+          currency: faceValues[0].currency,
+          timesDiscounted: 1,
+          avgDiscountPct: faceValues[0].discountPct,
+        } : undefined),
+        peakDiscountFace: fs?.peak_face ? {
+          faceValue: fs.peak_face,
+          currency: fs.peak_currency,
+          maxDiscountPct: fs.peak_max_pct,
+          minPrice: fs.peak_min_price,
+          savingsAmount: Number((fs.peak_face - fs.peak_min_price).toFixed(2)),
+        } : (bestDirectDeal && bestDirectDeal.faceValue ? {
+          faceValue: bestDirectDeal.faceValue,
+          currency: bestDirectDeal.faceValueCurrency || "USD",
+          maxDiscountPct: bestDirectDeal.discountPct,
+          minPrice: bestDirectDeal.sellingPrice || 0,
+          savingsAmount: bestDirectDeal.savingsAmount || 0,
+        } : undefined),
+        faceValues,
+      };
 
       statuses.push({
         category: provider,
@@ -1312,6 +1437,7 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         discountedCount,
         scrapeCount,
         runStatus: totalListings > 0 ? "success" : "warning",
+        faceAnalytics,
         recentRuns,
         averageDiscountPctOnDiscounted: Number(
           run.avgDiscountPctOnDiscounted,
