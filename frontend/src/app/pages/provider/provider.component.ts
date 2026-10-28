@@ -1976,6 +1976,9 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    // Sort chronologically: oldest to newest
+    providerPoints.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
     const container = this.bestDiscountChartContainerRef.nativeElement;
     if (!this.chartInstance) {
       this.chartInstance = echarts.init(container);

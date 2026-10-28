@@ -1116,6 +1116,7 @@ export async function getDbScrapeHistory(
       total_listings: number | null;
       in_stock_count: number | null;
       best_deals_by_provider: any;
+      best_deal_provider: string | null;
       best_deal_title: string | null;
       best_deal_price: string | null;
       best_deal_discount_pct: string | null;
@@ -1143,6 +1144,7 @@ export async function getDbScrapeHistory(
           0
         )::int AS in_stock_count,
         (ARRAY_AGG(best_deals_by_provider) FILTER (WHERE best_deals_by_provider IS NOT NULL))[1] AS best_deals_by_provider,
+        (ARRAY_AGG(provider ORDER BY max_discount_pct DESC NULLS LAST) FILTER (WHERE best_deal_title IS NOT NULL))[1] AS best_deal_provider,
         (ARRAY_AGG(best_deal_title ORDER BY max_discount_pct DESC NULLS LAST) FILTER (WHERE best_deal_title IS NOT NULL))[1] AS best_deal_title,
         (ARRAY_AGG(best_deal_price ORDER BY max_discount_pct DESC NULLS LAST) FILTER (WHERE best_deal_title IS NOT NULL))[1] AS best_deal_price,
         (ARRAY_AGG(best_deal_discount_pct ORDER BY max_discount_pct DESC NULLS LAST) FILTER (WHERE best_deal_title IS NOT NULL))[1] AS best_deal_discount_pct,
@@ -1155,15 +1157,69 @@ export async function getDbScrapeHistory(
       [safeLimit],
     );
 
+    const batchIds = res.rows.map((r) => r.batch_id).filter(Boolean);
+    const dealsByBatch = new Map<string, Record<string, any>>();
+
+    if (batchIds.length > 0) {
+      try {
+        const provDealsRes = await p.query<{
+          batch_id: string;
+          provider: string;
+          best_deal_title: string;
+          best_deal_price: string | null;
+          best_deal_discount_pct: string | null;
+          best_deal_url: string | null;
+        }>(
+          `
+          SELECT DISTINCT ON (batch_id, provider)
+            batch_id,
+            provider,
+            best_deal_title,
+            best_deal_price,
+            best_deal_discount_pct,
+            best_deal_url
+          FROM scrapling.scrape_runs
+          WHERE batch_id = ANY($1::uuid[]) AND best_deal_title IS NOT NULL
+          ORDER BY batch_id, provider, best_deal_discount_pct DESC NULLS LAST
+        `,
+          [batchIds],
+        );
+
+        for (const dr of provDealsRes.rows) {
+          if (!dealsByBatch.has(dr.batch_id)) {
+            dealsByBatch.set(dr.batch_id, {});
+          }
+          const prov = (dr.provider || "eneba").toLowerCase().trim();
+          dealsByBatch.get(dr.batch_id)![prov] = {
+            title: dr.best_deal_title,
+            category: prov === "g2a" ? "G2A" : "Eneba",
+            provider: prov,
+            sellerName: "Top Merchant",
+            cost: dr.best_deal_price ? Number(dr.best_deal_price) : 0,
+            faceValue: 0,
+            discountPct: dr.best_deal_discount_pct ? Number(dr.best_deal_discount_pct) : 0,
+            url: dr.best_deal_url || undefined,
+          };
+        }
+      } catch {
+        // Fallback gracefully without prov deals join
+      }
+    }
+
     return res.rows.map((r) => {
-      const bestDealsByProvider = r.best_deals_by_provider || undefined;
+      const batchDeals = dealsByBatch.get(r.batch_id) || {};
+      const bestDealsByProvider = Object.keys(batchDeals).length > 0
+        ? batchDeals
+        : (r.best_deals_by_provider || undefined);
+
       let bestDeal: DbScrapeHistoryItem["bestDeal"] = undefined;
 
       if (r.best_deal_title) {
+        const prov = (r.best_deal_provider || r.provider || "eneba").toLowerCase().trim();
         bestDeal = {
           title: r.best_deal_title,
-          category: r.provider === "g2a" ? "G2A" : "Eneba",
-          provider: r.provider || "eneba",
+          category: prov === "g2a" ? "G2A" : "Eneba",
+          provider: prov,
           sellerName: "Top Merchant",
           cost: r.best_deal_price ? Number(r.best_deal_price) : 0,
           faceValue: 0,
