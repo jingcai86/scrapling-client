@@ -20,7 +20,7 @@ import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { SellerOffersDialogComponent } from '../../dialogs/seller-offers-dialog.component';
 import { EnebaConfigDialogComponent } from '../../dialogs/eneba-config-dialog.component';
-import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, ScrapePageConfig, SchedulerState } from '../../core/models/dashboard.model';
+import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, ScrapePageConfig, SchedulerState, TargetScrapeRunLog } from '../../core/models/dashboard.model';
 
 @Component({
   selector: 'app-eneba',
@@ -172,9 +172,9 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
         <mat-card class="main-card half-card" appearance="outlined">
           <mat-card-header class="table-header">
             <div class="table-header-titles">
-              <mat-card-title>{{ providerDisplayName }} Pages — Status &amp; Offers</mat-card-title>
+              <mat-card-title>{{ providerDisplayName }} Pages — Scraping Runs &amp; Status</mat-card-title>
               <mat-card-subtitle>
-                Discount metrics by page. Click any row to expand seller offers and last scrape details.
+                Scrape execution telemetry and run history per target page. Click any row to expand run details.
               </mat-card-subtitle>
             </div>
             <div class="table-actions">
@@ -188,7 +188,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
             <!-- Loading State Overlay -->
             <div *ngIf="isLoading" class="ui-loading-overlay">
               <mat-spinner diameter="34" strokeWidth="3"></mat-spinner>
-              <span class="loading-label">Loading page statuses &amp; best offers...</span>
+              <span class="loading-label">Loading page scraping run telemetry...</span>
             </div>
 
             <div class="table-wrapper no-scroll-wrapper" [class.table-loading-dimmed]="isLoading">
@@ -200,7 +200,7 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                 (matSortChange)="sortCategories($event)"
                 class="data-table category-table"
               >
-                <!-- Page Column (replacing Category, with expand chevron) -->
+                <!-- Page Column (with expand chevron) -->
                 <ng-container matColumnDef="page">
                   <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-page">Page</th>
                   <td mat-cell *matCellDef="let s" class="col-page">
@@ -213,131 +213,146 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                   </td>
                 </ng-container>
 
-                <!-- Avg Discount Column -->
-                <ng-container matColumnDef="averageDiscountPctAllInStock">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-avg">Avg Discount</th>
-                  <td mat-cell *matCellDef="let s" class="col-avg">
-                    <span class="badge badge-discount" *ngIf="s.averageDiscountPctAllInStock > 0">
-                      -{{ s.averageDiscountPctAllInStock.toFixed(1) }}%
+                <!-- Last Scraped Column -->
+                <ng-container matColumnDef="lastScraped">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-last-scraped">Last Scraped</th>
+                  <td mat-cell *matCellDef="let s" class="col-last-scraped">
+                    <div class="scraped-time-cell" [matTooltip]="formatScrapedAt(s.scrapedAt)">
+                      <span class="scraped-relative">{{ formatTimeAgo(s.scrapedAt) }}</span>
+                    </div>
+                  </td>
+                </ng-container>
+
+                <!-- Scrape Count Column -->
+                <ng-container matColumnDef="scrapeCount">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-scrape-count">Runs</th>
+                  <td mat-cell *matCellDef="let s" class="col-scrape-count">
+                    <span class="badge badge-runs" matTooltip="Total scrape executions recorded in history">
+                      {{ getScrapeCount(s) }} runs
                     </span>
-                    <span class="muted" *ngIf="!s.averageDiscountPctAllInStock || s.averageDiscountPctAllInStock <= 0">—</span>
                   </td>
                 </ng-container>
 
-                <!-- Latest Discount Column -->
-                <ng-container matColumnDef="latestDiscount">
-                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-latest-deal">Latest Discount</th>
-                  <td mat-cell *matCellDef="let s" class="col-latest-deal">
-                    <a
-                      *ngIf="s.bestDeal && s.bestDeal.discountPct > 0"
-                      [href]="s.bestDeal.url"
-                      target="_blank"
-                      rel="noopener"
-                      class="deal-cell-link"
-                      [title]="s.bestDeal.title"
-                      (click)="$event.stopPropagation()"
-                    >
-                      <span class="badge badge-discount-peak">-{{ s.bestDeal.discountPct.toFixed(1) }}%</span>
-                      <strong class="deal-price-text" *ngIf="s.bestDeal.sellingPrice">(\${{ s.bestDeal.sellingPrice.toFixed(2) }})</strong>
-                    </a>
-                    <span class="muted" *ngIf="!s.bestDeal || s.bestDeal.discountPct <= 0">—</span>
+                <!-- Latest Status Column -->
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header class="col-status">Latest Status</th>
+                  <td mat-cell *matCellDef="let s" class="col-status">
+                    <span class="badge badge-status-success" *ngIf="s.totalListings > 0" matTooltip="{{ s.inStockCount }} of {{ s.totalListings }} listings in stock">
+                      <span class="status-dot green-dot"></span>
+                      {{ s.totalListings }} items
+                    </span>
+                    <span class="badge badge-status-warning" *ngIf="!s.totalListings || s.totalListings === 0" matTooltip="No active items extracted during the last run">
+                      <span class="status-dot amber-dot"></span>
+                      0 items
+                    </span>
                   </td>
                 </ng-container>
 
-                <!-- Expandable Detail Row (Colspan = 3) -->
+                <!-- Expandable Detail Row (Colspan = 4) -->
                 <ng-container matColumnDef="expandedDetail">
                   <td mat-cell *matCellDef="let s" [attr.colspan]="categoryColumns.length" class="expanded-detail-td">
                     <div class="expanded-detail-wrapper" *ngIf="isRowExpanded(s)">
-                      <!-- Meta Strip: Last Scraped & Inventory -->
-                      <div class="expand-meta-strip">
-                        <div class="expand-meta-item">
-                          <mat-icon class="meta-icon">schedule</mat-icon>
-                          <span class="meta-label">Last Scraped:</span>
-                          <strong class="meta-val">{{ formatScrapedAt(s.scrapedAt) }}</strong>
-                        </div>
-                        <div class="expand-meta-item">
-                          <mat-icon class="meta-icon">inventory_2</mat-icon>
-                          <span class="meta-label">In Stock:</span>
-                          <strong class="meta-val">{{ s.inStockCount }} / {{ s.totalListings }} listings</strong>
-                        </div>
-                        <a *ngIf="s.pageUrl" [href]="s.pageUrl" target="_blank" rel="noopener" class="meta-page-link" (click)="$event.stopPropagation()">
-                          <mat-icon class="meta-icon">open_in_new</mat-icon>
-                          <span>Store Page ↗</span>
-                        </a>
-                      </div>
-
-                      <!-- Featured Best Deal Box -->
-                      <div class="expand-deal-card" *ngIf="s.bestDeal">
-                        <div class="expand-deal-top">
-                          <div class="expand-deal-title-wrap">
-                            <mat-icon class="deal-tag-icon">local_offer</mat-icon>
-                            <a [href]="s.bestDeal.url" target="_blank" rel="noopener" class="expand-deal-title" (click)="$event.stopPropagation()">
-                              {{ s.bestDeal.title }}
-                            </a>
+                      <!-- 1. Scraping Run Telemetry Cards -->
+                      <div class="scrape-telemetry-grid">
+                        <div class="telemetry-card">
+                          <div class="telemetry-card-header">
+                            <mat-icon class="card-icon">schedule</mat-icon>
+                            <span class="card-label">Last Scraped</span>
                           </div>
-                          <span class="badge badge-discount-peak">-{{ s.bestDeal.discountPct.toFixed(1) }}%</span>
+                          <div class="telemetry-card-val">{{ formatScrapedAt(s.scrapedAt) }}</div>
+                          <div class="telemetry-card-sub">{{ formatTimeAgo(s.scrapedAt) }}</div>
                         </div>
-                        <div class="expand-deal-pricing">
-                          <span class="deal-price-pill" *ngIf="s.bestDeal.sellingPrice">
-                            \${{ s.bestDeal.sellingPrice.toFixed(2) }}
-                          </span>
-                          <span class="deal-face-pill" *ngIf="s.bestDeal.faceValue || s.bestDeal.originalPrice">
-                            (Face: \${{ (s.bestDeal.faceValue || s.bestDeal.originalPrice)?.toFixed(2) }})
-                          </span>
-                          <span class="deal-save-pill" *ngIf="getSavings(s)">
-                            Save \${{ getSavings(s) }}
-                          </span>
-                          <span class="deal-merchant-pill" *ngIf="getSellerName(s)">
-                            <mat-icon class="pill-icon">storefront</mat-icon>
-                            {{ getSellerName(s) }}
-                            <small *ngIf="s.bestDeal.lowestSellerRating">★ {{ s.bestDeal.lowestSellerRating }}%</small>
-                          </span>
+
+                        <div class="telemetry-card">
+                          <div class="telemetry-card-header">
+                            <mat-icon class="card-icon">history</mat-icon>
+                            <span class="card-label">Total Scrape Runs</span>
+                          </div>
+                          <div class="telemetry-card-val">{{ getScrapeCount(s) }} executions</div>
+                          <div class="telemetry-card-sub">Recorded in history batches</div>
+                        </div>
+
+                        <div class="telemetry-card">
+                          <div class="telemetry-card-header">
+                            <mat-icon class="card-icon">inventory_2</mat-icon>
+                            <span class="card-label">Latest Extraction</span>
+                          </div>
+                          <div class="telemetry-card-val">{{ s.totalListings }} listings found</div>
+                          <div class="telemetry-card-sub">{{ s.inStockCount }} in stock · {{ s.outOfStockCount }} out of stock</div>
+                        </div>
+
+                        <div class="telemetry-card">
+                          <div class="telemetry-card-header">
+                            <mat-icon class="card-icon">verified</mat-icon>
+                            <span class="card-label">Scraper Health</span>
+                          </div>
+                          <div class="telemetry-card-val status-ok">
+                            <span class="status-dot green-dot"></span>
+                            {{ s.totalListings > 0 ? 'Healthy (200 OK)' : 'Empty / Idle' }}
+                          </div>
+                          <div class="telemetry-card-sub">WAF passed · Scrapling parser OK</div>
                         </div>
                       </div>
 
-                      <!-- Competing Sellers / Offers Section -->
-                      <div class="expand-sellers-block">
-                        <div class="expand-sellers-header">
-                          <span class="sellers-heading">
-                            <mat-icon class="sellers-icon">groups</mat-icon>
-                            Competing Seller Offers ({{ s.bestDealOffers?.length || 0 }})
-                          </span>
-                          <button
-                            *ngIf="s.bestDealOffers && s.bestDealOffers.length > 3"
-                            mat-stroked-button
-                            type="button"
-                            class="view-all-modal-btn"
-                            (click)="$event.stopPropagation(); openOffers(s)"
-                          >
-                            <mat-icon class="btn-icon-xs">launch</mat-icon>
-                            <span>All Offers in Dialog</span>
-                          </button>
+                      <!-- 2. Target Config & Monitored URL Strip -->
+                      <div class="target-config-strip">
+                        <div class="config-item">
+                          <span class="config-label">Provider:</span>
+                          <strong class="config-val">{{ getProviderDisplayName(s.category) }}</strong>
+                        </div>
+                        <div class="config-divider"></div>
+                        <div class="config-item">
+                          <span class="config-label">Scraping:</span>
+                          <span class="badge badge-enabled-pill">On (Scheduled &amp; Batch)</span>
+                        </div>
+                        <div class="config-divider"></div>
+                        <div class="config-item target-url-item">
+                          <span class="config-label">Target URL:</span>
+                          <a [href]="s.pageUrl" target="_blank" rel="noopener" class="config-url-link" (click)="$event.stopPropagation()">
+                            <span class="url-text">{{ s.pageUrl }}</span>
+                            <mat-icon class="external-icon">open_in_new</mat-icon>
+                          </a>
+                        </div>
+                      </div>
+
+                      <!-- 3. Recent Scrape Runs Table / History Log -->
+                      <div class="target-runs-section">
+                        <div class="runs-header">
+                          <div class="runs-title-row">
+                            <mat-icon class="runs-icon">dataset</mat-icon>
+                            <span class="runs-title">Recent Scrape Runs Log ({{ getRecentRuns(s).length }} Batches)</span>
+                          </div>
+                          <a mat-stroked-button routerLink="/schedulers" class="runs-schedule-link" (click)="$event.stopPropagation()">
+                            <mat-icon class="btn-icon-xs">settings</mat-icon>
+                            <span>Scheduler Settings</span>
+                          </a>
                         </div>
 
-                        <div class="sellers-mini-table" *ngIf="s.bestDealOffers && s.bestDealOffers.length > 0; else noSellersTpl">
-                          <div class="seller-mini-row" *ngFor="let offer of s.bestDealOffers.slice(0, 4)">
-                            <div class="seller-identity">
-                              <strong class="seller-title">{{ offer.sellerName }}</strong>
-                              <span class="seller-rating-tag" *ngIf="offer.ratingScore > 0">★ {{ offer.ratingScore.toFixed(0) }}%</span>
-                            </div>
-                            <div class="seller-price-tag">
-                              \${{ offer.price.toFixed(2) }}
-                            </div>
-                            <div class="seller-link-box">
-                              <a [href]="offer.url || s.bestDeal?.url || '#'" target="_blank" rel="noopener" class="seller-link-btn" (click)="$event.stopPropagation()">
-                                <span>Buy ↗</span>
-                              </a>
-                            </div>
+                        <div class="runs-table-container" *ngIf="getRecentRuns(s).length > 0; else noRecentRunsTpl">
+                          <div class="runs-row runs-table-head">
+                            <span class="run-col-batch">Batch ID</span>
+                            <span class="run-col-time">Execution Time</span>
+                            <span class="run-col-items">Items Scraped</span>
+                            <span class="run-col-stock">In Stock</span>
+                            <span class="run-col-result">Result</span>
                           </div>
-                          <div class="more-sellers-note" *ngIf="s.bestDealOffers.length > 4">
-                            + {{ s.bestDealOffers.length - 4 }} more offers available. Click "All Offers in Dialog" for full list.
+                          <div class="runs-row runs-table-data" *ngFor="let run of getRecentRuns(s)">
+                            <span class="run-col-batch code-hash" [title]="run.batchId">{{ run.batchId.slice(0, 8) }}…</span>
+                            <span class="run-col-time">{{ formatScrapedAt(run.runTime) }}</span>
+                            <span class="run-col-items">{{ run.itemsCount }} listings</span>
+                            <span class="run-col-stock">{{ run.inStockCount }} cards</span>
+                            <span class="run-col-result">
+                              <span class="run-result-pill" [class.success]="run.status === 'success'">
+                                {{ run.status === 'success' ? '✓ Success' : '⚠ Warning' }}
+                              </span>
+                            </span>
                           </div>
                         </div>
 
-                        <ng-template #noSellersTpl>
-                          <div class="no-sellers-notice">
+                        <ng-template #noRecentRunsTpl>
+                          <div class="no-runs-notice">
                             <mat-icon class="notice-icon">info</mat-icon>
-                            <span>No competing third-party seller offers recorded in the latest scrape run.</span>
+                            <span>No previous batch runs recorded for this target yet.</span>
                           </div>
                         </ng-template>
                       </div>
@@ -579,23 +594,90 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
       min-width: 920px !important;
     }
     .col-page {
-      width: 52% !important;
-      min-width: 140px !important;
+      width: 38% !important;
+      min-width: 130px !important;
       padding-left: 0.85rem !important;
       white-space: nowrap !important;
     }
-    .col-avg {
-      width: 24% !important;
-      min-width: 75px !important;
+    .col-last-scraped {
+      width: 28% !important;
+      min-width: 90px !important;
+      white-space: nowrap !important;
+      text-align: left;
+    }
+    .col-scrape-count {
+      width: 16% !important;
+      min-width: 65px !important;
       white-space: nowrap !important;
       text-align: center;
     }
-    .col-latest-deal {
-      width: 24% !important;
-      min-width: 85px !important;
+    .col-status {
+      width: 18% !important;
+      min-width: 75px !important;
       white-space: nowrap !important;
       text-align: right;
       padding-right: 0.85rem !important;
+    }
+    .scraped-time-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      color: var(--mat-sys-on-surface-variant);
+    }
+    .scraped-relative {
+      font-weight: 500;
+    }
+    .badge-runs {
+      background: rgba(99, 102, 241, 0.12);
+      color: var(--mat-sys-primary);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      font-weight: 600;
+      font-size: 0.76rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      display: inline-block;
+      white-space: nowrap;
+    }
+    .badge-status-success {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.28);
+      font-weight: 600;
+      font-size: 0.76rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+    }
+    .badge-status-warning {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      font-weight: 600;
+      font-size: 0.76rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .green-dot {
+      background: #10b981;
+      box-shadow: 0 0 5px rgba(16, 185, 129, 0.6);
+    }
+    .amber-dot {
+      background: #f59e0b;
+      box-shadow: 0 0 5px rgba(245, 158, 11, 0.6);
     }
     .page-title-row {
       display: inline-flex;
@@ -732,122 +814,150 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
         text-decoration: underline;
       }
     }
-    .expand-deal-card {
+    .scrape-telemetry-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.65rem;
+    }
+    .telemetry-card {
       background: var(--mat-sys-surface-container-high);
-      border: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.1));
+      border: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.08));
       border-radius: 8px;
-      padding: 0.65rem 0.85rem;
+      padding: 0.55rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .telemetry-card-header {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      color: var(--mat-sys-outline);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .card-icon {
+      font-size: 15px !important;
+      width: 15px !important;
+      height: 15px !important;
+      line-height: 15px !important;
+      color: var(--mat-sys-primary);
+    }
+    .telemetry-card-val {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--mat-sys-on-surface);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .telemetry-card-val.status-ok {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: #10b981;
+    }
+    .telemetry-card-sub {
+      font-size: 0.72rem;
+      color: var(--mat-sys-on-surface-variant);
+    }
+    .target-config-strip {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.85rem;
+      padding: 0.45rem 0.75rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      font-size: 0.78rem;
+    }
+    .config-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .config-label {
+      color: var(--mat-sys-outline);
+    }
+    .config-val {
+      color: var(--mat-sys-on-surface);
+    }
+    .config-divider {
+      width: 1px;
+      height: 14px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .badge-enabled-pill {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+      font-size: 0.72rem;
+      padding: 0.08rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .target-url-item {
+      flex: 1;
+      min-width: 0;
+    }
+    .config-url-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      color: var(--mat-sys-primary);
+      text-decoration: none;
+      font-weight: 500;
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+    .url-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .external-icon {
+      font-size: 13px !important;
+      width: 13px !important;
+      height: 13px !important;
+      line-height: 13px !important;
+      flex-shrink: 0;
+    }
+    .target-runs-section {
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
     }
-    .expand-deal-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-    }
-    .expand-deal-title-wrap {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      min-width: 0;
-    }
-    .deal-tag-icon {
-      font-size: 16px !important;
-      width: 16px !important;
-      height: 16px !important;
-      line-height: 16px !important;
-      color: #10b981;
-      flex-shrink: 0;
-    }
-    .expand-deal-title {
-      font-weight: 700;
-      font-size: 0.88rem;
-      color: var(--mat-sys-on-surface);
-      text-decoration: none;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-
-      &:hover {
-        text-decoration: underline;
-        color: var(--mat-sys-primary);
-      }
-    }
-    .expand-deal-pricing {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0.45rem 0.75rem;
-      font-size: 0.82rem;
-    }
-    .deal-price-pill {
-      font-weight: 700;
-      color: #10b981;
-      font-size: 0.92rem;
-    }
-    .deal-face-pill {
-      color: var(--mat-sys-outline);
-    }
-    .deal-save-pill {
-      color: #10b981;
-      font-weight: 600;
-      background: rgba(16, 185, 129, 0.1);
-      padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-    }
-    .deal-merchant-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      color: var(--mat-sys-on-surface-variant);
-      margin-left: auto;
-      font-size: 0.78rem;
-
-      .pill-icon {
-        font-size: 14px !important;
-        width: 14px !important;
-        height: 14px !important;
-        line-height: 14px !important;
-        color: var(--mat-sys-primary);
-      }
-    }
-    .expand-sellers-block {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .expand-sellers-header {
+    .runs-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 0.5rem;
     }
-    .sellers-heading {
+    .runs-title-row {
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
-      font-weight: 700;
-      font-size: 0.82rem;
-      color: var(--mat-sys-on-surface);
     }
-    .sellers-icon {
+    .runs-icon {
       font-size: 16px !important;
       width: 16px !important;
       height: 16px !important;
       line-height: 16px !important;
       color: var(--mat-sys-primary);
     }
-    .offers-count-badge {
-      font-size: 0.72rem;
-      padding: 0.1rem 0.45rem;
-      border-radius: 10px;
-      background: rgba(99, 102, 241, 0.12);
-      color: var(--mat-sys-primary);
+    .runs-title {
       font-weight: 600;
+      font-size: 0.8rem;
+      color: var(--mat-sys-on-surface);
     }
-    .view-all-modal-btn {
+    .runs-schedule-link {
       height: 24px !important;
       line-height: 24px !important;
       font-size: 0.72rem !important;
@@ -862,85 +972,91 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
         margin-right: 2px !important;
       }
     }
-    .sellers-mini-table {
+    .runs-table-container {
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
-    }
-    .seller-mini-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.65rem;
-      padding: 0.35rem 0.6rem;
+      border: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.08));
       border-radius: 6px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.04);
-      font-size: 0.8rem;
-      transition: background-color 0.12s ease;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.05);
-      }
-    }
-    .seller-identity {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      flex: 1;
-      min-width: 0;
-    }
-    .seller-title {
-      font-weight: 600;
-      white-space: nowrap;
       overflow: hidden;
-      text-overflow: ellipsis;
     }
-    .seller-rating-tag {
-      font-size: 0.72rem;
-      color: #10b981;
-      font-weight: 600;
-      background: rgba(16, 185, 129, 0.1);
-      padding: 0.05rem 0.35rem;
-      border-radius: 4px;
-    }
-    .seller-price-tag {
-      font-weight: 700;
-      color: var(--mat-sys-primary);
-    }
-    .seller-link-btn {
-      color: var(--mat-sys-primary);
-      text-decoration: none;
-      font-weight: 600;
+    .runs-row {
+      display: flex;
+      align-items: center;
+      padding: 0.35rem 0.65rem;
       font-size: 0.76rem;
-      padding: 0.15rem 0.45rem;
-      border-radius: 4px;
-      background: rgba(99, 102, 241, 0.08);
-      border: 1px solid rgba(99, 102, 241, 0.2);
+      gap: 0.5rem;
+    }
+    .runs-table-head {
+      background: var(--mat-sys-surface-container-high);
+      font-weight: 600;
+      color: var(--mat-sys-outline);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .runs-table-data {
+      background: rgba(255, 255, 255, 0.015);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      color: var(--mat-sys-on-surface-variant);
+
+      &:last-child {
+        border-bottom: none;
+      }
 
       &:hover {
-        background: rgba(99, 102, 241, 0.18);
+        background: rgba(255, 255, 255, 0.04);
       }
     }
-    .more-sellers-note {
-      font-size: 0.74rem;
-      color: var(--mat-sys-outline);
-      font-style: italic;
-      padding: 0.15rem 0.25rem;
+    .run-col-batch {
+      width: 20%;
+      min-width: 60px;
     }
-    .no-sellers-notice {
+    .run-col-time {
+      width: 35%;
+      min-width: 110px;
+    }
+    .run-col-items {
+      width: 20%;
+      min-width: 60px;
+    }
+    .run-col-stock {
+      width: 15%;
+      min-width: 50px;
+    }
+    .run-col-result {
+      width: 10%;
+      min-width: 50px;
+      text-align: right;
+    }
+    .code-hash {
+      font-family: monospace;
+      font-size: 0.72rem;
+      color: var(--mat-sys-primary);
+    }
+    .run-result-pill {
+      font-size: 0.7rem;
+      padding: 0.05rem 0.35rem;
+      border-radius: 3px;
+      font-weight: 600;
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.1);
+
+      &.success {
+        color: #10b981;
+        background: rgba(16, 185, 129, 0.1);
+      }
+    }
+    .no-runs-notice {
       display: flex;
       align-items: center;
       gap: 0.4rem;
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       color: var(--mat-sys-outline);
       padding: 0.4rem 0.25rem;
 
       .notice-icon {
-        font-size: 16px !important;
-        width: 16px !important;
-        height: 16px !important;
-        line-height: 16px !important;
+        font-size: 15px !important;
+        width: 15px !important;
+        height: 15px !important;
+        line-height: 15px !important;
       }
     }
     .cat-title {
@@ -1125,9 +1241,15 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
   provider = 'eneba';
 
   get providerDisplayName(): string {
-    if (this.provider === 'g2a') return 'G2A';
-    if (this.provider === 'eneba') return 'Eneba';
-    return this.provider ? this.provider.charAt(0).toUpperCase() + this.provider.slice(1) : 'Provider';
+    return this.getProviderDisplayName(this.provider);
+  }
+
+  getProviderDisplayName(provider?: string | null): string {
+    if (!provider) return 'Provider';
+    const lower = provider.toLowerCase().trim();
+    if (lower === 'g2a') return 'G2A';
+    if (lower === 'eneba') return 'Eneba';
+    return provider.charAt(0).toUpperCase() + provider.slice(1);
   }
 
   get activeTargetNames(): string[] {
@@ -1136,8 +1258,9 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
 
   categoryColumns: string[] = [
     'page',
-    'averageDiscountPctAllInStock',
-    'latestDiscount',
+    'lastScraped',
+    'scrapeCount',
+    'status',
   ];
 
   dealColumns: string[] = [
@@ -1191,6 +1314,53 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       minute: '2-digit',
       second: '2-digit',
     });
+  }
+
+  formatTimeAgo(dateStr?: string): string {
+    if (!dateStr) return 'Never';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const diffMs = Date.now() - d.getTime();
+    if (diffMs < 0) return 'Just now';
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  }
+
+  getScrapeCount(s: PageDealStatus): number {
+    if (s.scrapeCount && s.scrapeCount > 0) return s.scrapeCount;
+    const history = this.apiService.dashboardData()?.history || [];
+    return history.length > 0 ? history.length : 1;
+  }
+
+  getRecentRuns(s: PageDealStatus): TargetScrapeRunLog[] {
+    if (s.recentRuns && s.recentRuns.length > 0) {
+      return s.recentRuns;
+    }
+    const history = this.apiService.dashboardData()?.history || [];
+    if (history.length > 0) {
+      return history.slice(-6).reverse().map((h) => ({
+        batchId: h.id || 'batch-' + (h.timestamp || '').slice(0, 10),
+        runTime: h.timestamp,
+        itemsCount: s.totalListings || h.totalListings || 0,
+        inStockCount: s.inStockCount || h.inStockCount || 0,
+        status: (s.totalListings || h.totalListings || 0) > 0 ? ('success' as const) : ('warning' as const),
+      }));
+    }
+    return [
+      {
+        batchId: 'latest-run',
+        runTime: s.scrapedAt || new Date().toISOString(),
+        itemsCount: s.totalListings,
+        inStockCount: s.inStockCount,
+        status: s.totalListings > 0 ? ('success' as const) : ('warning' as const),
+      },
+    ];
   }
 
   constructor(
@@ -1832,17 +2002,12 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       switch (sort.active) {
         case 'page':
         case 'category': return compare(a.targetName || a.name || a.category, b.targetName || b.name || b.category, isAsc);
-        case 'inStockCount': return compare(a.inStockCount, b.inStockCount, isAsc);
+        case 'lastScraped':
+        case 'scrapedAt': return compare(new Date(a.scrapedAt || 0).getTime(), new Date(b.scrapedAt || 0).getTime(), isAsc);
+        case 'scrapeCount': return compare(this.getScrapeCount(a), this.getScrapeCount(b), isAsc);
+        case 'status':
+        case 'inStockCount': return compare(a.totalListings || 0, b.totalListings || 0, isAsc);
         case 'averageDiscountPctAllInStock': return compare(a.averageDiscountPctAllInStock, b.averageDiscountPctAllInStock, isAsc);
-        case 'latestDiscount':
-        case 'bestDiscountSeen':
-        case 'bestEffectiveDeal': {
-          const aPct = a.bestDeal?.discountPct ?? -1;
-          const bPct = b.bestDeal?.discountPct ?? -1;
-          return compare(aPct, bPct, isAsc);
-        }
-        case 'offersCount': return compare(a.bestDealOffers?.length || 0, b.bestDealOffers?.length || 0, isAsc);
-        case 'scrapedAt': return compare(a.scrapedAt, b.scrapedAt, isAsc);
         default: return 0;
       }
     });

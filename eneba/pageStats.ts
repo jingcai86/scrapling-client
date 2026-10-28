@@ -5,6 +5,15 @@ export interface RankedGiftCardListing extends GiftCardListing {
   rank: number;
 }
 
+export interface TargetScrapeRunLog {
+  batchId: string;
+  runTime: string;
+  itemsCount: number;
+  inStockCount: number;
+  status: "success" | "warning" | "error";
+  durationMs?: number;
+}
+
 export interface PageDealStatus {
   scrapedAt: string;
   category: string; // site name: "eneba", "g2a"
@@ -19,6 +28,12 @@ export interface PageDealStatus {
   inStockCount: number;
   outOfStockCount: number;
   discountedCount: number;
+  /** Total number of historical scrape runs executed for this target */
+  scrapeCount?: number;
+  /** Status of the latest scrape run */
+  runStatus?: "success" | "warning" | "error" | "idle";
+  /** Recent historical scrape runs for this target */
+  recentRuns?: TargetScrapeRunLog[];
   /** Average discount (%) across items that have a positive discount */
   averageDiscountPctOnDiscounted: number;
   /** Average discount (%) across all in-stock items on the page */

@@ -56,6 +56,15 @@ export interface RankedDeal {
   lowestSellerRating?: number | null;
 }
 
+export interface TargetScrapeRunLog {
+  batchId: string;
+  runTime: string;
+  itemsCount: number;
+  inStockCount: number;
+  status: 'success' | 'warning' | 'error';
+  durationMs?: number;
+}
+
 export interface PageDealStatus {
   category: string;
   scrapeTargetId?: string;
@@ -69,6 +78,9 @@ export interface PageDealStatus {
   inStockCount: number;
   outOfStockCount: number;
   discountedCount: number;
+  scrapeCount?: number;
+  runStatus?: 'success' | 'warning' | 'error' | 'idle';
+  recentRuns?: TargetScrapeRunLog[];
   averageDiscountPctOnDiscounted: number;
   averageDiscountPctAllInStock: number;
   averageEffectiveDiscountPct: number;

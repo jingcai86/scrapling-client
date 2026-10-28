@@ -169,6 +169,9 @@ export class ScrapeRunner {
             name: bestName || status.name || existing.name,
             provider: stProvider,
             category: stProvider,
+            scrapeCount: status.scrapeCount || existing.scrapeCount || 1,
+            runStatus: status.runStatus || existing.runStatus || (existing.totalListings > 0 ? "success" : "warning"),
+            recentRuns: status.recentRuns?.length ? status.recentRuns : existing.recentRuns,
           };
         } else if (stTime < exTime) {
           status = {
@@ -180,6 +183,9 @@ export class ScrapeRunner {
             name: bestName || status.name || existing.name,
             provider: stProvider,
             category: stProvider,
+            scrapeCount: existing.scrapeCount || status.scrapeCount || 1,
+            runStatus: existing.runStatus || status.runStatus || (existing.totalListings > 0 ? "success" : "warning"),
+            recentRuns: existing.recentRuns?.length ? existing.recentRuns : status.recentRuns,
           };
         } else {
           status = {
@@ -191,6 +197,9 @@ export class ScrapeRunner {
             name: bestName || status.name || existing.name,
             provider: stProvider,
             category: stProvider,
+            scrapeCount: status.scrapeCount || existing.scrapeCount || 1,
+            runStatus: status.runStatus || existing.runStatus || (status.totalListings > 0 ? "success" : "warning"),
+            recentRuns: status.recentRuns?.length ? status.recentRuns : existing.recentRuns,
             totalListings: !statusHasData && existingHasData ? existing.totalListings : status.totalListings,
             inStockCount: !statusHasData && existingHasData ? existing.inStockCount : status.inStockCount,
             discountedCount: !statusHasData && existingHasData ? existing.discountedCount : status.discountedCount,

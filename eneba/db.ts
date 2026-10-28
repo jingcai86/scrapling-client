@@ -22,6 +22,7 @@ import {
   deduplicatePageDealStatuses,
   deduplicateRankedDeals,
   type PageDealStatus,
+  type TargetScrapeRunLog,
 } from "./pageStats.js";
 
 export const ENEBA_SCHEMA_NAME = "scrapling";
@@ -1163,6 +1164,63 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
 
     const statuses: PageDealStatus[] = [];
 
+    // Query total scrape runs and recent runs for each scrape target
+    const scrapeCountMap = new Map<string, number>();
+    const recentRunsMap = new Map<string, TargetScrapeRunLog[]>();
+
+    try {
+      const runAggRes = await pool.query<{
+        scrape_target_id: string;
+        scrape_count: number;
+      }>(`
+        SELECT 
+          scrape_target_id,
+          COUNT(DISTINCT batch_id)::int as scrape_count
+        FROM scrapling.records
+        WHERE scrape_target_id IS NOT NULL
+        GROUP BY scrape_target_id
+      `);
+      for (const row of runAggRes.rows) {
+        scrapeCountMap.set(row.scrape_target_id, Number(row.scrape_count));
+      }
+
+      const recentRunsRes = await pool.query<{
+        scrape_target_id: string;
+        batch_id: string;
+        run_time: string;
+        items_count: number;
+        in_stock_count: number;
+      }>(`
+        SELECT 
+          scrape_target_id,
+          batch_id,
+          MIN(scraped_at) as run_time,
+          COUNT(id)::int as items_count,
+          COUNT(CASE WHEN in_stock THEN 1 END)::int as in_stock_count
+        FROM scrapling.records
+        WHERE scrape_target_id IS NOT NULL
+        GROUP BY scrape_target_id, batch_id
+        ORDER BY run_time DESC
+      `);
+      for (const row of recentRunsRes.rows) {
+        if (!recentRunsMap.has(row.scrape_target_id)) {
+          recentRunsMap.set(row.scrape_target_id, []);
+        }
+        const list = recentRunsMap.get(row.scrape_target_id)!;
+        if (list.length < 8) {
+          list.push({
+            batchId: row.batch_id,
+            runTime: new Date(row.run_time).toISOString(),
+            itemsCount: Number(row.items_count),
+            inStockCount: Number(row.in_stock_count),
+            status: Number(row.items_count) > 0 ? "success" : "warning",
+          });
+        }
+      }
+    } catch {
+      // Ignore if aggregate query fails
+    }
+
     for (const { run, target } of runsWithTargets) {
       const records = await db
         .select({
@@ -1235,6 +1293,10 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         [...rankedDeals].sort((a, b) => b.discountPct - a.discountPct)[0] ??
         null;
 
+      const targetId = target?.id;
+      const scrapeCount = targetId ? (scrapeCountMap.get(targetId) ?? 1) : 1;
+      const recentRuns = targetId ? (recentRunsMap.get(targetId) ?? []) : [];
+
       statuses.push({
         category: provider,
         scrapeTargetId: target?.id ?? undefined,
@@ -1248,6 +1310,9 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         inStockCount,
         outOfStockCount: totalListings - inStockCount,
         discountedCount,
+        scrapeCount,
+        runStatus: totalListings > 0 ? "success" : "warning",
+        recentRuns,
         averageDiscountPctOnDiscounted: Number(
           run.avgDiscountPctOnDiscounted,
         ),
