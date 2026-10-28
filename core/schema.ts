@@ -202,7 +202,6 @@ export const scraplingRecords = scraplingSchema.table(
   "records",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    batchId: uuid("batch_id").notNull(),
     scrapeRunId: uuid("scrape_run_id").references(
       () => scraplingScrapeRuns.id,
       { onDelete: "cascade" },
@@ -262,7 +261,6 @@ export const scraplingRecords = scraplingSchema.table(
       table.scrapeTargetId,
       table.scrapedAt,
     ),
-    index("idx_scrapling_records_batch_id").on(table.batchId),
     index("idx_scrapling_records_product_time").on(
       table.productId,
       table.scrapedAt,

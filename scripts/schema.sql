@@ -542,7 +542,6 @@ CREATE TABLE IF NOT EXISTS scrapling.sellers (
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scrapling.records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  batch_id UUID NOT NULL,
   scrape_run_id UUID REFERENCES scrapling.scrape_runs(id) ON DELETE CASCADE,
   scrape_target_id UUID REFERENCES scrapling.scrape_targets(id) ON DELETE SET NULL,
   product_id UUID REFERENCES scrapling.products(id) ON DELETE SET NULL,
@@ -583,9 +582,6 @@ CREATE INDEX IF NOT EXISTS idx_scrapling_records_provider_time
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_scrape_target_time
   ON scrapling.records (scrape_target_id, scraped_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_scrapling_records_batch_id
-  ON scrapling.records (batch_id);
 
 CREATE INDEX IF NOT EXISTS idx_scrapling_records_product_time
   ON scrapling.records (product_id, scraped_at DESC);
@@ -669,5 +665,8 @@ CREATE INDEX IF NOT EXISTS idx_notification_records_record_id
 
 CREATE INDEX IF NOT EXISTS idx_notification_records_notification_id
   ON scrapling.notification_records (notification_id);
+
+ALTER TABLE scrapling.records DROP COLUMN IF EXISTS batch_id;
+DROP INDEX IF EXISTS scrapling.idx_scrapling_records_batch_id;
 
 

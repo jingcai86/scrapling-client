@@ -1134,12 +1134,12 @@ export async function getDbScrapeHistory(
         )::text AS success_rate,
         COALESCE(
           NULLIF(SUM(total_listings), 0),
-          (SELECT COUNT(*)::int FROM scrapling.records r WHERE r.batch_id = scrapling.scrape_runs.batch_id),
+          (SELECT COUNT(*)::int FROM scrapling.records r JOIN scrapling.scrape_runs sr ON r.scrape_run_id = sr.id WHERE sr.batch_id = scrapling.scrape_runs.batch_id),
           0
         )::int AS total_listings,
         COALESCE(
           NULLIF(SUM(in_stock_count), 0),
-          (SELECT COUNT(*)::int FROM scrapling.records r WHERE r.batch_id = scrapling.scrape_runs.batch_id AND r.in_stock),
+          (SELECT COUNT(*)::int FROM scrapling.records r JOIN scrapling.scrape_runs sr ON r.scrape_run_id = sr.id WHERE sr.batch_id = scrapling.scrape_runs.batch_id AND r.in_stock),
           0
         )::int AS in_stock_count,
         (ARRAY_AGG(best_deals_by_provider) FILTER (WHERE best_deals_by_provider IS NOT NULL))[1] AS best_deals_by_provider,

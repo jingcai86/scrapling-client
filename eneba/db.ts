@@ -498,7 +498,6 @@ export async function savePageDealsToDb(
             for (const offer of offersForDeal) {
               const sellerId = sellerIdByName.get(offer.sellerName) ?? null;
               await tx.insert(scraplingRecords).values({
-                batchId,
                 scrapeRunId,
                 scrapeTargetId,
                 productId,
@@ -531,7 +530,6 @@ export async function savePageDealsToDb(
             }
           } else {
             await tx.insert(scraplingRecords).values({
-              batchId,
               scrapeRunId,
               scrapeTargetId,
               productId,
@@ -695,7 +693,6 @@ export async function saveProductOffersToDb(
 
         if (latestRecord) {
           await tx.insert(scraplingRecords).values({
-            batchId: latestRecord.batchId,
             scrapeRunId: latestRecord.scrapeRunId,
             scrapeTargetId: latestRecord.scrapeTargetId,
             productId,
@@ -1301,8 +1298,8 @@ export async function fetchScrapeHistoryFromDb(
     if (batchIds.length > 0) {
       try {
         const topDealsRes = await db
-          .selectDistinctOn([scraplingRecords.batchId, scraplingRecords.provider], {
-            batchId: scraplingRecords.batchId,
+          .selectDistinctOn([scraplingScrapeRuns.batchId, scraplingRecords.provider], {
+            batchId: scraplingScrapeRuns.batchId,
             provider: scraplingRecords.provider,
             title: scraplingRecords.title,
             category: scraplingRecords.provider,
@@ -1315,6 +1312,10 @@ export async function fetchScrapeHistoryFromDb(
             sellerName: sql<string>`COALESCE(${scraplingSellers.sellerName}, 'Top Merchant')`,
           })
           .from(scraplingRecords)
+          .innerJoin(
+            scraplingScrapeRuns,
+            eq(scraplingRecords.scrapeRunId, scraplingScrapeRuns.id),
+          )
           .leftJoin(
             scraplingSellers,
             eq(scraplingRecords.sellerId, scraplingSellers.id),
@@ -1323,9 +1324,9 @@ export async function fetchScrapeHistoryFromDb(
             scraplingScrapeTargets,
             eq(scraplingRecords.scrapeTargetId, scraplingScrapeTargets.id),
           )
-          .where(inArray(scraplingRecords.batchId, batchIds))
+          .where(inArray(scraplingScrapeRuns.batchId, batchIds))
           .orderBy(
-            scraplingRecords.batchId,
+            scraplingScrapeRuns.batchId,
             scraplingRecords.provider,
             desc(scraplingRecords.discountPct),
           );
