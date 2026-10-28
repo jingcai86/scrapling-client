@@ -9,11 +9,10 @@ import express, {
 } from "express";
 import type { ServerContext } from "./types.js";
 import { createDashboardRouter } from "./routes/dashboard.routes.js";
-import { createEnebaRouter } from "./routes/eneba.routes.js";
 import { createDealsRouter } from "./routes/deals.routes.js";
 import { createPagesRouter } from "./routes/pages.routes.js";
 import { createScrapeRouter } from "./routes/scrape.routes.js";
-import { createConfigRouter } from "./routes/config.routes.js";
+import { createConfigRouter, createEnebaRouter } from "./routes/config.routes.js";
 import { createSchedulerRouter } from "./routes/scheduler.routes.js";
 import { createEmailRouter } from "./routes/email.routes.js";
 

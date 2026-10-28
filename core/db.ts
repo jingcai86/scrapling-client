@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { asc, eq, sql } from "drizzle-orm";
 import pg from "pg";
 import {
@@ -25,196 +27,28 @@ export interface DbPoolOptions {
   connectionTimeoutMillis?: number;
 }
 
-const INIT_SCRAPLING_CONFIG_SQL = `
-CREATE SCHEMA IF NOT EXISTS scrapling;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-CREATE TABLE IF NOT EXISTS scrapling.config (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL DEFAULT '',
-  group_name TEXT NOT NULL DEFAULT 'custom',
-  description TEXT NOT NULL DEFAULT '',
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+let cachedSchemaSql: string | null = null;
 
--- Deprecate and remove CRON keys from scrapling.config as schedules are now stored as first-class rows in scrapling.schedulers
-DELETE FROM scrapling.config WHERE key IN ('CRON_ENABLED', 'CRON_BASE_TIME', 'CRON_JITTER_MINUTES');
-
--- Merge legacy scrapling.eneba_config into scrapling.config if present
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_config') THEN
-    INSERT INTO scrapling.config (key, value, group_name, description, updated_at)
-    SELECT key, value, 'scrapling', description, updated_at
-    FROM scrapling.eneba_config
-    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
-
-    DROP TABLE IF EXISTS scrapling.eneba_config;
-  END IF;
-
-  -- Rename legacy eneba_* tables to generic names if present and generic don't exist
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_products')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'products') THEN
-    ALTER TABLE scrapling.eneba_products RENAME TO products;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_scrape_runs')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'scrape_runs') THEN
-    ALTER TABLE scrapling.eneba_scrape_runs RENAME TO scrape_runs;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_top_deals')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'top_deals') THEN
-    ALTER TABLE scrapling.eneba_top_deals RENAME TO top_deals;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_sellers')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'sellers') THEN
-    ALTER TABLE scrapling.eneba_sellers RENAME TO sellers;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'eneba_product_offers')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'scrapling' AND table_name = 'product_offers') THEN
-    ALTER TABLE scrapling.eneba_product_offers RENAME TO product_offers;
-  END IF;
-END $$;
-
-INSERT INTO scrapling.config (key, value, group_name, description, updated_at)
-VALUES
-  ('top_deals_limit', '10', 'scrapling', 'Number of top ranked deals to pull and persist per category', NOW()),
-  ('alert_discount_threshold_pct', '20', 'scrapling', 'Minimum direct or effective discount % to trigger deal alerts', NOW())
-ON CONFLICT (key) DO NOTHING;
-
--- Drop legacy table names if present
-DROP TABLE IF EXISTS scrapling.scrape_pages CASCADE;
-DROP TABLE IF EXISTS scrapling.schedules CASCADE;
-DROP TABLE IF EXISTS scrapling.eneba_config CASCADE;
-DROP TABLE IF EXISTS scrapling.eneba_product_offers CASCADE;
-DROP TABLE IF EXISTS scrapling.eneba_top_deals CASCADE;
-DROP TABLE IF EXISTS scrapling.eneba_scrape_runs CASCADE;
-DROP TABLE IF EXISTS scrapling.eneba_sellers CASCADE;
-DROP TABLE IF EXISTS scrapling.eneba_products CASCADE;
-
-CREATE TABLE IF NOT EXISTS scrapling.schedulers (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  base_time TEXT NOT NULL DEFAULT '19:00',
-  jitter_minutes INTEGER NOT NULL DEFAULT 60,
-  enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS scrapling.products (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug TEXT NOT NULL UNIQUE,
-  title TEXT NOT NULL,
-  region TEXT NOT NULL DEFAULT 'GLOBAL',
-  face_value NUMERIC(10, 2),
-  face_value_currency TEXT,
-  url TEXT,
-  provider TEXT,
-  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS scrapling.scrape_targets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  product_id UUID REFERENCES scrapling.products(id) ON DELETE CASCADE,
-  provider TEXT NOT NULL DEFAULT 'eneba',
-  name TEXT DEFAULT '',
-  enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  schedule_id TEXT NOT NULL DEFAULT 'default',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_targets_product_id ON scrapling.scrape_targets(product_id);
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'scrapling' AND table_name = 'targets'
-  ) AND NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
-  ) THEN
-    ALTER TABLE scrapling.targets RENAME TO scrape_targets;
-  END IF;
-
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'scrapling' AND table_name = 'target_pages'
-  ) AND NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
-  ) THEN
-    ALTER TABLE scrapling.target_pages RENAME TO scrape_targets;
-  END IF;
-
-  DROP TABLE IF EXISTS scrapling.targets CASCADE;
-  DROP TABLE IF EXISTS scrapling.target_pages CASCADE;
-
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets'
-  ) THEN
-    ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS with_offers;
-    ALTER TABLE scrapling.scrape_targets ALTER COLUMN name DROP NOT NULL;
-    ALTER TABLE scrapling.scrape_targets ALTER COLUMN name SET DEFAULT '';
-    ALTER TABLE scrapling.scrape_targets ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES scrapling.products(id) ON DELETE CASCADE;
-    ALTER TABLE scrapling.scrape_targets DROP COLUMN IF EXISTS url;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets' AND column_name = 'category')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'scrapling' AND table_name = 'scrape_targets' AND column_name = 'provider') THEN
-    ALTER TABLE scrapling.scrape_targets RENAME COLUMN category TO provider;
-  END IF;
-END $$;
-
-CREATE TABLE IF NOT EXISTS scrapling.users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT NOT NULL UNIQUE,
-  name TEXT,
-  tz TEXT NOT NULL DEFAULT 'America/Los_Angeles',
-  enabled BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE scrapling.users ADD COLUMN IF NOT EXISTS tz TEXT NOT NULL DEFAULT 'America/Los_Angeles';
-CREATE OR REPLACE VIEW scrapling."user" AS SELECT * FROM scrapling.users;
-
-CREATE TABLE IF NOT EXISTS scrapling.notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  content TEXT NOT NULL,
-  subject TEXT DEFAULT '',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS scrapling.notification_users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  notification_id UUID NOT NULL REFERENCES scrapling.notifications(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES scrapling.users(id) ON DELETE CASCADE,
-  sent_at TIMESTAMPTZ,
-  read_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT uq_notification_users UNIQUE (notification_id, user_id)
-);
-
-CREATE TABLE IF NOT EXISTS scrapling.notification_records (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  notification_id UUID NOT NULL REFERENCES scrapling.notifications(id) ON DELETE CASCADE,
-  record_id UUID NOT NULL REFERENCES scrapling.records(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT uq_notification_records UNIQUE (notification_id, record_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_scrapling_notifications_created_at ON scrapling.notifications(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notification_users_user_id ON scrapling.notification_users(user_id);
-CREATE INDEX IF NOT EXISTS idx_notification_users_notification_id ON scrapling.notification_users(notification_id);
-CREATE INDEX IF NOT EXISTS idx_notification_records_record_id ON scrapling.notification_records(record_id);
-CREATE INDEX IF NOT EXISTS idx_notification_records_notification_id ON scrapling.notification_records(notification_id);
-`;
+/**
+ * Returns PostgreSQL schema DDL, loading from scripts/schema.sql with minimal fallback.
+ */
+export function getSchemaSql(): string {
+  if (cachedSchemaSql) return cachedSchemaSql;
+  const candidates = [
+    path.resolve(process.cwd(), "scripts/schema.sql"),
+    path.resolve(__dirname, "../../scripts/schema.sql"),
+    path.resolve(__dirname, "../scripts/schema.sql"),
+  ];
+  for (const cand of candidates) {
+    if (fs.existsSync(cand)) {
+      cachedSchemaSql = fs.readFileSync(cand, "utf8");
+      return cachedSchemaSql;
+    }
+  }
+  return "CREATE SCHEMA IF NOT EXISTS scrapling;";
+}
 
 /**
  * Creates a PostgreSQL connection pool using `DATABASE_URL` from `.env` or environment variables.
@@ -240,7 +74,7 @@ export function createPgPool(options: DbPoolOptions = {}): pg.Pool {
  * Ensures the `scrapling` schema and `scrapling.config` table exist.
  */
 export async function ensureScraplingConfigTable(pool: pg.Pool): Promise<void> {
-  await pool.query(INIT_SCRAPLING_CONFIG_SQL);
+  await pool.query(getSchemaSql());
 }
 
 /**

@@ -4,11 +4,13 @@ import { ScraplingClient } from "../core/index.js";
 import { parseCliArgs } from "./baseScraper.js";
 import { tryPersistScrapeResult } from "./db.js";
 import { formatPageStatusReport, type PageDealStatus } from "./pageStats.js";
-import { scrapePlayStationGiftCards } from "./playstationGiftCard.js";
-import { scrapeNintendoGiftCards } from "./nintendoGiftCard.js";
-import { scrapeAndroidGiftCards } from "./androidGiftCard.js";
-import { scrapeAmazonGiftCards } from "./amazonGiftCard.js";
-import { scrapeAppleGiftCards } from "./appleGiftCard.js";
+import {
+  scrapePlayStationGiftCards,
+  scrapeNintendoGiftCards,
+  scrapeAndroidGiftCards,
+  scrapeAmazonGiftCards,
+  scrapeAppleGiftCards,
+} from "./categories.js";
 
 /**
  * Formats an executive cross-category comparison table across all scraped Eneba gift card pages.

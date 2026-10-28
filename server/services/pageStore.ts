@@ -2,11 +2,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PLAYSTATION_GIFT_CARDS_URL } from "../../eneba/playstationGiftCard.js";
-import { NINTENDO_GIFT_CARDS_URL } from "../../eneba/nintendoGiftCard.js";
-import { ANDROID_GIFT_CARDS_URL } from "../../eneba/androidGiftCard.js";
-import { AMAZON_GIFT_CARDS_URL } from "../../eneba/amazonGiftCard.js";
-import { APPLE_GIFT_CARDS_URL } from "../../eneba/appleGiftCard.js";
+import {
+  PLAYSTATION_GIFT_CARDS_URL,
+  NINTENDO_GIFT_CARDS_URL,
+  ANDROID_GIFT_CARDS_URL,
+  AMAZON_GIFT_CARDS_URL,
+  APPLE_GIFT_CARDS_URL,
+} from "../../eneba/categories.js";
 import {
   deduplicatePageDealStatuses,
   type PageDealStatus,
