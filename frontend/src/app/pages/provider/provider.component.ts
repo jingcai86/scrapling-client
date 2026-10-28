@@ -2016,6 +2016,7 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
       },
       tooltip: {
         trigger: 'axis',
+        confine: true,
         backgroundColor: isDark ? '#1e293b' : '#ffffff',
         borderColor: isDark ? '#334155' : '#cbd5e1',
         borderWidth: 1,
@@ -2024,7 +2025,38 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
           fontSize: 12,
         },
         padding: [10, 14],
-        extraCssText: 'box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1); border-radius: 8px; z-index: 100;',
+        extraCssText: 'box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1); border-radius: 8px; z-index: 100; pointer-events: none;',
+        position: (
+          point: [number, number],
+          _params: any,
+          _dom: any,
+          _rect: any,
+          size: { contentSize: [number, number]; viewSize: [number, number] },
+        ) => {
+          const [x, y] = point;
+          const [boxW, boxH] = size.contentSize;
+          const [viewW, viewH] = size.viewSize;
+
+          // Attempt placing on top of the point first
+          let posX = x - boxW / 2;
+          let posY = y - boxH - 12;
+
+          // If too close to the top boundary of the chart, flip to bottom right of cursor
+          if (posY < 8) {
+            posY = Math.min(y + 14, Math.max(8, viewH - boxH - 8));
+            posX = x + 14; // bottom right
+          }
+
+          // Ensure tooltip remains strictly within the horizontal bounds of the chart view
+          if (posX + boxW > viewW - 10) {
+            posX = Math.max(8, viewW - boxW - 10);
+          }
+          if (posX < 8) {
+            posX = 8;
+          }
+
+          return [posX, posY];
+        },
         axisPointer: {
           type: 'cross',
           lineStyle: {
