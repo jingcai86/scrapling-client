@@ -409,7 +409,6 @@ VALUES
   ('a1000000-0000-4000-8000-000000000004'::uuid, 'b1000000-0000-4000-8000-000000000004'::uuid, 'eneba', 'Steam Gift Cards & Wallet Codes', true, 'default', NOW(), NOW()),
   ('a1000000-0000-4000-8000-000000000005'::uuid, 'f700d89a-919a-4e82-9eb6-c92f7853c2a2'::uuid, 'eneba', 'Nintendo eShop Gift Cards', true, 'default', NOW(), NOW()),
   ('a1000000-0000-4000-8000-000000000006'::uuid, '28519d1d-0742-4e92-b28f-f8e34cd60630'::uuid, 'eneba', 'Amazon Gift Cards', true, 'default', NOW(), NOW()),
-  ('a1000000-0000-4000-8000-000000000007'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b3'::uuid, 'g2a', 'Amazon Gift Cards (G2A)', true, 'default', NOW(), NOW()),
   ('a1000000-0000-4000-8000-000000000008'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b4'::uuid, 'g2a', 'Google Play Gift Cards (G2A)', true, 'default', NOW(), NOW()),
   ('a1000000-0000-4000-8000-000000000009'::uuid, 'ad69d4d6-a0fd-49dd-a439-e983f3af32b5'::uuid, 'g2a', 'PlayStation (PSN) Gift Cards (G2A)', true, 'default', NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET

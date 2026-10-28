@@ -790,15 +790,6 @@ const DEFAULT_INITIAL_TARGETS: TargetDbItem[] = [
     scheduleId: "default",
   },
   {
-    id: "a1000000-0000-4000-8000-000000000007",
-    productId: "ad69d4d6-a0fd-49dd-a439-e983f3af32b3",
-    provider: "g2a",
-    category: "g2a",
-    name: "Amazon Gift Cards (G2A)",
-    enabled: true,
-    scheduleId: "default",
-  },
-  {
     id: "a1000000-0000-4000-8000-000000000008",
     productId: "ad69d4d6-a0fd-49dd-a439-e983f3af32b4",
     productSlug: "g2a-google-play",

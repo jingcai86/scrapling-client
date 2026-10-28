@@ -40,10 +40,10 @@ export class G2aGiftCardScraper {
   constructor({
     category = "g2a",
     scrapeTargetId,
-    targetId = "g2a-amazon-gift-cards",
+    targetId = "a1000000-0000-4000-8000-000000000008",
     targetName,
-    categoryName = "Amazon Gift Cards (G2A)",
-    categoryUrl = "https://www.g2a.com/category/gift-cards-c6",
+    categoryName = "Google Play Gift Cards (G2A)",
+    categoryUrl = "https://www.g2a.com/search?query=google%20play",
     client,
   }: G2aGiftCardScraperOptions = {}) {
     this.siteCategory = category;

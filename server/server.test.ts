@@ -432,7 +432,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
         enebaConfig?: { top_deals_limit: string };
         env: { values: Record<string, string> };
       };
-      assert.equal(dash.pages.length, 9); // PlayStation, Nintendo, Android, Amazon, Apple, Steam, G2A Amazon, G2A Google Play, G2A PSN
+      assert.equal(dash.pages.length, 8); // Eneba (PlayStation, Nintendo, Android, Amazon, Apple, Steam) + G2A (Google Play, PSN)
       assert.equal(dash.scheduler.baseTime, "19:00");
       assert.equal(dash.scheduler.jitterMinutes, 60);
       assert.equal(dash.env.values.RESEND_API_KEY, "");
