@@ -334,7 +334,21 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                             <span class="card-label">Most Frequent Discount</span>
                           </div>
                           <div class="analytics-card-val" *ngIf="getMostFrequentFace(s).faceValue !== '—'">
-                            \${{ getMostFrequentFace(s).faceValue }} Face
+                            <a
+                              *ngIf="getMostFrequentFace(s).url"
+                              [href]="getMostFrequentFace(s).url"
+                              target="_blank"
+                              rel="noopener"
+                              class="analytics-card-link"
+                              [title]="getMostFrequentFace(s).title"
+                              (click)="$event.stopPropagation()"
+                            >
+                              <span class="card-link-title">{{ getMostFrequentFace(s).title }}</span>
+                              <mat-icon class="link-arrow">north_east</mat-icon>
+                            </a>
+                            <span *ngIf="!getMostFrequentFace(s).url" class="card-link-title" [title]="getMostFrequentFace(s).title">
+                              {{ getMostFrequentFace(s).title }}
+                            </span>
                           </div>
                           <div class="analytics-card-val muted" *ngIf="getMostFrequentFace(s).faceValue === '—'">
                             —
@@ -349,7 +363,21 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                             <span class="card-label">Highest Peak Discount</span>
                           </div>
                           <div class="analytics-card-val highlight-emerald" *ngIf="getPeakFace(s).faceValue !== '—'">
-                            \${{ getPeakFace(s).faceValue }} Face (-{{ getPeakFace(s).peakPct }}%)
+                            <a
+                              *ngIf="getPeakFace(s).url"
+                              [href]="getPeakFace(s).url"
+                              target="_blank"
+                              rel="noopener"
+                              class="analytics-card-link highlight-emerald"
+                              [title]="getPeakFace(s).title"
+                              (click)="$event.stopPropagation()"
+                            >
+                              <span class="card-link-title">{{ getPeakFace(s).title }} (-{{ getPeakFace(s).peakPct }}%)</span>
+                              <mat-icon class="link-arrow">north_east</mat-icon>
+                            </a>
+                            <span *ngIf="!getPeakFace(s).url" class="card-link-title" [title]="getPeakFace(s).title">
+                              {{ getPeakFace(s).title }} (-{{ getPeakFace(s).peakPct }}%)
+                            </span>
                           </div>
                           <div class="analytics-card-val muted" *ngIf="getPeakFace(s).faceValue === '—'">
                             —
@@ -365,12 +393,35 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
                           <span class="strip-title">Monitored Denominations &amp; Current Pricing:</span>
                         </div>
                         <div class="face-pills-row">
-                          <div class="face-pill" *ngFor="let face of getFaceValuesList(s)" [class.has-discount]="face.discountPct > 0">
-                            <strong class="face-val-num">\${{ face.faceValue }}</strong>
-                            <span class="face-discount-tag" *ngIf="face.discountPct > 0">-{{ face.discountPct.toFixed(1) }}%</span>
-                            <span class="face-price-num">\${{ face.sellingPrice.toFixed(2) }}</span>
-                            <span class="face-save-tag" *ngIf="face.savingsAmount > 0">(save \${{ face.savingsAmount.toFixed(2) }})</span>
-                          </div>
+                          <ng-container *ngFor="let face of getFaceValuesList(s)">
+                            <a
+                              *ngIf="face.url"
+                              [href]="face.url"
+                              target="_blank"
+                              rel="noopener"
+                              class="face-pill face-pill-link"
+                              [class.has-discount]="face.discountPct > 0"
+                              [title]="face.title || ('\$' + face.faceValue + ' Face Card')"
+                              (click)="$event.stopPropagation()"
+                            >
+                              <strong class="face-val-num">\${{ face.faceValue }}</strong>
+                              <span class="face-discount-tag" *ngIf="face.discountPct > 0">-{{ face.discountPct.toFixed(1) }}%</span>
+                              <span class="face-price-num">\${{ face.sellingPrice.toFixed(2) }}</span>
+                              <span class="face-save-tag" *ngIf="face.savingsAmount > 0">(save \${{ face.savingsAmount.toFixed(2) }})</span>
+                              <mat-icon class="pill-arrow">north_east</mat-icon>
+                            </a>
+                            <div
+                              *ngIf="!face.url"
+                              class="face-pill"
+                              [class.has-discount]="face.discountPct > 0"
+                              [title]="face.title || ('\$' + face.faceValue + ' Face Card')"
+                            >
+                              <strong class="face-val-num">\${{ face.faceValue }}</strong>
+                              <span class="face-discount-tag" *ngIf="face.discountPct > 0">-{{ face.discountPct.toFixed(1) }}%</span>
+                              <span class="face-price-num">\${{ face.sellingPrice.toFixed(2) }}</span>
+                              <span class="face-save-tag" *ngIf="face.savingsAmount > 0">(save \${{ face.savingsAmount.toFixed(2) }})</span>
+                            </div>
+                          </ng-container>
                         </div>
                       </div>
 
@@ -952,6 +1003,45 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
     .analytics-card-val.highlight-emerald {
       color: #10b981;
     }
+    .analytics-card-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      color: var(--mat-sys-primary);
+      text-decoration: none;
+      max-width: 100%;
+      white-space: nowrap;
+      line-height: 1.3;
+      font-weight: 700;
+      transition: all 0.15s ease;
+
+      &:hover {
+        text-decoration: underline;
+
+        .card-link-title {
+          text-decoration: underline;
+        }
+      }
+
+      &.highlight-emerald {
+        color: #10b981;
+      }
+
+      .card-link-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: calc(100% - 16px);
+      }
+
+      .link-arrow {
+        font-size: 13px !important;
+        width: 13px !important;
+        height: 13px !important;
+        line-height: 13px !important;
+        flex-shrink: 0;
+      }
+    }
     .savings-chip {
       font-size: 0.7rem;
       background: rgba(16, 185, 129, 0.12);
@@ -1014,6 +1104,27 @@ import type { PageDealStatus, RankedDeal, SellerOffer, ScrapeHistoryItem, Scrape
 
         .face-val-num {
           color: var(--mat-sys-on-surface);
+        }
+      }
+
+      &.face-pill-link {
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        &:hover {
+          border-color: var(--mat-sys-primary) !important;
+          background: rgba(99, 102, 241, 0.12) !important;
+        }
+
+        .pill-arrow {
+          font-size: 11px !important;
+          width: 11px !important;
+          height: 11px !important;
+          line-height: 11px !important;
+          color: var(--mat-sys-primary);
+          opacity: 0.75;
+          margin-left: 0.15rem;
         }
       }
     }
@@ -1498,33 +1609,91 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
     return 'No price data';
   }
 
-  getMostFrequentFace(s: PageDealStatus): { faceValue: number | string; timesText: string; avgPct: string } {
-    if (s.faceAnalytics?.mostFrequentFace) {
-      const mf = s.faceAnalytics.mostFrequentFace;
+  getMostFrequentFace(s: PageDealStatus): {
+    faceValue: number | string;
+    title: string;
+    url: string | null;
+    timesText: string;
+    avgPct: string;
+  } {
+    const mf = s.faceAnalytics?.mostFrequentFace;
+    if (mf) {
+      let title = mf.title;
+      let url = mf.url;
+      if (!title || !url) {
+        const match =
+          s.rankedDeals?.find((d) => d.faceValue === mf.faceValue) ||
+          s.topDeals?.find((d) => d.faceValue === mf.faceValue) ||
+          s.faceAnalytics?.faceValues?.find((f) => f.faceValue === mf.faceValue) ||
+          this.allDeals.find(
+            (d) => d.faceValue === mf.faceValue && this.getCanonicalTargetKey(d) === this.getCanonicalTargetKey(s),
+          );
+        if (match) {
+          title = title || match.title;
+          url = url || match.url;
+        }
+      }
+      if (!title) {
+        const cardBase = s.targetName || s.name || s.category;
+        title = `${cardBase} \$${mf.faceValue}`;
+      }
       return {
         faceValue: mf.faceValue,
+        title,
+        url: url || s.pageUrl || null,
         timesText: `${mf.timesDiscounted} times`,
         avgPct: mf.avgDiscountPct.toFixed(1),
       };
     }
     if (s.rankedDeals && s.rankedDeals.length > 0) {
       const discounted = s.rankedDeals.filter((d) => d.discountPct > 0 && d.faceValue);
-      if (discounted.length > 0) {
+      const chosen = discounted.length > 0 ? discounted[0] : s.rankedDeals[0];
+      if (chosen && chosen.faceValue) {
         return {
-          faceValue: discounted[0].faceValue!,
+          faceValue: chosen.faceValue,
+          title: chosen.title || `${s.targetName || s.name || s.category} \$${chosen.faceValue}`,
+          url: chosen.url || s.pageUrl || null,
           timesText: 'most runs',
-          avgPct: discounted[0].discountPct.toFixed(1),
+          avgPct: chosen.discountPct.toFixed(1),
         };
       }
     }
-    return { faceValue: '—', timesText: 'N/A', avgPct: '0.0' };
+    return { faceValue: '—', title: '—', url: null, timesText: 'N/A', avgPct: '0.0' };
   }
 
-  getPeakFace(s: PageDealStatus): { faceValue: number | string; peakPct: string; minPrice: string; savings: string } {
-    if (s.faceAnalytics?.peakDiscountFace) {
-      const pf = s.faceAnalytics.peakDiscountFace;
+  getPeakFace(s: PageDealStatus): {
+    faceValue: number | string;
+    title: string;
+    url: string | null;
+    peakPct: string;
+    minPrice: string;
+    savings: string;
+  } {
+    const pf = s.faceAnalytics?.peakDiscountFace;
+    if (pf) {
+      let title = pf.title;
+      let url = pf.url;
+      if (!title || !url) {
+        const match =
+          s.rankedDeals?.find((d) => d.faceValue === pf.faceValue) ||
+          s.topDeals?.find((d) => d.faceValue === pf.faceValue) ||
+          s.faceAnalytics?.faceValues?.find((f) => f.faceValue === pf.faceValue) ||
+          this.allDeals.find(
+            (d) => d.faceValue === pf.faceValue && this.getCanonicalTargetKey(d) === this.getCanonicalTargetKey(s),
+          );
+        if (match) {
+          title = title || match.title;
+          url = url || match.url;
+        }
+      }
+      if (!title) {
+        const cardBase = s.targetName || s.name || s.category;
+        title = `${cardBase} \$${pf.faceValue}`;
+      }
       return {
         faceValue: pf.faceValue,
+        title,
+        url: url || s.pageUrl || null,
         peakPct: pf.maxDiscountPct.toFixed(1),
         minPrice: pf.minPrice.toFixed(2),
         savings: (pf.savingsAmount || (pf.faceValue - pf.minPrice)).toFixed(2),
@@ -1534,12 +1703,14 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
       const sv = s.bestDeal.savingsAmount || ((s.bestDeal.faceValue || 0) - s.bestDeal.sellingPrice);
       return {
         faceValue: s.bestDeal.faceValue,
+        title: s.bestDeal.title || `${s.targetName || s.name || s.category} \$${s.bestDeal.faceValue}`,
+        url: s.bestDeal.url || s.pageUrl || null,
         peakPct: s.bestDeal.discountPct.toFixed(1),
         minPrice: s.bestDeal.sellingPrice.toFixed(2),
         savings: sv > 0 ? sv.toFixed(2) : '0.00',
       };
     }
-    return { faceValue: '—', peakPct: '0.0', minPrice: '—', savings: '0.00' };
+    return { faceValue: '—', title: '—', url: null, peakPct: '0.0', minPrice: '—', savings: '0.00' };
   }
 
   getFaceValuesList(s: PageDealStatus): FaceValueStatItem[] {
@@ -1555,6 +1726,8 @@ export class EnebaComponent implements OnInit, AfterViewInit, OnDestroy {
           if (!curr || d.discountPct > curr.discountPct) {
             map.set(fv, {
               faceValue: fv,
+              title: d.title,
+              url: d.url,
               currency: d.faceValueCurrency || 'USD',
               discountPct: d.discountPct,
               sellingPrice: d.sellingPrice,

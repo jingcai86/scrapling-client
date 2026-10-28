@@ -1225,10 +1225,14 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
 
     const faceStatsMap = new Map<string, {
       freq_face: number;
+      freq_title?: string;
+      freq_url?: string;
       freq_currency: string;
       freq_times: number;
       freq_avg_pct: number;
       peak_face: number;
+      peak_title?: string;
+      peak_url?: string;
       peak_currency: string;
       peak_max_pct: number;
       peak_min_price: number;
@@ -1238,10 +1242,14 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
       const faceStatsRes = await pool.query<{
         target_id: string;
         freq_face: number;
+        freq_title: string | null;
+        freq_url: string | null;
         freq_currency: string;
         freq_times: number;
         freq_avg_pct: number;
         peak_face: number;
+        peak_title: string | null;
+        peak_url: string | null;
         peak_currency: string;
         peak_max_pct: number;
         peak_min_price: number;
@@ -1251,6 +1259,8 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
             st.id as target_id,
             r.face_value::float as face_value,
             COALESCE(r.face_value_currency, 'USD') as currency,
+            (ARRAY_AGG(r.title ORDER BY r.scraped_at DESC))[1] as title,
+            (ARRAY_AGG(r.url ORDER BY r.scraped_at DESC))[1] as url,
             COUNT(*)::int as total_seen,
             COUNT(CASE WHEN r.discount_pct > 0 THEN 1 END)::int as times_discounted,
             ROUND(AVG(r.discount_pct)::numeric, 1)::float as avg_discount,
@@ -1271,10 +1281,14 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
         SELECT 
           f.target_id,
           f.face_value as freq_face,
+          f.title as freq_title,
+          f.url as freq_url,
           f.currency as freq_currency,
           f.times_discounted as freq_times,
           f.avg_discount as freq_avg_pct,
           p.face_value as peak_face,
+          p.title as peak_title,
+          p.url as peak_url,
           p.currency as peak_currency,
           p.max_discount as peak_max_pct,
           p.min_price as peak_min_price
@@ -1285,10 +1299,14 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
       for (const row of faceStatsRes.rows) {
         faceStatsMap.set(row.target_id, {
           freq_face: Number(row.freq_face),
+          freq_title: row.freq_title || undefined,
+          freq_url: row.freq_url || undefined,
           freq_currency: row.freq_currency || "USD",
           freq_times: Number(row.freq_times),
           freq_avg_pct: Number(row.freq_avg_pct),
           peak_face: Number(row.peak_face),
+          peak_title: row.peak_title || undefined,
+          peak_url: row.peak_url || undefined,
           peak_currency: row.peak_currency || "USD",
           peak_max_pct: Number(row.peak_max_pct),
           peak_min_price: Number(row.peak_min_price),
@@ -1379,6 +1397,8 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
           if (!current || rDiscount > current.discountPct) {
             faceMap.set(fv, {
               faceValue: fv,
+              title: r.title || undefined,
+              url: r.url || undefined,
               currency: r.faceValueCurrency || "USD",
               discountPct: rDiscount,
               sellingPrice: Number(r.sellingPrice || 0),
@@ -1397,23 +1417,31 @@ export async function fetchLatestEnebaStatusesFromDb(): Promise<
       const faceAnalytics: TargetFaceValueAnalytics = {
         mostFrequentFace: fs?.freq_face ? {
           faceValue: fs.freq_face,
+          title: fs.freq_title,
+          url: fs.freq_url,
           currency: fs.freq_currency,
           timesDiscounted: fs.freq_times,
           avgDiscountPct: fs.freq_avg_pct,
         } : (faceValues.length > 0 ? {
           faceValue: faceValues[0].faceValue,
+          title: faceValues[0].title,
+          url: faceValues[0].url,
           currency: faceValues[0].currency,
           timesDiscounted: 1,
           avgDiscountPct: faceValues[0].discountPct,
         } : undefined),
         peakDiscountFace: fs?.peak_face ? {
           faceValue: fs.peak_face,
+          title: fs.peak_title,
+          url: fs.peak_url,
           currency: fs.peak_currency,
           maxDiscountPct: fs.peak_max_pct,
           minPrice: fs.peak_min_price,
           savingsAmount: Number((fs.peak_face - fs.peak_min_price).toFixed(2)),
         } : (bestDirectDeal && bestDirectDeal.faceValue ? {
           faceValue: bestDirectDeal.faceValue,
+          title: bestDirectDeal.title,
+          url: bestDirectDeal.url,
           currency: bestDirectDeal.faceValueCurrency || "USD",
           maxDiscountPct: bestDirectDeal.discountPct,
           minPrice: bestDirectDeal.sellingPrice || 0,

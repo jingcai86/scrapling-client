@@ -58,6 +58,8 @@ export interface RankedDeal {
 
 export interface FaceValueStatItem {
   faceValue: number;
+  title?: string;
+  url?: string;
   currency?: string;
   discountPct: number;
   sellingPrice: number;
@@ -67,12 +69,16 @@ export interface FaceValueStatItem {
 export interface TargetFaceValueAnalytics {
   mostFrequentFace?: {
     faceValue: number;
+    title?: string;
+    url?: string;
     currency?: string;
     timesDiscounted: number;
     avgDiscountPct: number;
   };
   peakDiscountFace?: {
     faceValue: number;
+    title?: string;
+    url?: string;
     currency?: string;
     maxDiscountPct: number;
     minPrice: number;
