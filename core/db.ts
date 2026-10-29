@@ -327,6 +327,7 @@ export async function deleteDbConfigKey(
 export interface ScheduleDbItem {
   id: string;
   name: string;
+  baseTimeUtc?: string;
   baseTime: string;
   jitterMinutes: number;
   enabled: boolean;
@@ -363,15 +364,26 @@ export async function getDbSchedulers(pool?: pg.Pool): Promise<ScheduleDbItem[]>
     const res = await p.query<{
       id: string;
       name: string;
-      base_time: string;
+      base_time_utc: string;
       jitter_minutes: number;
       enabled: boolean;
       created_at: Date;
-    }>("SELECT id, name, base_time, jitter_minutes, enabled, created_at FROM scrapling.schedulers ORDER BY created_at ASC");
+    }>(
+      `SELECT
+         id,
+         name,
+         base_time_utc,
+         jitter_minutes,
+         enabled,
+         created_at
+       FROM scrapling.schedulers
+       ORDER BY created_at ASC`,
+    );
     return res.rows.map((r) => ({
       id: r.id,
       name: r.name,
-      baseTime: r.base_time,
+      baseTimeUtc: r.base_time_utc,
+      baseTime: r.base_time_utc,
       jitterMinutes: Number(r.jitter_minutes) || 0,
       enabled: Boolean(r.enabled),
       createdAt: r.created_at ? new Date(r.created_at).toISOString() : undefined,
@@ -394,18 +406,18 @@ export async function upsertDbScheduler(
     await ensureScraplingConfigTable(p);
     const resolvedId = resolveSchedulerId(item.id);
     await p.query(
-      `INSERT INTO scrapling.schedulers (id, name, base_time, jitter_minutes, enabled, created_at, updated_at)
+      `INSERT INTO scrapling.schedulers (id, name, base_time_utc, jitter_minutes, enabled, created_at, updated_at)
        VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, $4, $5, COALESCE($6::timestamptz, NOW()), NOW())
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
-         base_time = EXCLUDED.base_time,
+         base_time_utc = EXCLUDED.base_time_utc,
          jitter_minutes = EXCLUDED.jitter_minutes,
          enabled = EXCLUDED.enabled,
          updated_at = NOW()`,
       [
         resolvedId,
         item.name,
-        item.baseTime,
+        item.baseTimeUtc || item.baseTime || "02:00",
         item.jitterMinutes,
         item.enabled,
         item.createdAt || new Date().toISOString(),
@@ -692,6 +704,7 @@ const DEFAULT_INITIAL_SCHEDULERS: ScheduleDbItem[] = [
   {
     id: DEFAULT_SCHEDULER_ID,
     name: "Primary Daily Schedule",
+    baseTimeUtc: "02:00",
     baseTime: "02:00",
     jitterMinutes: 60,
     enabled: true,
@@ -724,11 +737,23 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
     await ensureScraplingConfigTable(pool);
 
     // 1. Sync Schedulers
-    // Migrate legacy local base_time values (19:00 -> 02:00 UTC, 08:00 -> 15:00 UTC)
+    // Migrate legacy column name and local base_time values to base_time_utc
     try {
       await pool.query(`
-        UPDATE scrapling.schedulers SET base_time = '02:00' WHERE base_time = '19:00';
-        UPDATE scrapling.schedulers SET base_time = '15:00' WHERE base_time = '08:00';
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'scrapling' AND table_name = 'schedulers' AND column_name = 'base_time'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'scrapling' AND table_name = 'schedulers' AND column_name = 'base_time_utc'
+          ) THEN
+            ALTER TABLE scrapling.schedulers RENAME COLUMN base_time TO base_time_utc;
+          END IF;
+        END $$;
+        UPDATE scrapling.schedulers SET base_time_utc = '02:00' WHERE base_time_utc = '19:00';
+        UPDATE scrapling.schedulers SET base_time_utc = '15:00' WHERE base_time_utc = '08:00';
       `);
     } catch {
       // Non-blocking if table not initialized yet
@@ -755,6 +780,7 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
         const def = initialSchedulers.find((s) => isDefaultSchedulerId(s.id)) || {
           id: DEFAULT_SCHEDULER_ID,
           name: "Primary Daily Schedule",
+          baseTimeUtc: "02:00",
           baseTime: "02:00",
           jitterMinutes: 60,
           enabled: true,

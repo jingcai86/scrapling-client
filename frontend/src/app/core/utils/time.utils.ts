@@ -73,3 +73,4 @@ export function formatLocalBaseTimeToUtc(
   const utcM = String(totalUtcMinutes % 60).padStart(2, '0');
   return `${utcH}:${utcM}`;
 }
+

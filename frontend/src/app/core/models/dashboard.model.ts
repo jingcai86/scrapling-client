@@ -142,6 +142,7 @@ export interface SchedulerState {
   name?: string;
   isDefault?: boolean;
   enabled: boolean;
+  baseTimeUtc?: string;
   baseTime: string;
   jitterMinutes: number;
   chosenOffsetMinutes?: number;
@@ -161,6 +162,7 @@ export interface ScheduleItemConfig {
   id: string;
   name: string;
   enabled: boolean;
+  baseTimeUtc?: string;
   baseTime: string;
   jitterMinutes: number;
   createdAt?: string;

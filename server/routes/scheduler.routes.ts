@@ -21,9 +21,14 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
   router.post("/", async (req, res, next) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
+      const reqBaseTime =
+        body.baseTimeUtc !== undefined
+          ? String(body.baseTimeUtc)
+          : String(body.baseTime || "02:00");
       const created = ctx.pageStore.addSchedule({
         name: String(body.name || "Custom Schedule"),
-        baseTime: String(body.baseTime || "02:00"),
+        baseTimeUtc: reqBaseTime,
+        baseTime: reqBaseTime,
         jitterMinutes: Number(body.jitterMinutes ?? 60),
         enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
       });
@@ -94,9 +99,17 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
         return;
       }
 
+      const reqBaseTime =
+        body.baseTimeUtc !== undefined
+          ? String(body.baseTimeUtc)
+          : body.baseTime !== undefined
+            ? String(body.baseTime)
+            : undefined;
+
       const updated = ctx.pageStore.updateSchedule(id, {
         name: body.name !== undefined ? String(body.name) : undefined,
-        baseTime: body.baseTime !== undefined ? String(body.baseTime) : undefined,
+        baseTimeUtc: reqBaseTime,
+        baseTime: reqBaseTime,
         jitterMinutes:
           body.jitterMinutes !== undefined
             ? Number(body.jitterMinutes)
@@ -131,8 +144,15 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
         res.json({ scheduler: ctx.scheduler.rerollNextRun() });
         return;
       }
+      const reqBaseTime =
+        body.baseTimeUtc !== undefined
+          ? String(body.baseTimeUtc)
+          : body.baseTime !== undefined
+            ? String(body.baseTime)
+            : undefined;
       const updated = ctx.pageStore.updateSchedule("default", {
-        baseTime: body.baseTime !== undefined ? String(body.baseTime) : undefined,
+        baseTimeUtc: reqBaseTime,
+        baseTime: reqBaseTime,
         jitterMinutes:
           body.jitterMinutes !== undefined
             ? Number(body.jitterMinutes)
@@ -145,8 +165,8 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
             {
               enabled:
                 body.enabled !== undefined ? Boolean(body.enabled) : undefined,
-              baseTime:
-                body.baseTime !== undefined ? String(body.baseTime) : undefined,
+              baseTimeUtc: reqBaseTime,
+              baseTime: reqBaseTime,
               jitterMinutes:
                 body.jitterMinutes !== undefined
                   ? Number(body.jitterMinutes)

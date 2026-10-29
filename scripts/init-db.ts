@@ -50,6 +50,27 @@ async function main() {
 
   try {
     console.log("⏳ Applying schema and table definitions...");
+
+    // Pre-schema migration: ensure base_time is renamed to base_time_utc before schema script inserts
+    try {
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'scrapling' AND table_name = 'schedulers' AND column_name = 'base_time'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'scrapling' AND table_name = 'schedulers' AND column_name = 'base_time_utc'
+          ) THEN
+            ALTER TABLE scrapling.schedulers RENAME COLUMN base_time TO base_time_utc;
+          END IF;
+        END $$;
+      `);
+    } catch {
+      // Non-blocking if table doesn't exist yet
+    }
+
     if (fs.existsSync(SCHEMA_SQL_PATH)) {
       const sql = fs.readFileSync(SCHEMA_SQL_PATH, "utf8");
       await pool.query(sql);
@@ -67,11 +88,25 @@ async function main() {
       ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS schedule_id UUID REFERENCES scrapling.schedulers(id) ON DELETE SET NULL;
       CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_schedule_id ON scrapling.scrape_runs (schedule_id);
 
-      -- Migrate legacy local base_time values to pure UTC (19:00 PDT -> 02:00 UTC, 08:00 PDT -> 15:00 UTC)
-      UPDATE scrapling.schedulers SET base_time = '02:00' WHERE base_time = '19:00';
-      UPDATE scrapling.schedulers SET base_time = '15:00' WHERE base_time = '08:00';
+      -- Rename base_time to base_time_utc if legacy column exists
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_schema = 'scrapling' AND table_name = 'schedulers' AND column_name = 'base_time'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_schema = 'scrapling' AND table_name = 'schedulers' AND column_name = 'base_time_utc'
+        ) THEN
+          ALTER TABLE scrapling.schedulers RENAME COLUMN base_time TO base_time_utc;
+        END IF;
+      END $$;
+
+      -- Migrate legacy local base_time_utc values to pure UTC (19:00 PDT -> 02:00 UTC, 08:00 PDT -> 15:00 UTC)
+      UPDATE scrapling.schedulers SET base_time_utc = '02:00' WHERE base_time_utc = '19:00';
+      UPDATE scrapling.schedulers SET base_time_utc = '15:00' WHERE base_time_utc = '08:00';
     `);
-    console.log("✔ Ensured latest relations: scrape_runs.schedule_id FK active, migrated schedulers to pure UTC");
+    console.log("✔ Ensured latest relations: scrape_runs.schedule_id FK active, migrated schedulers to base_time_utc");
 
     console.log("⏳ Seeding configuration variables from environment...");
     await initScraplingConfigOnStartup({ pool });

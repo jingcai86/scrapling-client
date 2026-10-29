@@ -61,14 +61,15 @@ function createInMemoryConfigPool(): {
         if (lower.includes("insert into") || lower.includes("on conflict")) {
           const id = String(sqlParams[0] ?? "");
           const name = String(sqlParams[1] ?? "");
-          const base_time = String(sqlParams[2] ?? "02:00");
+          const base_time_utc = String(sqlParams[2] ?? "02:00");
           const jitter_minutes = Number(sqlParams[3] ?? 60);
           const enabled = Boolean(sqlParams[4]);
           const created_at = sqlParams[5] ? new Date(String(sqlParams[5])) : new Date();
           if (id) {
-            scheduleRows.set(id, { id, name, base_time, jitter_minutes, enabled, created_at });
+            const row = { id, name, base_time_utc, base_time: base_time_utc, jitter_minutes, enabled, created_at };
+            scheduleRows.set(id, row);
             if (id === DEFAULT_SCHEDULER_ID) {
-              scheduleRows.set("default", { id, name, base_time, jitter_minutes, enabled, created_at });
+              scheduleRows.set("default", row);
             }
           }
           return { rows: [], rowCount: 1 };
@@ -510,7 +511,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       };
       assert.equal(defData.scheduler.baseTime, "20:00");
       assert.equal(defData.scheduler.jitterMinutes, 45);
-      assert.equal((scheduleRows.get(DEFAULT_SCHEDULER_ID) || scheduleRows.get("default"))?.base_time, "20:00");
+      assert.equal((scheduleRows.get(DEFAULT_SCHEDULER_ID) || scheduleRows.get("default"))?.base_time_utc, "20:00");
       assert.equal((scheduleRows.get(DEFAULT_SCHEDULER_ID) || scheduleRows.get("default"))?.jitter_minutes, 45);
 
       // 5. GET /api/email/preview

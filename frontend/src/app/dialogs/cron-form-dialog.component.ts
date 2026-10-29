@@ -141,6 +141,7 @@ export class CronFormDialogComponent {
     this.dialogRef.close({
       name: this.name.trim() || 'Schedule',
       enabled: this.enabled,
+      baseTimeUtc: utcBaseTime,
       baseTime: utcBaseTime,
       jitterMinutes: this.jitterMinutes,
     });

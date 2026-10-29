@@ -42,7 +42,8 @@ export interface ScheduleConfigItem {
   id: string;
   name: string;
   enabled: boolean;
-  baseTime: string; // e.g. "19:00"
+  baseTimeUtc?: string;
+  baseTime: string; // e.g. "02:00" UTC
   jitterMinutes: number; // e.g. 60
   createdAt?: string;
 }
@@ -86,6 +87,7 @@ export const DEFAULT_SCHEDULES: ScheduleConfigItem[] = [
     id: DEFAULT_SCHEDULER_ID,
     name: "Primary Daily Schedule",
     enabled: true,
+    baseTimeUtc: "02:00",
     baseTime: "02:00",
     jitterMinutes: 60,
     createdAt: "2026-10-25T00:00:00.000Z",
@@ -252,16 +254,19 @@ export class PageStore {
 
   addSchedule(input: {
     name: string;
-    baseTime: string;
+    baseTimeUtc?: string;
+    baseTime?: string;
     jitterMinutes: number;
     enabled?: boolean;
   }): ScheduleConfigItem {
     const list = this.listSchedules();
     const id = crypto.randomUUID();
+    const bt = input.baseTimeUtc?.trim() || input.baseTime?.trim() || "02:00";
     const item: ScheduleConfigItem = {
       id,
       name: input.name?.trim() || "Custom Schedule",
-      baseTime: input.baseTime?.trim() || "02:00",
+      baseTimeUtc: bt,
+      baseTime: bt,
       jitterMinutes: Math.max(0, Math.min(720, Number(input.jitterMinutes) || 0)),
       enabled: input.enabled !== undefined ? Boolean(input.enabled) : true,
       createdAt: new Date().toISOString(),
@@ -280,10 +285,12 @@ export class PageStore {
     if (idx === -1) return null;
 
     const current = list[idx];
+    const bt = patch.baseTimeUtc !== undefined ? patch.baseTimeUtc.trim() : patch.baseTime !== undefined ? patch.baseTime.trim() : current.baseTime;
     const updated: ScheduleConfigItem = {
       ...current,
       name: patch.name !== undefined && patch.name.trim() ? patch.name.trim() : current.name,
-      baseTime: patch.baseTime !== undefined ? patch.baseTime.trim() : current.baseTime,
+      baseTimeUtc: bt,
+      baseTime: bt,
       jitterMinutes:
         patch.jitterMinutes !== undefined
           ? Math.max(0, Math.min(720, Number(patch.jitterMinutes) || 0))

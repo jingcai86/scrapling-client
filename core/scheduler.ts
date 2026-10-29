@@ -10,7 +10,8 @@ export interface SchedulerConfig {
   id?: string;
   name?: string;
   enabled: boolean;
-  baseTime: string; // "HH:MM" in 24h format UTC, e.g. "02:00"
+  baseTimeUtc?: string; // "HH:MM" in 24h format UTC, e.g. "02:00"
+  baseTime?: string;    // Backwards-compatible alias
   jitterMinutes: number; // e.g. 60 -> random offset in [0, 60] minutes
 }
 
@@ -18,6 +19,8 @@ export interface SchedulerState extends SchedulerConfig {
   id: string;
   name: string;
   isDefault?: boolean;
+  baseTimeUtc: string;
+  baseTime: string;
   chosenOffsetMinutes: number;
   chosenOffsetSeconds: number;
   windowStartIso: string | null;
@@ -34,6 +37,7 @@ export interface ScheduleItemConfig {
   id: string;
   name: string;
   enabled: boolean;
+  baseTimeUtc?: string;
   baseTime: string;
   jitterMinutes: number;
 }
@@ -192,8 +196,9 @@ export class RandomizedDailyScheduler {
       if (options.initialConfig.enabled !== undefined) {
         this.enabled = Boolean(options.initialConfig.enabled);
       }
-      if (options.initialConfig.baseTime) {
-        this.baseTime = parseBaseTime(options.initialConfig.baseTime).normalized;
+      const initialBase = options.initialConfig.baseTimeUtc ?? options.initialConfig.baseTime;
+      if (initialBase) {
+        this.baseTime = parseBaseTime(initialBase).normalized;
       }
       if (options.initialConfig.jitterMinutes !== undefined) {
         this.jitterMinutes = Math.max(
@@ -245,8 +250,9 @@ export class RandomizedDailyScheduler {
     if (partial.enabled !== undefined) {
       this.enabled = Boolean(partial.enabled);
     }
-    if (partial.baseTime !== undefined) {
-      this.baseTime = parseBaseTime(partial.baseTime).normalized;
+    const requestedBaseTime = partial.baseTimeUtc !== undefined ? partial.baseTimeUtc : partial.baseTime;
+    if (requestedBaseTime !== undefined) {
+      this.baseTime = parseBaseTime(requestedBaseTime).normalized;
     }
     if (partial.jitterMinutes !== undefined) {
       this.jitterMinutes = Math.max(
@@ -385,6 +391,7 @@ export class RandomizedDailyScheduler {
       name: this.name,
       isDefault: isDefaultSchedulerId(this.id),
       enabled: this.enabled,
+      baseTimeUtc: this.baseTime,
       baseTime: this.baseTime,
       jitterMinutes: this.jitterMinutes,
       chosenOffsetMinutes: this.chosenOffsetMinutes,

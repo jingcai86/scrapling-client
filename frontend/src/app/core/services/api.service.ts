@@ -113,7 +113,7 @@ export class ApiService {
     );
   }
 
-  createScheduler(data: { name: string; baseTime: string; jitterMinutes: number; enabled?: boolean }): Observable<{ scheduler: SchedulerState }> {
+  createScheduler(data: { name: string; baseTimeUtc?: string; baseTime?: string; jitterMinutes: number; enabled?: boolean }): Observable<{ scheduler: SchedulerState }> {
     return this.http.post<{ scheduler: SchedulerState }>('/api/scheduler', data).pipe(
       tap(() => this.loadDashboard(false)),
     );
