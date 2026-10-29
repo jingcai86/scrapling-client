@@ -126,9 +126,11 @@ export async function createDashboardServer(options: {
       },
     );
 
-  // When any scrape completes (manual button, batch, or cron), advance schedule to next day
-  runner.onScrapeComplete(() => {
-    schedulerManager.recordRunCompleted(undefined, new Date());
+  // When a scheduled scrape completes, advance only that specific schedule to the next day
+  runner.onScrapeComplete((_statuses, meta) => {
+    if (meta?.scheduleId) {
+      schedulerManager.recordRunCompleted(meta.scheduleId, new Date());
+    }
   });
 
   const app = createApp({

@@ -1576,14 +1576,16 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
       const isDefaultSched =
         s.isDefault ||
         s.id === 'default' ||
-        s.id === '00000000-0000-0000-0000-000000000000';
+        s.id === '00000000-0000-0000-0000-000000000000' ||
+        s.id === 'c1000000-0000-4000-8000-000000000001';
       if (
         isDefaultSched &&
         activePages.some(
           (p) =>
             !p.scheduleId ||
             p.scheduleId === 'default' ||
-            p.scheduleId === '00000000-0000-0000-0000-000000000000',
+            p.scheduleId === '00000000-0000-0000-0000-000000000000' ||
+            p.scheduleId === 'c1000000-0000-4000-8000-000000000001',
         )
       ) {
         return true;

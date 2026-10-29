@@ -94,28 +94,31 @@ export function computeNextRandomizedRun(
   const randomTotalSeconds =
     maxSeconds > 0 ? Math.floor(randomFn() * (maxSeconds + 1)) : 0;
 
-  // Once-daily rule: If already scraped today (or within the last 12 hours), the next run must be tomorrow
-  let alreadyScrapedToday = forceTomorrow;
-  if (!alreadyScrapedToday && lastRunAt) {
-    const lastDate =
-      typeof lastRunAt === "string" ? new Date(lastRunAt) : lastRunAt;
-    if (!isNaN(lastDate.getTime())) {
-      if (
-        isSameCalendarDay(lastDate, now) ||
-        (now.getTime() - lastDate.getTime() < 12 * 60 * 60 * 1000 &&
-          lastDate.getTime() <= now.getTime())
-      ) {
-        alreadyScrapedToday = true;
-      }
-    }
-  }
-
+  // Candidate window start for today
   const candidateWindowStart = new Date(now.getTime());
   candidateWindowStart.setHours(hours, minutes, 0, 0);
 
   let candidateNextRun = new Date(
     candidateWindowStart.getTime() + randomTotalSeconds * 1000,
   );
+
+  // Once-daily rule: If this schedule has already executed today for this window, the next run must be tomorrow
+  let alreadyScrapedToday = forceTomorrow;
+  if (!alreadyScrapedToday && lastRunAt) {
+    const lastDate =
+      typeof lastRunAt === "string" ? new Date(lastRunAt) : lastRunAt;
+    if (!isNaN(lastDate.getTime())) {
+      // Only consider already scraped today if the last run occurred at or after today's window start
+      // on the same calendar day. If the last scrape occurred before today's window start (e.g. earlier
+      // in the morning or on a previous day), today's scheduled run has not happened yet!
+      if (
+        isSameCalendarDay(lastDate, now) &&
+        lastDate.getTime() >= candidateWindowStart.getTime() - 60_000
+      ) {
+        alreadyScrapedToday = true;
+      }
+    }
+  }
 
   // If already scraped today, forced to tomorrow, or candidate time for today has already passed:
   if (alreadyScrapedToday || candidateNextRun.getTime() <= now.getTime() + 1000) {

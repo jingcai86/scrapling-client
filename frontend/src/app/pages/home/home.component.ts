@@ -759,7 +759,23 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
         : data?.schedulers?.find((s) => s.enabled) || undefined;
     }
 
-    return list.sort(
+    // Prioritize schedulers that actually have active assigned targets to scrape
+    const activePages = (data?.pages || []).filter((p) => p.enabled);
+    const activePageIds = new Set(activePages.map((p) => p.id));
+    const schedulersWithTargets = list.filter((s) => {
+      if (s.assignedPageIds?.some((id) => activePageIds.has(id))) return true;
+      if (
+        (s.isDefault || s.id === 'c1000000-0000-4000-8000-000000000001' || s.id === 'default') &&
+        activePages.some((p) => !p.scheduleId || p.scheduleId === 'default' || p.scheduleId === s.id)
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    const candidates = schedulersWithTargets.length > 0 ? schedulersWithTargets : list;
+
+    return candidates.sort(
       (a, b) => new Date(a.nextRunAt!).getTime() - new Date(b.nextRunAt!).getTime(),
     )[0];
   }

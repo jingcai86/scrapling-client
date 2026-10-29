@@ -89,7 +89,7 @@ export class ScrapeRunner {
   private recentLogs: string[] = [];
   private statusesByCategory = new Map<string, PageDealStatus>();
   private scrapeHistory: ScrapeHistoryItem[] = [];
-  private onScrapeCompleteListeners: Array<(statuses: PageDealStatus[]) => void> = [];
+  private onScrapeCompleteListeners: Array<(statuses: PageDealStatus[], meta?: { scheduleId?: string }) => void> = [];
 
   constructor(pageStore: PageStore) {
     this.pageStore = pageStore;
@@ -322,7 +322,7 @@ export class ScrapeRunner {
     return new Date(Math.max(...timestamps));
   }
 
-  onScrapeComplete(listener: (statuses: PageDealStatus[]) => void): void {
+  onScrapeComplete(listener: (statuses: PageDealStatus[], meta?: { scheduleId?: string }) => void): void {
     this.onScrapeCompleteListeners.push(listener);
   }
 
@@ -611,7 +611,7 @@ export class ScrapeRunner {
 
       for (const listener of this.onScrapeCompleteListeners) {
         try {
-          listener(scrapedResults);
+          listener(scrapedResults, { scheduleId: options.scheduleId });
         } catch {}
       }
       this.currentStep = null;
