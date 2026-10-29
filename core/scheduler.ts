@@ -10,7 +10,7 @@ export interface SchedulerConfig {
   id?: string;
   name?: string;
   enabled: boolean;
-  baseTime: string; // "HH:MM" in 24h format, e.g. "19:00"
+  baseTime: string; // "HH:MM" in 24h format UTC, e.g. "02:00"
   jitterMinutes: number; // e.g. 60 -> random offset in [0, 60] minutes
 }
 
@@ -39,18 +39,20 @@ export interface ScheduleItemConfig {
 }
 
 /**
- * Checks if two dates fall on the same local calendar day.
+ * Checks if two dates fall on the same UTC calendar day.
  */
-export function isSameCalendarDay(d1: Date, d2: Date): boolean {
+export function isSameUtcCalendarDay(d1: Date, d2: Date): boolean {
   return (
-    d1.getFullYear() === d2.getFullYear() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getDate() === d2.getDate()
+    d1.getUTCFullYear() === d2.getUTCFullYear() &&
+    d1.getUTCMonth() === d2.getUTCMonth() &&
+    d1.getUTCDate() === d2.getUTCDate()
   );
 }
 
+export const isSameCalendarDay = isSameUtcCalendarDay;
+
 /**
- * Parses a "HH:MM" 24-hour string into `{ hours, minutes }`. Defaults to 19:00 (7:00 PM) if invalid.
+ * Parses a "HH:MM" 24-hour string into `{ hours, minutes }`. Defaults to 02:00 (2:00 AM UTC) if invalid.
  */
 export function parseBaseTime(baseTime: string): {
   hours: number;
@@ -61,7 +63,7 @@ export function parseBaseTime(baseTime: string): {
     .trim()
     .match(/^(\d{1,2}):(\d{2})$/);
   if (!match) {
-    return { hours: 19, minutes: 0, normalized: "19:00" };
+    return { hours: 2, minutes: 0, normalized: "02:00" };
   }
   const hours = Math.min(23, Math.max(0, Number(match[1])));
   const minutes = Math.min(59, Math.max(0, Number(match[2])));
@@ -70,9 +72,8 @@ export function parseBaseTime(baseTime: string): {
 }
 
 /**
- * Computes the next scheduled timestamp given a base time ("19:00") and a random jitter window in minutes (e.g. 60).
- * Adheres strictly to the once-daily scraping rule: if a scrape has already completed today, the next run
- * is guaranteed to be scheduled for the next calendar day.
+ * Computes the next scheduled timestamp given a base time ("02:00" UTC) and a random jitter window in minutes (e.g. 60).
+ * Adheres strictly to the once-daily scraping rule in UTC.
  */
 export function computeNextRandomizedRun(
   baseTime: string,
@@ -94,25 +95,22 @@ export function computeNextRandomizedRun(
   const randomTotalSeconds =
     maxSeconds > 0 ? Math.floor(randomFn() * (maxSeconds + 1)) : 0;
 
-  // Candidate window start for today
+  // Candidate window start for today (pure UTC)
   const candidateWindowStart = new Date(now.getTime());
-  candidateWindowStart.setHours(hours, minutes, 0, 0);
+  candidateWindowStart.setUTCHours(hours, minutes, 0, 0);
 
   let candidateNextRun = new Date(
     candidateWindowStart.getTime() + randomTotalSeconds * 1000,
   );
 
-  // Once-daily rule: If this schedule has already executed today for this window, the next run must be tomorrow
+  // Once-daily rule: If this schedule has already executed today for this window in UTC, the next run must be tomorrow
   let alreadyScrapedToday = forceTomorrow;
   if (!alreadyScrapedToday && lastRunAt) {
     const lastDate =
       typeof lastRunAt === "string" ? new Date(lastRunAt) : lastRunAt;
     if (!isNaN(lastDate.getTime())) {
-      // Only consider already scraped today if the last run occurred at or after today's window start
-      // on the same calendar day. If the last scrape occurred before today's window start (e.g. earlier
-      // in the morning or on a previous day), today's scheduled run has not happened yet!
       if (
-        isSameCalendarDay(lastDate, now) &&
+        isSameUtcCalendarDay(lastDate, now) &&
         lastDate.getTime() >= candidateWindowStart.getTime() - 60_000
       ) {
         alreadyScrapedToday = true;
@@ -122,8 +120,8 @@ export function computeNextRandomizedRun(
 
   // If already scraped today, forced to tomorrow, or candidate time for today has already passed:
   if (alreadyScrapedToday || candidateNextRun.getTime() <= now.getTime() + 1000) {
-    candidateWindowStart.setDate(candidateWindowStart.getDate() + 1);
-    candidateWindowStart.setHours(hours, minutes, 0, 0);
+    candidateWindowStart.setUTCDate(candidateWindowStart.getUTCDate() + 1);
+    candidateWindowStart.setUTCHours(hours, minutes, 0, 0);
     candidateNextRun = new Date(
       candidateWindowStart.getTime() + randomTotalSeconds * 1000,
     );
@@ -147,7 +145,7 @@ export class RandomizedDailyScheduler {
   name: string;
   private timer: NodeJS.Timeout | null = null;
   private enabled = true;
-  private baseTime = "19:00";
+  private baseTime = "02:00";
   private jitterMinutes = 60;
   private chosenOffsetMinutes = 0;
   private chosenOffsetSeconds = 0;
@@ -221,7 +219,7 @@ export class RandomizedDailyScheduler {
       const rawEnabled = process.env.CRON_ENABLED?.trim() || "true";
       const enabled = rawEnabled.toLowerCase() !== "false";
       const { normalized } = parseBaseTime(
-        process.env.CRON_BASE_TIME?.trim() || "19:00",
+        process.env.CRON_BASE_TIME?.trim() || "02:00",
       );
       const rawJitter = process.env.CRON_JITTER_MINUTES?.trim() || "60";
       const jitter = Math.max(0, Math.min(720, Number(rawJitter) || 0));
@@ -429,7 +427,7 @@ export class MultiSchedulerManager {
               id: DEFAULT_SCHEDULER_ID,
               name: "Primary Daily Schedule",
               enabled: true,
-              baseTime: "19:00",
+              baseTime: "02:00",
               jitterMinutes: 60,
             },
           ];

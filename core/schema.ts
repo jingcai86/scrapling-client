@@ -43,7 +43,7 @@ export const DEFAULT_SCHEDULER_ID = "c1000000-0000-4000-8000-000000000001";
 export const scraplingSchedulers = scraplingSchema.table("schedulers", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  baseTime: text("base_time").notNull().default("19:00"),
+  baseTime: text("base_time").notNull().default("02:00"),
   jitterMinutes: integer("jitter_minutes").notNull().default(60),
   enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })

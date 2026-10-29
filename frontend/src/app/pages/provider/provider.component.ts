@@ -34,6 +34,7 @@ import {
   getCanonicalProvider,
   getCanonicalTargetKey,
 } from '../../core/models/dashboard.model';
+import { formatUtcBaseTimeToLocal } from '../../core/utils/time.utils';
 
 @Component({
   selector: 'app-provider',
@@ -1692,14 +1693,16 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const name = sched.name && sched.name !== 'Default Schedule' ? `${sched.name} · ` : '';
-    return `${name}Base ${sched.baseTime} (+0..${sched.jitterMinutes}m)`;
+    const localBase = formatUtcBaseTimeToLocal(sched.baseTime, this.apiService.getTimeZone());
+    return `${name}Base ${localBase} (+0..${sched.jitterMinutes}m)`;
   }
 
   nextRunTooltip(): string {
     const sched = this.getEarliestProviderScheduler();
     if (!sched || !sched.nextRunAt) return 'No scheduled scrape for ' + this.providerDisplayName;
     const fullDate = new Date(sched.nextRunAt).toLocaleString();
-    return `Next run: ${fullDate} (${sched.name || 'Default Schedule'}, Base ${sched.baseTime} + 0..${sched.jitterMinutes}m jitter)`;
+    const localBase = formatUtcBaseTimeToLocal(sched.baseTime, this.apiService.getTimeZone());
+    return `Next run: ${fullDate} (${sched.name || 'Default Schedule'}, Base ${localBase} + 0..${sched.jitterMinutes}m jitter)`;
   }
 
   get nextRunTargetPages(): ScrapePageConfig[] {
@@ -1962,6 +1965,7 @@ export class ProviderComponent implements OnInit, AfterViewInit, OnDestroy {
         alertThresholdPct: this.alertThresholdPct,
         pages: this.providerPages,
         schedulers: this.schedulersList,
+        timeZone: this.apiService.getTimeZone(),
       },
       width: '560px',
       maxWidth: '94vw',

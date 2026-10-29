@@ -61,7 +61,7 @@ function createInMemoryConfigPool(): {
         if (lower.includes("insert into") || lower.includes("on conflict")) {
           const id = String(sqlParams[0] ?? "");
           const name = String(sqlParams[1] ?? "");
-          const base_time = String(sqlParams[2] ?? "19:00");
+          const base_time = String(sqlParams[2] ?? "02:00");
           const jitter_minutes = Number(sqlParams[3] ?? 60);
           const enabled = Boolean(sqlParams[4]);
           const created_at = sqlParams[5] ? new Date(String(sqlParams[5])) : new Date();
@@ -276,52 +276,52 @@ function createInMemoryConfigPool(): {
 
 describe("Server, Randomized Cron, Email Template & Page Store API", () => {
   it("computes randomized daily cron times within [baseTime, baseTime + jitterMinutes]", () => {
-    const now = new Date("2026-10-25T10:00:00");
-    // Roll with random = 0 (minimum offset -> 19:00:00)
-    const minRoll = computeNextRandomizedRun("19:00", 60, now, false, () => 0);
+    const now = new Date("2026-10-25T10:00:00Z");
+    // Roll with random = 0 (minimum offset -> 02:00:00 UTC)
+    const minRoll = computeNextRandomizedRun("02:00", 60, now, false, () => 0);
     assert.equal(minRoll.chosenOffsetMinutes, 0);
     assert.equal(minRoll.chosenOffsetSeconds, 0);
-    assert.equal(minRoll.nextRun.getHours(), 19);
-    assert.equal(minRoll.nextRun.getMinutes(), 0);
+    assert.equal(minRoll.nextRun.getUTCHours(), 2);
+    assert.equal(minRoll.nextRun.getUTCMinutes(), 0);
 
-    // Roll with random = 0.5 (halfway -> 19:30:00)
+    // Roll with random = 0.5 (halfway -> 02:30:00 UTC)
     const midRoll = computeNextRandomizedRun(
-      "19:00",
+      "02:00",
       60,
       now,
       false,
       () => 0.5,
     );
     assert.equal(midRoll.chosenOffsetMinutes, 30);
-    assert.equal(midRoll.nextRun.getHours(), 19);
-    assert.equal(midRoll.nextRun.getMinutes(), 30);
+    assert.equal(midRoll.nextRun.getUTCHours(), 2);
+    assert.equal(midRoll.nextRun.getUTCMinutes(), 30);
 
-    // Roll with random = 0.9999 (end of window -> 20:00:00)
+    // Roll with random = 0.9999 (end of window -> 03:00:00 UTC)
     const maxRoll = computeNextRandomizedRun(
-      "19:00",
+      "02:00",
       60,
       now,
       false,
       () => 0.999999,
     );
     assert.equal(maxRoll.chosenOffsetMinutes, 60);
-    assert.equal(maxRoll.nextRun.getHours(), 20);
-    assert.equal(maxRoll.nextRun.getMinutes(), 0);
+    assert.equal(maxRoll.nextRun.getUTCHours(), 3);
+    assert.equal(maxRoll.nextRun.getUTCMinutes(), 0);
 
-    // Once-daily rule: If a scrape already ran today, next run MUST be scheduled for tomorrow
-    const scrapedTodayAt = new Date("2026-10-25T19:15:00");
-    const currentNow = new Date("2026-10-25T19:41:00");
+    // Once-daily rule: If a scrape already ran today, next run MUST be scheduled for tomorrow in UTC
+    const scrapedTodayAt = new Date("2026-10-25T02:15:00Z");
+    const currentNow = new Date("2026-10-25T02:41:00Z");
     const nextDayRoll = computeNextRandomizedRun(
-      "19:00",
+      "02:00",
       60,
       currentNow,
       false,
       () => 0.5,
       scrapedTodayAt,
     );
-    assert.equal(nextDayRoll.nextRun.getDate(), 26); // Oct 26 (tomorrow)
-    assert.equal(nextDayRoll.nextRun.getHours(), 19);
-    assert.equal(nextDayRoll.nextRun.getMinutes(), 30);
+    assert.equal(nextDayRoll.nextRun.getUTCDate(), 26); // Oct 26 (tomorrow in UTC)
+    assert.equal(nextDayRoll.nextRun.getUTCHours(), 2);
+    assert.equal(nextDayRoll.nextRun.getUTCMinutes(), 30);
   });
 
   it("filters deals over the 20% discount threshold and renders the Resend HTML email template", () => {
@@ -442,7 +442,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
         env: { values: Record<string, string> };
       };
       assert.equal(dash.pages.length, 8); // Eneba (PlayStation, Nintendo, Android, Amazon, Apple, Steam) + G2A (Google Play, PSN)
-      assert.equal(dash.scheduler.baseTime, "19:00");
+      assert.equal(dash.scheduler.baseTime, "02:00");
       assert.equal(dash.scheduler.jitterMinutes, 60);
       assert.equal(dash.env.values.RESEND_API_KEY, "");
       assert.equal(dash.enebaConfig?.top_deals_limit, "10");

@@ -17,6 +17,7 @@ import { ApiService } from '../../core/services/api.service';
 import { PageFormDialogComponent } from '../../dialogs/page-form-dialog.component';
 import { CronFormDialogComponent } from '../../dialogs/cron-form-dialog.component';
 import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboard.model';
+import { formatUtcBaseTimeToLocal } from '../../core/utils/time.utils';
 
 @Component({
   selector: 'app-scraping',
@@ -103,7 +104,7 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
               <div class="schedule-telemetry">
                 <div class="telemetry-box">
                   <span class="telemetry-label">Daily Window:</span>
-                  <span class="telemetry-val">{{ s.baseTime || '19:00' }} + 0..{{ s.jitterMinutes || 60 }}m</span>
+                  <span class="telemetry-val">{{ formatLocalBaseTime(s.baseTime) }} + 0..{{ s.jitterMinutes || 60 }}m</span>
                 </div>
                 <div class="telemetry-box">
                   <span class="telemetry-label">Next Run:</span>
@@ -214,7 +215,7 @@ import type { ScrapePageConfig, SchedulerState } from '../../core/models/dashboa
                       aria-label="Assign schedule"
                     >
                       <mat-option *ngFor="let s of schedulers()" [value]="s.id">
-                        {{ s.name || s.id }} ({{ s.baseTime }})
+                        {{ s.name || s.id }} ({{ formatLocalBaseTime(s.baseTime) }})
                       </mat-option>
                     </mat-select>
                   </mat-form-field>
@@ -478,9 +479,13 @@ export class ScrapingComponent {
     });
   }
 
+  formatLocalBaseTime(baseTime?: string): string {
+    return formatUtcBaseTimeToLocal(baseTime || '02:00', this.apiService.getTimeZone());
+  }
+
   openCreateScheduleDialog() {
     const dialogRef = this.dialog.open(CronFormDialogComponent, {
-      data: { isNew: true },
+      data: { isNew: true, timeZone: this.apiService.getTimeZone() },
       width: '520px',
     });
 
@@ -496,7 +501,7 @@ export class ScrapingComponent {
   openEditScheduleDialog(s: SchedulerState) {
     const id = s.id || 'default';
     const dialogRef = this.dialog.open(CronFormDialogComponent, {
-      data: { scheduler: s, isNew: false },
+      data: { scheduler: s, isNew: false, timeZone: this.apiService.getTimeZone() },
       width: '520px',
     });
 

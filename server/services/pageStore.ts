@@ -86,7 +86,7 @@ export const DEFAULT_SCHEDULES: ScheduleConfigItem[] = [
     id: DEFAULT_SCHEDULER_ID,
     name: "Primary Daily Schedule",
     enabled: true,
-    baseTime: "19:00",
+    baseTime: "02:00",
     jitterMinutes: 60,
     createdAt: "2026-10-25T00:00:00.000Z",
   },
@@ -261,7 +261,7 @@ export class PageStore {
     const item: ScheduleConfigItem = {
       id,
       name: input.name?.trim() || "Custom Schedule",
-      baseTime: input.baseTime?.trim() || "19:00",
+      baseTime: input.baseTime?.trim() || "02:00",
       jitterMinutes: Math.max(0, Math.min(720, Number(input.jitterMinutes) || 0)),
       enabled: input.enabled !== undefined ? Boolean(input.enabled) : true,
       createdAt: new Date().toISOString(),

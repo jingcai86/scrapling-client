@@ -66,8 +66,12 @@ async function main() {
       DROP INDEX IF EXISTS scrapling.idx_scrapling_records_batch_id;
       ALTER TABLE scrapling.scrape_runs ADD COLUMN IF NOT EXISTS schedule_id UUID REFERENCES scrapling.schedulers(id) ON DELETE SET NULL;
       CREATE INDEX IF NOT EXISTS idx_scrapling_scrape_runs_schedule_id ON scrapling.scrape_runs (schedule_id);
+
+      -- Migrate legacy local base_time values to pure UTC (19:00 PDT -> 02:00 UTC, 08:00 PDT -> 15:00 UTC)
+      UPDATE scrapling.schedulers SET base_time = '02:00' WHERE base_time = '19:00';
+      UPDATE scrapling.schedulers SET base_time = '15:00' WHERE base_time = '08:00';
     `);
-    console.log("✔ Ensured latest relations: scrape_runs.schedule_id FK active, records.batch_id normalized");
+    console.log("✔ Ensured latest relations: scrape_runs.schedule_id FK active, migrated schedulers to pure UTC");
 
     console.log("⏳ Seeding configuration variables from environment...");
     await initScraplingConfigOnStartup({ pool });

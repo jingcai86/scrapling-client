@@ -366,7 +366,7 @@ DROP INDEX IF EXISTS scrapling.idx_scrapling_scrape_runs_target_time;
 CREATE TABLE IF NOT EXISTS scrapling.schedulers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  base_time TEXT NOT NULL DEFAULT '19:00',
+  base_time TEXT NOT NULL DEFAULT '02:00',
   jitter_minutes INTEGER NOT NULL DEFAULT 60,
   enabled BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -376,7 +376,7 @@ CREATE TABLE IF NOT EXISTS scrapling.schedulers (
 -- Seed default primary scheduler
 INSERT INTO scrapling.schedulers (id, name, base_time, jitter_minutes, enabled, created_at, updated_at)
 VALUES
-  ('c1000000-0000-4000-8000-000000000001'::uuid, 'Primary Daily Schedule', '19:00', 60, true, NOW(), NOW())
+  ('c1000000-0000-4000-8000-000000000001'::uuid, 'Primary Daily Schedule', '02:00', 60, true, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------------------

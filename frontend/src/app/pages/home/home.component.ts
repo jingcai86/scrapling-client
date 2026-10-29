@@ -22,6 +22,7 @@ import * as echarts from 'echarts';
 import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
 import type { ScrapeHistoryItem, SchedulerState } from '../../core/models/dashboard.model';
+import { formatUtcBaseTimeToLocal } from '../../core/utils/time.utils';
 
 interface ProviderRow {
   provider: string;
@@ -809,7 +810,8 @@ export class HomeComponent implements AfterViewInit, OnDestroy, DoCheck {
     const sched = this.getEarliestUpcomingScheduler();
     if (!sched || !sched.enabled) return 'Cron scheduler is currently off';
     const schedPrefix = sched.name ? `${sched.name}: ` : '';
-    return `${schedPrefix}Base ${sched.baseTime} + 0..${sched.jitterMinutes}m random jitter`;
+    const localBase = formatUtcBaseTimeToLocal(sched.baseTime, this.apiService.getTimeZone());
+    return `${schedPrefix}Base ${localBase} + 0..${sched.jitterMinutes}m random jitter`;
   }
 
   private updateProvidersList() {

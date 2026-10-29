@@ -692,7 +692,7 @@ const DEFAULT_INITIAL_SCHEDULERS: ScheduleDbItem[] = [
   {
     id: DEFAULT_SCHEDULER_ID,
     name: "Primary Daily Schedule",
-    baseTime: "19:00",
+    baseTime: "02:00",
     jitterMinutes: 60,
     enabled: true,
   },
@@ -724,6 +724,16 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
     await ensureScraplingConfigTable(pool);
 
     // 1. Sync Schedulers
+    // Migrate legacy local base_time values (19:00 -> 02:00 UTC, 08:00 -> 15:00 UTC)
+    try {
+      await pool.query(`
+        UPDATE scrapling.schedulers SET base_time = '02:00' WHERE base_time = '19:00';
+        UPDATE scrapling.schedulers SET base_time = '15:00' WHERE base_time = '08:00';
+      `);
+    } catch {
+      // Non-blocking if table not initialized yet
+    }
+
     let dbSchedulers = await getDbSchedulers(pool);
     if (dbSchedulers.length === 0) {
       for (const sch of initialSchedulers) {
@@ -745,7 +755,7 @@ export async function syncSchedulersAndTargetsOnStartup(options: {
         const def = initialSchedulers.find((s) => isDefaultSchedulerId(s.id)) || {
           id: DEFAULT_SCHEDULER_ID,
           name: "Primary Daily Schedule",
-          baseTime: "19:00",
+          baseTime: "02:00",
           jitterMinutes: 60,
           enabled: true,
         };

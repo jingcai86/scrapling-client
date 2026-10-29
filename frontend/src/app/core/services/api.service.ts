@@ -101,8 +101,16 @@ export class ApiService {
   }
 
   // Multi-Scheduler Management
-  getSchedulers(): Observable<{ scheduler: SchedulerState; schedulers: SchedulerState[] }> {
-    return this.http.get<{ scheduler: SchedulerState; schedulers: SchedulerState[] }>('/api/scheduler');
+  getSchedulers(): Observable<{ scheduler: SchedulerState; schedulers: SchedulerState[]; timeZone?: string }> {
+    return this.http.get<{ scheduler: SchedulerState; schedulers: SchedulerState[]; timeZone?: string }>('/api/scheduler');
+  }
+
+  getTimeZone(): string {
+    return (
+      this.dashboardData()?.env?.values?.['TZ'] ||
+      Intl.DateTimeFormat().resolvedOptions().timeZone ||
+      'America/Los_Angeles'
+    );
   }
 
   createScheduler(data: { name: string; baseTime: string; jitterMinutes: number; enabled?: boolean }): Observable<{ scheduler: SchedulerState }> {

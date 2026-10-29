@@ -7,6 +7,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
 import type { SchedulerState } from '../core/models/dashboard.model';
+import {
+  formatUtcBaseTimeToLocal,
+  formatLocalBaseTimeToUtc,
+} from '../core/utils/time.utils';
 
 @Component({
   selector: 'app-cron-form-dialog',
@@ -35,9 +39,9 @@ import type { SchedulerState } from '../core/models/dashboard.model';
         </mat-checkbox>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
-          <mat-label>Daily Window Start Time (Base Time)</mat-label>
+          <mat-label>Daily Window Start Time (Local Time)</mat-label>
           <input matInput type="time" [(ngModel)]="baseTime" name="baseTime" required />
-          <mat-hint>24-hour time when the randomized window begins (e.g. 19:00 = 7:00 PM)</mat-hint>
+          <mat-hint>Local time when the randomized window begins (auto-saved as UTC). Timezone: {{ userTimeZone }}</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
@@ -109,27 +113,35 @@ export class CronFormDialogComponent {
   enabled = true;
   baseTime = '19:00';
   jitterMinutes = 60;
+  userTimeZone: string;
 
   constructor(
     public dialogRef: MatDialogRef<CronFormDialogComponent>,
     @Inject(MAT_DIALOG_DATA)
-    public data: { scheduler?: SchedulerState; isNew?: boolean },
+    public data: { scheduler?: SchedulerState; isNew?: boolean; timeZone?: string },
   ) {
+    this.userTimeZone =
+      data.timeZone?.trim() ||
+      Intl.DateTimeFormat().resolvedOptions().timeZone ||
+      'America/Los_Angeles';
+
     if (data.scheduler) {
       this.name = data.scheduler.name || (data.isNew ? 'Custom Schedule' : 'Primary Schedule');
       this.enabled = data.scheduler.enabled ?? true;
-      this.baseTime = data.scheduler.baseTime || '19:00';
+      this.baseTime = formatUtcBaseTimeToLocal(data.scheduler.baseTime || '02:00', this.userTimeZone);
       this.jitterMinutes = data.scheduler.jitterMinutes ?? 60;
     } else if (data.isNew) {
       this.name = 'New Schedule';
+      this.baseTime = formatUtcBaseTimeToLocal('02:00', this.userTimeZone);
     }
   }
 
   save() {
+    const utcBaseTime = formatLocalBaseTimeToUtc(this.baseTime, this.userTimeZone);
     this.dialogRef.close({
       name: this.name.trim() || 'Schedule',
       enabled: this.enabled,
-      baseTime: this.baseTime,
+      baseTime: utcBaseTime,
       jitterMinutes: this.jitterMinutes,
     });
   }

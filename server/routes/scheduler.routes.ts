@@ -14,6 +14,7 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
     res.json({
       scheduler: ctx.scheduler.getState(),
       schedulers: ctx.schedulerManager.getStates(assignedPagesMap),
+      timeZone: process.env.TZ?.trim() || "America/Los_Angeles",
     });
   });
 
@@ -22,7 +23,7 @@ export function createSchedulerRouter(ctx: ServerContext): Router {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const created = ctx.pageStore.addSchedule({
         name: String(body.name || "Custom Schedule"),
-        baseTime: String(body.baseTime || "19:00"),
+        baseTime: String(body.baseTime || "02:00"),
         jitterMinutes: Number(body.jitterMinutes ?? 60),
         enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
       });

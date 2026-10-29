@@ -11,6 +11,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import type { ScrapePageConfig, SchedulerState } from '../core/models/dashboard.model';
+import { formatUtcBaseTimeToLocal } from '../core/utils/time.utils';
 
 export interface EnebaConfigDialogData {
   providerDisplayName?: string;
@@ -18,6 +19,7 @@ export interface EnebaConfigDialogData {
   alertThresholdPct: number;
   pages?: ScrapePageConfig[];
   schedulers?: SchedulerState[];
+  timeZone?: string;
 }
 
 export interface EnebaConfigDialogResult {
@@ -132,7 +134,7 @@ export interface EnebaConfigDialogResult {
                 <mat-option *ngFor="let sch of schedulers" [value]="sch.id || 'default'">
                   <div class="option-row">
                     <span class="option-name">{{ sch.name || sch.id || 'default' }}</span>
-                    <span class="option-sub">{{ sch.baseTime }} (+0..{{ sch.jitterMinutes }}m)</span>
+                    <span class="option-sub">{{ formatLocalBaseTime(sch.baseTime) }} (+0..{{ sch.jitterMinutes }}m)</span>
                   </div>
                 </mat-option>
               </mat-select>
@@ -181,6 +183,10 @@ export class EnebaConfigDialogComponent {
     for (const page of this.categoryPages) {
       this.pageSchedules[page.id] = page.scheduleId || 'default';
     }
+  }
+
+  formatLocalBaseTime(baseTime?: string): string {
+    return formatUtcBaseTimeToLocal(baseTime || '02:00', this.data?.timeZone);
   }
 
   save() {
