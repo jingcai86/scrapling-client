@@ -19,6 +19,7 @@
   gap: 1rem;
   padding: 1.25rem 1.5rem !important;
   border-bottom: 1px solid var(--ui-border);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-indigo) 7%, var(--surface-card)) 0%, var(--surface-card) 100%);
   flex-wrap: wrap;
 
   .header-text {

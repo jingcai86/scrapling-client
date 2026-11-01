@@ -37,16 +37,19 @@ $dark-theme: mat.define-theme((
   color-scheme: light dark;
 
   /* Vivid Modern SaaS Light Mode Design Tokens */
-  --surface-bg: #f4f6fb;
-  --surface-bg-gradient: radial-gradient(1200px 440px at 50% -120px, rgba(79, 70, 229, 0.09), rgba(14, 165, 233, 0.04) 55%, transparent 100%);
+  --surface-bg: #eef2ff;
+  --surface-bg-gradient:
+    radial-gradient(1200px 520px at 15% -80px, rgba(79, 70, 229, 0.16), transparent 65%),
+    radial-gradient(1000px 480px at 85% -60px, rgba(14, 165, 233, 0.14), transparent 60%),
+    linear-gradient(180deg, #eef2ff 0%, #f8fafc 460px);
   --surface-card: #ffffff;
   --surface-subtle: #f1f5f9;
-  --surface-hover: #eef2ff;
-  --surface-header: rgba(255, 255, 255, 0.88);
+  --surface-hover: #e0e7ff;
+  --surface-header: rgba(255, 255, 255, 0.9);
 
-  --ui-border: #e2e8f0;
-  --ui-border-strong: #cbd5e1;
-  --card-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px -4px rgba(79, 70, 229, 0.06);
+  --ui-border: #dbe4f0;
+  --ui-border-strong: #c7d2fe;
+  --card-shadow: 0 2px 6px rgba(15, 23, 42, 0.04), 0 8px 24px -6px rgba(79, 70, 229, 0.1);
 
   --status-success: #059669;
   --status-warning: #d97706;
@@ -58,29 +61,32 @@ $dark-theme: mat.define-theme((
 
   --mat-sys-primary: #4f46e5;
   --mat-sys-on-surface: #0f172a;
-  --mat-sys-on-surface-variant: #64748b;
+  --mat-sys-on-surface-variant: #475569;
 
   @media (prefers-color-scheme: dark) {
     &:not([data-theme='light']) {
       @include mat.all-component-colors($dark-theme);
 
-      --surface-bg: #0b0f19;
-      --surface-bg-gradient: radial-gradient(1200px 460px at 50% -140px, rgba(99, 102, 241, 0.16), rgba(16, 185, 129, 0.06) 55%, transparent 100%);
-      --surface-card: #111827;
-      --surface-subtle: #182234;
-      --surface-hover: #1e293b;
-      --surface-header: rgba(11, 15, 25, 0.86);
+      --surface-bg: #090d1a;
+      --surface-bg-gradient:
+        radial-gradient(1200px 520px at 18% -100px, rgba(99, 102, 241, 0.24), transparent 65%),
+        radial-gradient(1000px 480px at 85% -80px, rgba(16, 185, 129, 0.15), transparent 60%),
+        linear-gradient(180deg, #0b1124 0%, #090d1a 480px);
+      --surface-card: #11182c;
+      --surface-subtle: #17213a;
+      --surface-hover: #1e2b4d;
+      --surface-header: rgba(11, 17, 36, 0.88);
 
-      --ui-border: #1e293b;
-      --ui-border-strong: #334155;
-      --card-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(99, 102, 241, 0.04);
+      --ui-border: #233154;
+      --ui-border-strong: #374b7c;
+      --card-shadow: 0 6px 24px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(99, 102, 241, 0.08);
 
       --status-success: #10b981;
       --status-warning: #f59e0b;
       --status-danger: #ef4444;
       --accent-emerald-text: #34d399;
-      --accent-indigo: #6366f1;
-      --accent-violet: #8b5cf6;
+      --accent-indigo: #818cf8;
+      --accent-violet: #a78bfa;
       --accent-sky: #38bdf8;
 
       --mat-sys-primary: #6366f1;
@@ -95,23 +101,26 @@ html.dark-theme {
   @include mat.all-component-colors($dark-theme);
   color-scheme: dark;
 
-  --surface-bg: #0b0f19;
-  --surface-bg-gradient: radial-gradient(1200px 460px at 50% -140px, rgba(99, 102, 241, 0.16), rgba(16, 185, 129, 0.06) 55%, transparent 100%);
-  --surface-card: #111827;
-  --surface-subtle: #182234;
-  --surface-hover: #1e293b;
-  --surface-header: rgba(11, 15, 25, 0.86);
+  --surface-bg: #090d1a;
+  --surface-bg-gradient:
+    radial-gradient(1200px 520px at 18% -100px, rgba(99, 102, 241, 0.24), transparent 65%),
+    radial-gradient(1000px 480px at 85% -80px, rgba(16, 185, 129, 0.15), transparent 60%),
+    linear-gradient(180deg, #0b1124 0%, #090d1a 480px);
+  --surface-card: #11182c;
+  --surface-subtle: #17213a;
+  --surface-hover: #1e2b4d;
+  --surface-header: rgba(11, 17, 36, 0.88);
 
-  --ui-border: #1e293b;
-  --ui-border-strong: #334155;
-  --card-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(99, 102, 241, 0.04);
+  --ui-border: #233154;
+  --ui-border-strong: #374b7c;
+  --card-shadow: 0 6px 24px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(99, 102, 241, 0.08);
 
   --status-success: #10b981;
   --status-warning: #f59e0b;
   --status-danger: #ef4444;
   --accent-emerald-text: #34d399;
-  --accent-indigo: #6366f1;
-  --accent-violet: #8b5cf6;
+  --accent-indigo: #818cf8;
+  --accent-violet: #a78bfa;
   --accent-sky: #38bdf8;
 
   --mat-sys-primary: #6366f1;
@@ -236,27 +245,65 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    height: 3px;
+    height: 4px;
     background: linear-gradient(90deg, var(--accent-indigo), var(--accent-violet));
-    opacity: 0.85;
   }
 
-  &:nth-child(1)::before {
-    background: linear-gradient(90deg, #10b981, #059669);
+  &:nth-child(1) {
+    background: linear-gradient(155deg, color-mix(in srgb, #10b981 11%, var(--surface-card)) 0%, var(--surface-card) 75%) !important;
+    border-color: color-mix(in srgb, #10b981 30%, var(--ui-border)) !important;
+
+    &::before {
+      background: linear-gradient(90deg, #10b981, #059669);
+    }
+
+    .kpi-value {
+      color: var(--accent-emerald-text);
+    }
   }
-  &:nth-child(2)::before {
-    background: linear-gradient(90deg, #3b82f6, #06b6d4);
+
+  &:nth-child(2) {
+    background: linear-gradient(155deg, color-mix(in srgb, #0ea5e9 11%, var(--surface-card)) 0%, var(--surface-card) 75%) !important;
+    border-color: color-mix(in srgb, #0ea5e9 30%, var(--ui-border)) !important;
+
+    &::before {
+      background: linear-gradient(90deg, #0ea5e9, #3b82f6);
+    }
+
+    .kpi-value {
+      color: var(--accent-sky);
+    }
   }
-  &:nth-child(3)::before {
-    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+
+  &:nth-child(3) {
+    background: linear-gradient(155deg, color-mix(in srgb, #6366f1 11%, var(--surface-card)) 0%, var(--surface-card) 75%) !important;
+    border-color: color-mix(in srgb, #6366f1 30%, var(--ui-border)) !important;
+
+    &::before {
+      background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    }
+
+    .kpi-value {
+      color: var(--accent-indigo);
+    }
   }
-  &:nth-child(4)::before {
-    background: linear-gradient(90deg, #f59e0b, #f97316);
+
+  &:nth-child(4) {
+    background: linear-gradient(155deg, color-mix(in srgb, #f59e0b 11%, var(--surface-card)) 0%, var(--surface-card) 75%) !important;
+    border-color: color-mix(in srgb, #f59e0b 30%, var(--ui-border)) !important;
+
+    &::before {
+      background: linear-gradient(90deg, #f59e0b, #f97316);
+    }
+
+    .kpi-value {
+      color: var(--status-warning);
+    }
   }
 
   &:hover {
-    border-color: color-mix(in srgb, var(--mat-sys-primary) 40%, var(--ui-border-strong)) !important;
-    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--mat-sys-primary) 55%, var(--ui-border-strong)) !important;
+    transform: translateY(-2px);
   }
 
   .kpi-top {
@@ -495,7 +542,7 @@ body {
 /* Main Cards & Tables */
 .main-card {
   border-radius: 12px !important;
-  border: 1px solid var(--ui-border) !important;
+  border: 1px solid color-mix(in srgb, var(--accent-indigo) 22%, var(--ui-border)) !important;
   background: var(--surface-card) !important;
   box-shadow: var(--card-shadow) !important;
   overflow: clip;
@@ -506,6 +553,7 @@ body {
 button[mat-flat-button][color='primary'] {
   background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
   color: #ffffff !important;
+  --mdc-filled-button-label-text-color: #ffffff !important;
   border-radius: 8px !important;
   font-weight: 600 !important;
   letter-spacing: -0.01em;
@@ -527,14 +575,26 @@ button[mat-flat-button][color='primary'] {
 button[mat-stroked-button],
 a[mat-stroked-button] {
   border-radius: 8px !important;
-  border-color: var(--ui-border-strong) !important;
-  font-weight: 500 !important;
+  border-color: color-mix(in srgb, var(--accent-indigo) 35%, var(--ui-border)) !important;
+  background: color-mix(in srgb, var(--accent-indigo) 8%, var(--surface-card)) !important;
+  color: var(--accent-indigo) !important;
+  --mdc-outlined-button-label-text-color: var(--accent-indigo) !important;
+  font-weight: 600 !important;
   transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+
+  .mdc-button__label,
+  mat-icon {
+    color: var(--accent-indigo) !important;
+  }
 
   &:hover:not(:disabled) {
     border-color: var(--mat-sys-primary) !important;
-    background: color-mix(in srgb, var(--mat-sys-primary) 8%, transparent) !important;
+    background: color-mix(in srgb, var(--mat-sys-primary) 16%, var(--surface-card)) !important;
     color: var(--mat-sys-primary) !important;
+  }
+
+  &:disabled {
+    opacity: 0.5 !important;
   }
 }
 
@@ -545,12 +605,13 @@ a[mat-stroked-button] {
   gap: 1rem;
   padding: 1.125rem 1.5rem !important;
   border-bottom: 1px solid var(--ui-border);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-indigo) 7%, var(--surface-card)) 0%, var(--surface-card) 100%);
   flex-wrap: wrap;
 
   .mat-mdc-card-title {
     margin: 0 !important;
     font-size: 0.975rem !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     letter-spacing: -0.015em;
     color: var(--mat-sys-on-surface);
   }
@@ -581,10 +642,10 @@ a[mat-stroked-button] {
   background: transparent !important;
 
   th.mat-mdc-header-cell {
-    background: var(--surface-subtle) !important;
-    color: var(--mat-sys-on-surface-variant) !important;
+    background: color-mix(in srgb, var(--accent-indigo) 8%, var(--surface-subtle)) !important;
+    color: color-mix(in srgb, var(--accent-indigo) 75%, var(--mat-sys-on-surface)) !important;
     font-size: 0.72rem !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     border-bottom: 1px solid var(--ui-border) !important;
@@ -656,10 +717,11 @@ a[mat-stroked-button] {
   gap: 0.35rem;
   padding: 0.25rem 0.65rem;
   border-radius: 6px;
-  border: 1px solid var(--ui-border);
-  background: var(--surface-subtle);
+  border: 1px solid color-mix(in srgb, var(--status-success) 32%, transparent);
+  background: color-mix(in srgb, var(--status-success) 10%, transparent);
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
+  color: var(--status-success);
 
   .metric-badge-label {
     color: var(--mat-sys-on-surface-variant);

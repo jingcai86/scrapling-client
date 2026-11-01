@@ -4,7 +4,8 @@
   z-index: 100;
   background: var(--surface-header);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--ui-border);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-indigo) 28%, var(--ui-border));
+  box-shadow: 0 2px 14px -4px rgba(79, 70, 229, 0.12);
 }
 
 .header-inner {
@@ -110,13 +111,15 @@
   }
 
   &.active-link {
-    color: var(--mat-sys-primary);
-    background: color-mix(in srgb, var(--mat-sys-primary) 12%, transparent);
-    border-color: color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
+    color: #ffffff;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    border-color: transparent;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
     font-weight: 600;
 
-    .nav-icon {
-      color: var(--mat-sys-primary);
+    .nav-icon,
+    .caret-icon {
+      color: #ffffff;
       opacity: 1;
     }
   }
@@ -135,8 +138,8 @@
   height: 28px;
   padding-inline: 0.65rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--status-success) 30%, transparent);
-  background: color-mix(in srgb, var(--status-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-success) 35%, transparent);
+  background: color-mix(in srgb, var(--status-success) 14%, transparent);
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--status-success);
@@ -146,11 +149,12 @@
     height: 7px;
     border-radius: 50%;
     background: var(--status-success);
+    box-shadow: 0 0 6px var(--status-success);
   }
 
   &.is-running {
     border-color: color-mix(in srgb, var(--mat-sys-primary) 40%, transparent);
-    background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+    background: color-mix(in srgb, var(--mat-sys-primary) 14%, transparent);
     color: var(--mat-sys-primary);
 
     .status-dot {
@@ -167,8 +171,9 @@
   display: inline-grid !important;
   place-items: center !important;
   border-radius: 6px !important;
-  border: 1px solid var(--ui-border) !important;
-  color: var(--mat-sys-on-surface-variant) !important;
+  border: 1px solid color-mix(in srgb, var(--accent-indigo) 30%, var(--ui-border)) !important;
+  background: color-mix(in srgb, var(--accent-indigo) 9%, transparent) !important;
+  color: var(--accent-indigo) !important;
 
   mat-icon {
     font-size: 18px;

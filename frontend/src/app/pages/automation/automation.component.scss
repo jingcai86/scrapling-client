@@ -18,9 +18,9 @@
   gap: 1rem;
   padding: 1.125rem 1.25rem;
   border-radius: 12px;
-  border: 1px solid var(--ui-border);
-  border-left: 3px solid var(--accent-indigo);
-  background: var(--surface-subtle);
+  border: 1px solid color-mix(in srgb, var(--accent-indigo) 28%, var(--ui-border));
+  border-left: 4px solid var(--accent-indigo);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-indigo) 9%, var(--surface-card)) 0%, var(--surface-subtle) 100%);
   transition: border-color 0.15s ease, transform 0.15s ease;
 
   &:hover {
