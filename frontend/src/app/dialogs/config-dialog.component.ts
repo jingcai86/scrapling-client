@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialog, MatDialogRef } from '@angular/material/dialog';
@@ -187,7 +187,7 @@ interface ConfigRow {
   `,
   styleUrl: './config-dialog.component.scss',
 })
-export class ConfigDialogComponent implements OnInit, OnDestroy {
+export class ConfigDialogComponent implements OnInit {
   displayedColumns: string[] = ['key', 'group', 'value', 'description'];
 
   sortedConfig: ConfigRow[] = [];
@@ -197,35 +197,22 @@ export class ConfigDialogComponent implements OnInit, OnDestroy {
   testEmailRecipient: string = '';
   isSendingTestEmail = false;
   private initialized = false;
-  private checkTimer?: any;
 
   constructor(
     private apiService: ApiService,
     private dialog: MatDialog,
     public dialogRef: MatDialogRef<ConfigDialogComponent>,
     private snackBar: MatSnackBar,
-  ) {}
+  ) {
+    effect(() => {
+      if (this.apiService.dashboardData() && !this.initialized) {
+        this.syncConfigData();
+      }
+    });
+  }
 
   ngOnInit() {
     this.syncConfigData();
-    if (!this.initialized) {
-      this.checkTimer = setInterval(() => {
-        if (this.apiService.dashboardData()) {
-          this.syncConfigData();
-          if (this.initialized) {
-            clearInterval(this.checkTimer);
-            this.checkTimer = undefined;
-          }
-        }
-      }, 150);
-    }
-  }
-
-  ngOnDestroy() {
-    if (this.checkTimer) {
-      clearInterval(this.checkTimer);
-      this.checkTimer = undefined;
-    }
   }
 
   trackByKey(_index: number, item: ConfigRow): string {

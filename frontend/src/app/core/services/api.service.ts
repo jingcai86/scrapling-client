@@ -37,11 +37,15 @@ export class ApiService {
     });
   }
 
-  // Eneba Config
-  updateEnebaConfig(updates: Record<string, string>): Observable<{ config: Record<string, string> }> {
+  // Provider Config
+  updateProviderConfig(updates: Record<string, string>): Observable<{ config: Record<string, string> }> {
     return this.http.put<{ config: Record<string, string> }>('/api/eneba/config', { updates }).pipe(
       tap(() => this.loadDashboard(false)),
     );
+  }
+
+  updateEnebaConfig(updates: Record<string, string>): Observable<{ config: Record<string, string> }> {
+    return this.updateProviderConfig(updates);
   }
 
   // Scraper Runner
@@ -52,22 +56,34 @@ export class ApiService {
   }
 
   // Scrape Target Pages
-  addPage(page: Partial<ScrapePageConfig>): Observable<{ page: ScrapePageConfig }> {
-    return this.http.post<{ page: ScrapePageConfig }>('/api/pages', page).pipe(
+  addTarget(target: Partial<ScrapePageConfig>): Observable<{ page: ScrapePageConfig }> {
+    return this.http.post<{ page: ScrapePageConfig }>('/api/pages', target).pipe(
       tap(() => this.loadDashboard(false)),
     );
   }
 
-  updatePage(id: string, updates: Partial<ScrapePageConfig>): Observable<{ page: ScrapePageConfig }> {
+  addPage(page: Partial<ScrapePageConfig>): Observable<{ page: ScrapePageConfig }> {
+    return this.addTarget(page);
+  }
+
+  updateTarget(id: string, updates: Partial<ScrapePageConfig>): Observable<{ page: ScrapePageConfig }> {
     return this.http.patch<{ page: ScrapePageConfig }>(`/api/pages/${encodeURIComponent(id)}`, updates).pipe(
       tap(() => this.loadDashboard(false)),
     );
   }
 
-  deletePage(id: string): Observable<{ deleted: boolean }> {
+  updatePage(id: string, updates: Partial<ScrapePageConfig>): Observable<{ page: ScrapePageConfig }> {
+    return this.updateTarget(id, updates);
+  }
+
+  deleteTarget(id: string): Observable<{ deleted: boolean }> {
     return this.http.delete<{ deleted: boolean }>(`/api/pages/${encodeURIComponent(id)}`).pipe(
       tap(() => this.loadDashboard(false)),
     );
+  }
+
+  deletePage(id: string): Observable<{ deleted: boolean }> {
+    return this.deleteTarget(id);
   }
 
   getProducts(): Observable<{ products: CatalogProduct[] }> {
@@ -143,10 +159,14 @@ export class ApiService {
     );
   }
 
-  assignPageSchedule(pageId: string, scheduleId: string): Observable<{ page: ScrapePageConfig }> {
-    return this.http.put<{ page: ScrapePageConfig }>(`/api/pages/${encodeURIComponent(pageId)}/schedule`, { scheduleId }).pipe(
+  assignTargetSchedule(targetId: string, scheduleId: string): Observable<{ page: ScrapePageConfig }> {
+    return this.http.put<{ page: ScrapePageConfig }>(`/api/pages/${encodeURIComponent(targetId)}/schedule`, { scheduleId }).pipe(
       tap(() => this.loadDashboard(false)),
     );
+  }
+
+  assignPageSchedule(pageId: string, scheduleId: string): Observable<{ page: ScrapePageConfig }> {
+    return this.assignTargetSchedule(pageId, scheduleId);
   }
 
   // Email Alerts

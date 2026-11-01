@@ -15,13 +15,14 @@ import {
 } from "../core/index.js";
 import { ensureEnebaSchema } from "../eneba/db.js";
 import { createApp } from "./app.js";
-import { PageStore } from "./services/pageStore.js";
+import { TargetStore } from "./services/targetStore.js";
 import { ScrapeRunner } from "./services/scrapeRunner.js";
 
 export interface ServerInstance {
   server: http.Server;
   app: express.Express;
-  pageStore: PageStore;
+  targetStore: TargetStore;
+  pageStore: TargetStore;
   runner: ScrapeRunner;
   scheduler: RandomizedDailyScheduler;
   schedulerManager: MultiSchedulerManager;
@@ -38,7 +39,7 @@ export async function createDashboardServer(options: {
   loadEnv(options.envPath);
   ensureDefaultEnvKeys(options.envPath);
 
-  const pageStore = new PageStore(options.dataDir);
+  const pageStore = new TargetStore(options.dataDir);
 
   // Mandatory startup check: Ensure PostgreSQL is reachable and initialize `scrapling` schema and tables.
   // Fails fast if DATABASE_URL is missing or PostgreSQL is unreachable.
@@ -134,6 +135,7 @@ export async function createDashboardServer(options: {
   });
 
   const app = createApp({
+    targetStore: pageStore,
     pageStore,
     runner,
     scheduler: defaultScheduler,
@@ -159,6 +161,7 @@ export async function createDashboardServer(options: {
   return {
     server,
     app,
+    targetStore: pageStore,
     pageStore,
     runner,
     scheduler: defaultScheduler,

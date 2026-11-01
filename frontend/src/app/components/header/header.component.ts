@@ -1,15 +1,14 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
-import { ThemeService } from '../../core/services/theme.service';
 import { ApiService } from '../../core/services/api.service';
-import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
+import { ThemeService } from '../../core/services/theme.service';
+import type { ThemeMode } from '../../core/models/dashboard.model';
 
 @Component({
   selector: 'app-header',
@@ -22,243 +21,177 @@ import { ConfigDialogComponent } from '../../dialogs/config-dialog.component';
     MatIconModule,
     MatMenuModule,
     MatTooltipModule,
-    MatDialogModule,
   ],
   template: `
     <header class="app-header">
       <div class="header-inner">
-        <a routerLink="/" class="brand" aria-label="Scrapling Monitor Home">
-          <div class="brand-badge">S</div>
-          <div class="brand-text">
-            <h1>Scrapling Monitor</h1>
-            <p>Multi-Provider Scraper • Randomized Cron • Resend Alerts</p>
-          </div>
-        </a>
+        <!-- Brand & Main Nav -->
+        <div class="header-left">
+          <a routerLink="/" class="brand-link">
+            <div class="brand-mark">
+              <mat-icon>bolt</mat-icon>
+            </div>
+            <span class="brand-name">Scrapling</span>
+          </a>
 
-        <div class="header-actions">
-          <nav class="nav-links">
-            <a mat-button routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" class="nav-btn">
-              <mat-icon class="nav-icon">dashboard</mat-icon>
+          <nav class="main-nav" aria-label="Primary Navigation">
+            <a
+              routerLink="/"
+              routerLinkActive="active-link"
+              [routerLinkActiveOptions]="{ exact: true }"
+              class="nav-item"
+            >
+              <mat-icon class="nav-icon">space_dashboard</mat-icon>
               <span>Overview</span>
             </a>
-            <a mat-button routerLink="/eneba" routerLinkActive="active" class="nav-btn">
-              <mat-icon class="nav-icon">local_offer</mat-icon>
-              <span>Eneba</span>
-            </a>
-            <a mat-button routerLink="/g2a" routerLinkActive="active" class="nav-btn">
+
+            <!-- Marketplaces Dropdown (Eneba & G2A) -->
+            <button
+              type="button"
+              class="nav-item nav-dropdown-trigger"
+              [class.active-link]="isMarketplaceRoute()"
+              [matMenuTriggerFor]="marketplaceMenu"
+            >
               <mat-icon class="nav-icon">storefront</mat-icon>
-              <span>G2A</span>
-            </a>
-            <a mat-button routerLink="/schedulers" routerLinkActive="active" class="nav-btn">
-              <mat-icon class="nav-icon">schedule</mat-icon>
-              <span>Schedulers</span>
-            </a>
-            <button mat-button type="button" class="nav-btn config-btn" (click)="openConfigModal()">
-              <mat-icon class="nav-icon">settings</mat-icon>
-              <span>Configuration</span>
+              <span>{{ activeMarketplaceLabel() }}</span>
+              <mat-icon class="caret-icon">expand_more</mat-icon>
             </button>
+            <mat-menu #marketplaceMenu="matMenu" class="clean-menu">
+              <a
+                mat-menu-item
+                routerLink="/eneba"
+                routerLinkActive="active-menu-item"
+              >
+                <mat-icon>local_offer</mat-icon>
+                <div class="menu-item-col">
+                  <span class="menu-item-title">Eneba</span>
+                  <span class="menu-item-sub">Gift card deals &amp; analytics</span>
+                </div>
+              </a>
+              <a
+                mat-menu-item
+                routerLink="/g2a"
+                routerLinkActive="active-menu-item"
+              >
+                <mat-icon>sports_esports</mat-icon>
+                <div class="menu-item-col">
+                  <span class="menu-item-title">G2A</span>
+                  <span class="menu-item-sub">Marketplace codes &amp; offers</span>
+                </div>
+              </a>
+            </mat-menu>
+
+            <a
+              routerLink="/automation"
+              routerLinkActive="active-link"
+              class="nav-item"
+            >
+              <mat-icon class="nav-icon">schedule</mat-icon>
+              <span>Automation</span>
+            </a>
+
+            <a
+              routerLink="/settings"
+              routerLinkActive="active-link"
+              class="nav-item"
+            >
+              <mat-icon class="nav-icon">tune</mat-icon>
+              <span>Settings</span>
+            </a>
           </nav>
+        </div>
+
+        <!-- Right Status & Theme Controls -->
+        <div class="header-right">
+          <div
+            class="runner-status-pill"
+            [class.is-running]="apiService.dashboardData()?.runner?.isScraping"
+          >
+            <span class="status-dot"></span>
+            <span class="status-text">
+              {{ apiService.dashboardData()?.runner?.isScraping ? 'Scraping...' : 'Idle' }}
+            </span>
+          </div>
 
           <button
-            mat-stroked-button
-            class="theme-toggle-btn"
+            mat-icon-button
             [matMenuTriggerFor]="themeMenu"
-            matTooltip="Change color theme (Light / Dark / System)"
-            aria-label="Color scheme selection"
+            class="theme-btn"
+            [matTooltip]="'Theme: ' + getThemeLabel()"
+            aria-label="Switch color theme"
           >
-            <mat-icon class="theme-icon" *ngIf="themeService.themeMode() === 'light'">light_mode</mat-icon>
-            <mat-icon class="theme-icon" *ngIf="themeService.themeMode() === 'dark'">dark_mode</mat-icon>
-            <mat-icon class="theme-icon" *ngIf="themeService.themeMode() === 'system'">desktop_windows</mat-icon>
-            <span class="theme-label">Theme: {{ themeService.themeMode() === 'system' ? 'System' : (themeService.themeMode() | titlecase) }}</span>
-            <mat-icon class="dropdown-arrow">arrow_drop_down</mat-icon>
+            <mat-icon>{{ getThemeIcon() }}</mat-icon>
           </button>
-
-          <mat-menu #themeMenu="matMenu">
-            <button mat-menu-item (click)="themeService.setTheme('light')">
-              <mat-icon class="menu-icon">light_mode</mat-icon>
-              <span>Light Theme</span>
-              <mat-icon class="check-icon" *ngIf="themeService.themeMode() === 'light'">check</mat-icon>
+          <mat-menu #themeMenu="matMenu" class="clean-menu">
+            <button
+              mat-menu-item
+              (click)="setTheme('light')"
+              [class.active-menu-item]="themeService.themeMode() === 'light'"
+            >
+              <mat-icon>light_mode</mat-icon>
+              <span>Light</span>
             </button>
-            <button mat-menu-item (click)="themeService.setTheme('dark')">
-              <mat-icon class="menu-icon">dark_mode</mat-icon>
-              <span>Dark Theme</span>
-              <mat-icon class="check-icon" *ngIf="themeService.themeMode() === 'dark'">check</mat-icon>
+            <button
+              mat-menu-item
+              (click)="setTheme('dark')"
+              [class.active-menu-item]="themeService.themeMode() === 'dark'"
+            >
+              <mat-icon>dark_mode</mat-icon>
+              <span>Dark</span>
             </button>
-            <button mat-menu-item (click)="themeService.setTheme('system')">
-              <mat-icon class="menu-icon">desktop_windows</mat-icon>
-              <span>System Default</span>
-              <mat-icon class="check-icon" *ngIf="themeService.themeMode() === 'system'">check</mat-icon>
+            <button
+              mat-menu-item
+              (click)="setTheme('system')"
+              [class.active-menu-item]="themeService.themeMode() === 'system'"
+            >
+              <mat-icon>contrast</mat-icon>
+              <span>System</span>
             </button>
           </mat-menu>
         </div>
       </div>
     </header>
   `,
-  styles: [`
-    .app-header {
-      background: var(--mat-sys-surface-container);
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      backdrop-filter: blur(8px);
-    }
-
-    .header-inner {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 0.75rem 1.25rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      text-decoration: none;
-      cursor: pointer;
-      border-radius: 8px;
-      transition: opacity 0.2s ease;
-      &:hover {
-        opacity: 0.9;
-      }
-    }
-
-    .brand-badge {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #6366f1, #10b981);
-      display: grid;
-      place-items: center;
-      font-weight: 800;
-      font-size: 1.15rem;
-      color: #fff;
-    }
-
-    .brand-text h1 {
-      margin: 0;
-      font-size: 1.15rem;
-      font-weight: 700;
-      line-height: 1.2;
-      color: var(--mat-sys-on-surface) !important;
-    }
-
-    .brand-text p {
-      margin: 0;
-      font-size: 0.78rem;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      flex-wrap: wrap;
-
-      a, button {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        font-weight: 600;
-        border-radius: 8px;
-        padding: 0 0.85rem;
-        height: 38px;
-        color: var(--mat-sys-on-surface-variant);
-        text-decoration: none;
-
-        &.active {
-          color: var(--mat-sys-primary);
-          background: var(--mat-sys-primary-container);
-        }
-      }
-    }
-
-    .nav-icon {
-      font-size: 1.15rem;
-    }
-
-    .badge {
-      margin-left: 0.35rem;
-      padding: 0.15rem 0.45rem;
-      border-radius: 10px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      background: var(--mat-sys-secondary-container);
-      color: var(--mat-sys-on-secondary-container);
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .theme-toggle-btn {
-      display: inline-flex !important;
-      align-items: center !important;
-      gap: 0.35rem !important;
-      border-radius: 20px !important;
-      padding: 0 0.85rem !important;
-      height: 36px !important;
-      font-weight: 500 !important;
-      font-size: 0.82rem !important;
-      border-color: var(--mat-sys-outline-variant) !important;
-      color: var(--mat-sys-on-surface) !important;
-    }
-
-    .theme-icon {
-      font-size: 1.15rem !important;
-      vertical-align: middle;
-    }
-
-    .theme-label {
-      font-size: 0.82rem;
-      font-weight: 600;
-    }
-
-    .dropdown-arrow {
-      font-size: 1.15rem !important;
-      opacity: 0.7;
-    }
-
-    .menu-icon {
-      margin-right: 0.5rem;
-      font-size: 1.2rem;
-      vertical-align: middle;
-    }
-
-    .check-icon {
-      margin-left: auto;
-      font-size: 1.1rem;
-      color: var(--mat-sys-primary);
-    }
-  `],
+  styleUrl: './header.component.scss',
 })
 export class HeaderComponent {
   constructor(
+    public apiService: ApiService,
     public themeService: ThemeService,
-    private apiService: ApiService,
-    private dialog: MatDialog,
+    private router: Router,
   ) {}
 
-  openConfigModal(): void {
-    if (this.dialog.openDialogs.some((d) => d.componentInstance instanceof ConfigDialogComponent)) {
-      return;
-    }
-    this.dialog.open(ConfigDialogComponent, {
-      width: '1050px',
-      maxWidth: '96vw',
-      maxHeight: '92vh',
-      autoFocus: false,
-    });
+  isMarketplaceRoute(): boolean {
+    const url = this.router.url.split('?')[0].toLowerCase();
+    return (
+      url === '/eneba' ||
+      url === '/g2a' ||
+      url.startsWith('/provider/')
+    );
   }
 
-  pagesCount(): number {
-    return this.apiService.dashboardData()?.pages?.length ?? 0;
+  activeMarketplaceLabel(): string {
+    const url = this.router.url.split('?')[0].toLowerCase();
+    if (url === '/eneba' || url === '/provider/eneba') return 'Marketplaces · Eneba';
+    if (url === '/g2a' || url === '/provider/g2a') return 'Marketplaces · G2A';
+    return 'Marketplaces';
+  }
+
+  getThemeIcon(): string {
+    const mode = this.themeService.themeMode();
+    if (mode === 'light') return 'light_mode';
+    if (mode === 'dark') return 'dark_mode';
+    return 'contrast';
+  }
+
+  getThemeLabel(): string {
+    const mode = this.themeService.themeMode();
+    if (mode === 'light') return 'Light';
+    if (mode === 'dark') return 'Dark';
+    return 'System';
+  }
+
+  setTheme(mode: ThemeMode): void {
+    this.themeService.setTheme(mode);
   }
 }

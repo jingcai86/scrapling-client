@@ -1,10 +1,11 @@
 import type pg from "pg";
 import type { RandomizedDailyScheduler, MultiSchedulerManager } from "../core/index.js";
-import type { PageStore } from "./services/pageStore.js";
+import type { TargetStore } from "./services/targetStore.js";
 import type { ScrapeRunner } from "./services/scrapeRunner.js";
 
 export interface ServerContext {
-  pageStore: PageStore;
+  targetStore?: TargetStore;
+  pageStore: TargetStore;
   runner: ScrapeRunner;
   scheduler: RandomizedDailyScheduler;
   schedulerManager: MultiSchedulerManager;

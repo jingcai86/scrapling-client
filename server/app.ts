@@ -50,12 +50,12 @@ export function createApp(ctx: ServerContext): Express {
 
   // 1. Mount API route modules first
   app.use("/api/dashboard", createDashboardRouter(ctx));
-  app.use("/api/eneba/config", createEnebaRouter(ctx));
+  app.use(["/api/provider/config", "/api/eneba/config"], createEnebaRouter(ctx));
   app.use("/api/deals", createDealsRouter(ctx));
-  app.use("/api/pages", createPagesRouter(ctx));
+  app.use(["/api/targets", "/api/pages"], createPagesRouter(ctx));
   app.use("/api/scrape", createScrapeRouter(ctx));
   app.use(["/api/config", "/api/env"], createConfigRouter(ctx));
-  app.use("/api/scheduler", createSchedulerRouter(ctx));
+  app.use(["/api/schedules", "/api/scheduler"], createSchedulerRouter(ctx));
   app.use("/api/email", createEmailRouter(ctx));
 
   // 2. Serve static Angular browser assets (JS, CSS, images)

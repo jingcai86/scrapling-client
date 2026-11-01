@@ -74,3 +74,36 @@ export function formatLocalBaseTimeToUtc(
   return `${utcH}:${utcM}`;
 }
 
+export const DEFAULT_SCHEDULER_ID = 'c1000000-0000-4000-8000-000000000001';
+
+export function isDefaultScheduleId(id?: string | null): boolean {
+  if (!id) return true;
+  const trimmed = id.trim().toLowerCase();
+  return (
+    trimmed === '' ||
+    trimmed === 'default' ||
+    trimmed === '00000000-0000-0000-0000-000000000000' ||
+    trimmed === DEFAULT_SCHEDULER_ID
+  );
+}
+
+export function areSameScheduleIds(a?: string | null, b?: string | null): boolean {
+  if (isDefaultScheduleId(a) && isDefaultScheduleId(b)) return true;
+  return (a || '').trim() === (b || '').trim();
+}
+
+export function resolveScheduleSelectValue(
+  scheduleId: string | undefined | null,
+  schedulers: Array<{ id?: string; isDefault?: boolean }>,
+): string {
+  if (isDefaultScheduleId(scheduleId)) {
+    const def = schedulers.find((s) => s.isDefault || isDefaultScheduleId(s.id));
+    return def?.id || DEFAULT_SCHEDULER_ID;
+  }
+  const exact = schedulers.find((s) => s.id === scheduleId);
+  if (exact?.id) return exact.id;
+  const def = schedulers.find((s) => s.isDefault || isDefaultScheduleId(s.id));
+  return def?.id || scheduleId || DEFAULT_SCHEDULER_ID;
+}
+
+

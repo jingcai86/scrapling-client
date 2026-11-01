@@ -1,133 +1,176 @@
 import { Component, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
-import { MatSortModule, Sort } from '@angular/material/sort';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import type { SellerOffer } from '../core/models/dashboard.model';
 
 @Component({
   selector: 'app-seller-offers-dialog',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, MatButtonModule, MatTableModule, MatSortModule],
+  imports: [
+    CommonModule,
+    MatDialogModule,
+    MatTableModule,
+    MatButtonModule,
+    MatIconModule,
+  ],
   template: `
-    <h2 mat-dialog-title>Competing Third-Party Seller Offers</h2>
-    <div mat-dialog-content>
-      <p class="sub-title">{{ data.title }}</p>
-
-      <div class="table-wrapper">
-        <table mat-table [dataSource]="sortedOffers" matSort (matSortChange)="sortData($event)" class="offers-table">
-          <ng-container matColumnDef="sellerName">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header>Seller / Merchant</th>
-            <td mat-cell *matCellDef="let offer">
-              <strong class="seller-name">{{ offer.sellerName }}</strong>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="price">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header>Price</th>
-            <td mat-cell *matCellDef="let offer" class="price-cell">
-              <strong>\${{ offer.price.toFixed(2) }}</strong>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="ratingScore">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header>Rating</th>
-            <td mat-cell *matCellDef="let offer">
-              <span *ngIf="offer.ratingScore > 0" class="badge badge-discount">★ {{ offer.ratingScore.toFixed(1) }}%</span>
-              <span *ngIf="!offer.ratingScore" class="muted">—</span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="placement">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header>Placement</th>
-            <td mat-cell *matCellDef="let offer">
-              <span class="badge badge-region">{{ offer.placement || 'Organic' }}</span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="url">
-            <th mat-header-cell *matHeaderCellDef>Vendor Link</th>
-            <td mat-cell *matCellDef="let offer">
-              <a [href]="offer.url" target="_blank" rel="noopener" mat-stroked-button color="primary" class="btn-xs">
-                <span>Store Link ↗</span>
-              </a>
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-        </table>
+    <div class="dialog-header">
+      <div>
+        <h2 mat-dialog-title class="dialog-title">Competing Seller Offers</h2>
+        <p class="dialog-subtitle">{{ data.title }}</p>
       </div>
+      <button mat-icon-button mat-dialog-close aria-label="Close">
+        <mat-icon>close</mat-icon>
+      </button>
     </div>
 
-    <div mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>Close</button>
+    <div mat-dialog-content class="dialog-body">
+      <table
+        mat-table
+        [dataSource]="data.offers"
+        class="data-table"
+        *ngIf="data.offers.length > 0; else emptyTpl"
+      >
+        <ng-container matColumnDef="position">
+          <th mat-header-cell *matHeaderCellDef>#</th>
+          <td mat-cell *matCellDef="let offer; let i = index" class="num-cell">
+            <span class="rank-pill">#{{ offer.position || i + 1 }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="sellerName">
+          <th mat-header-cell *matHeaderCellDef>Merchant</th>
+          <td mat-cell *matCellDef="let offer">
+            <span class="merchant-name">{{ offer.sellerName }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="price">
+          <th mat-header-cell *matHeaderCellDef>Price</th>
+          <td mat-cell *matCellDef="let offer" class="num-cell price-strong">
+            \${{ offer.price.toFixed(2) }}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="priceWithServiceFee">
+          <th mat-header-cell *matHeaderCellDef>With Fee</th>
+          <td mat-cell *matCellDef="let offer" class="num-cell muted-cell">
+            {{ offer.priceWithServiceFee ? '$' + offer.priceWithServiceFee.toFixed(2) : '—' }}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="rating">
+          <th mat-header-cell *matHeaderCellDef>Rating</th>
+          <td mat-cell *matCellDef="let offer" class="num-cell">
+            <span class="rating-pill" *ngIf="offer.ratingScore">
+              {{ offer.ratingScore }}%
+              <span *ngIf="offer.ratingCount" class="rating-count">({{ offer.ratingCount }})</span>
+            </span>
+            <span *ngIf="!offer.ratingScore" class="muted-cell">—</span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns;"></tr>
+      </table>
+
+      <ng-template #emptyTpl>
+        <div class="empty-state">
+          <mat-icon>storefront</mat-icon>
+          <p>No competing seller offers recorded for this listing.</p>
+        </div>
+      </ng-template>
+    </div>
+
+    <div mat-dialog-actions align="end" class="dialog-actions">
+      <button mat-flat-button color="primary" mat-dialog-close>Close</button>
     </div>
   `,
   styles: [`
-    .sub-title {
-      font-size: 0.85rem;
-      color: var(--mat-sys-on-surface-variant);
-      margin: 0 0 1rem;
+    .dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 1.25rem 1.5rem 1rem;
+      border-bottom: 1px solid var(--ui-border);
     }
-    .offers-table {
-      width: 100%;
-      min-width: 580px;
-    }
-    .seller-name {
+    .dialog-title {
+      margin: 0 !important;
+      padding: 0 !important;
+      font-size: 1.125rem;
       font-weight: 600;
     }
-    .price-cell {
-      font-weight: 700;
-      color: var(--mat-sys-primary);
+    .dialog-subtitle {
+      margin: 0.25rem 0 0;
+      font-size: 0.8125rem;
+      color: var(--mat-sys-on-surface-variant);
     }
-    .placement-badge {
+    .dialog-body {
+      padding: 0 !important;
+      max-height: 60vh;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      overscroll-behavior: contain;
+    }
+    .data-table {
+      width: 100%;
+    }
+    .num-cell {
+      font-variant-numeric: tabular-nums;
+    }
+    .price-strong {
+      font-weight: 600;
+      color: var(--status-success);
+    }
+    .merchant-name {
+      font-weight: 500;
+    }
+    .muted-cell {
+      color: var(--mat-sys-on-surface-variant);
+    }
+    .rank-pill {
       display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface-variant);
+    }
+    .rating-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.78rem;
+      font-weight: 500;
       padding: 0.15rem 0.45rem;
       border-radius: 6px;
-      background: var(--mat-sys-surface-container-high);
-      font-size: 0.75rem;
+      border: 1px solid var(--ui-border);
+      background: var(--surface-subtle);
+      .rating-count {
+        color: var(--mat-sys-on-surface-variant);
+        font-size: 0.72rem;
+      }
     }
-    .offer-link {
-      color: var(--mat-sys-primary);
-      text-decoration: none;
-      font-weight: 600;
-      &:hover { text-decoration: underline; }
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 2.5rem 1.5rem;
+      color: var(--mat-sys-on-surface-variant);
     }
-    .muted {
-      color: var(--mat-sys-outline);
+    .dialog-actions {
+      padding: 0.875rem 1.5rem !important;
+      border-top: 1px solid var(--ui-border);
+      margin: 0 !important;
     }
   `],
 })
 export class SellerOffersDialogComponent {
-  displayedColumns: string[] = ['sellerName', 'price', 'ratingScore', 'placement', 'url'];
-  sortedOffers: SellerOffer[] = [];
+  columns = ['position', 'sellerName', 'price', 'priceWithServiceFee', 'rating'];
 
-  constructor(@Inject(MAT_DIALOG_DATA) public data: { title: string; offers: SellerOffer[] }) {
-    this.sortedOffers = [...(data.offers || [])];
-  }
-
-  sortData(sort: Sort) {
-    const data = [...this.data.offers];
-    if (!sort.active || sort.direction === '') {
-      this.sortedOffers = data;
-      return;
-    }
-
-    this.sortedOffers = data.sort((a, b) => {
-      const isAsc = sort.direction === 'asc';
-      switch (sort.active) {
-        case 'sellerName': return compare(a.sellerName, b.sellerName, isAsc);
-        case 'price': return compare(a.price, b.price, isAsc);
-        case 'ratingScore': return compare(a.ratingScore, b.ratingScore, isAsc);
-        case 'placement': return compare(a.placement, b.placement, isAsc);
-        default: return 0;
-      }
-    });
-  }
-}
-
-function compare(a: number | string, b: number | string, isAsc: boolean) {
-  return (a < b ? -1 : 1) * (isAsc ? 1 : -1);
+  constructor(
+    @Inject(MAT_DIALOG_DATA) public data: { title: string; offers: SellerOffer[] },
+  ) {}
 }

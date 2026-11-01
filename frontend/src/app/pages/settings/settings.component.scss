@@ -1,0 +1,129 @@
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+  }
+
+  .full-span {
+    grid-column: 1 / -1;
+  }
+}
+
+.card-header-clean {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem !important;
+  border-bottom: 1px solid var(--ui-border);
+  flex-wrap: wrap;
+
+  .header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .card-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+}
+
+.settings-card-body {
+  padding: 1.5rem !important;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.two-col-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.full-width {
+  width: 100%;
+}
+
+.custom-keys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-block-end: 1.25rem;
+}
+
+.custom-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+
+  .key-badge {
+    min-width: 200px;
+    padding: 0.55rem 0.75rem;
+    border-radius: 6px;
+    background: var(--surface-subtle);
+    border: 1px solid var(--ui-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--mat-sys-on-surface);
+  }
+
+  .val-field {
+    flex: 1;
+  }
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+
+    .key-badge {
+      min-width: 0;
+    }
+  }
+}
+
+.add-key-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding-block-start: 0.75rem;
+  border-top: 1px solid var(--ui-border);
+
+  .key-input {
+    width: 240px;
+    flex-shrink: 0;
+  }
+
+  .val-input {
+    flex: 1;
+  }
+
+  button {
+    height: 40px;
+    margin-block-start: 2px;
+  }
+
+  @media (max-width: 720px) {
+    flex-direction: column;
+    align-items: stretch;
+
+    .key-input {
+      width: 100%;
+    }
+  }
+}

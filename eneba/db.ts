@@ -174,6 +174,10 @@ export async function getEnebaConfig(
     const config: Record<string, string> = {
       top_deals_limit: "10",
       alert_discount_threshold_pct: "20",
+      eneba_top_deals_limit: "10",
+      eneba_alert_threshold_pct: "20",
+      g2a_top_deals_limit: "10",
+      g2a_alert_threshold_pct: "15",
     };
     for (const row of rows) {
       if (row.key === "top_deals_limit") config.top_deals_limit = row.value;
@@ -190,6 +194,10 @@ export async function getEnebaConfig(
     return {
       top_deals_limit: "10",
       alert_discount_threshold_pct: "20",
+      eneba_top_deals_limit: "10",
+      eneba_alert_threshold_pct: "20",
+      g2a_top_deals_limit: "10",
+      g2a_alert_threshold_pct: "15",
     };
   } finally {
     if (ownPool && pool) {
@@ -199,14 +207,40 @@ export async function getEnebaConfig(
 }
 
 /**
+ * Returns the configured number of top deals to pull per category for a given provider (defaults to 10).
+ */
+export async function getProviderTopDealsLimit(
+  provider = "eneba",
+  options: EnebaConfigOptions = {},
+): Promise<number> {
+  const cfg = await getEnebaConfig(options);
+  const provKey = `${provider.toLowerCase().trim()}_top_deals_limit`;
+  const raw = cfg[provKey] || cfg.top_deals_limit || "10";
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+}
+
+/**
  * Returns the configured number of top deals to pull per category (defaults to 10).
  */
 export async function getEnebaTopDealsLimit(
   options: EnebaConfigOptions = {},
 ): Promise<number> {
+  return getProviderTopDealsLimit("eneba", options);
+}
+
+/**
+ * Returns the configured alert discount threshold percentage for a given provider.
+ */
+export async function getProviderAlertThreshold(
+  provider = "eneba",
+  options: EnebaConfigOptions = {},
+): Promise<number> {
   const cfg = await getEnebaConfig(options);
-  const parsed = parseInt(cfg.top_deals_limit || "10", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+  const provKey = `${provider.toLowerCase().trim()}_alert_threshold_pct`;
+  const raw = cfg[provKey] || cfg.alert_discount_threshold_pct || "20";
+  const parsed = parseFloat(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 20;
 }
 
 /**
@@ -215,9 +249,7 @@ export async function getEnebaTopDealsLimit(
 export async function getEnebaAlertThreshold(
   options: EnebaConfigOptions = {},
 ): Promise<number> {
-  const cfg = await getEnebaConfig(options);
-  const parsed = parseFloat(cfg.alert_discount_threshold_pct || "20");
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 20;
+  return getProviderAlertThreshold("eneba", options);
 }
 
 /**

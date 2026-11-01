@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import {
   ScraplingClient,
+  DEFAULT_SCHEDULER_ID,
+  isDefaultSchedulerId,
   getEmailConfigStatus,
   sendDealAlertEmail,
   type DealAlertItem,
@@ -13,6 +15,7 @@ import {
   fetchScrapeHistoryFromDb,
   getEnebaAlertThreshold,
   getEnebaTopDealsLimit,
+  getProviderAlertThreshold,
   tryPersistScrapeResult,
   type DbPersistenceStatus,
 } from "../../eneba/db.js";
@@ -22,7 +25,7 @@ import {
   getCanonicalTargetKey,
   type PageDealStatus,
 } from "../../eneba/pageStats.js";
-import type { PageStore, ScrapePageConfig, ScrapeHistoryItem } from "./pageStore.js";
+import type { TargetStore, ScrapeTargetConfig, ScrapeHistoryItem } from "./targetStore.js";
 
 export interface RunnerState {
   isScraping: boolean;
@@ -76,7 +79,7 @@ export function statusesToAlertItems(
 }
 
 export class ScrapeRunner {
-  private readonly pageStore: PageStore;
+  private readonly pageStore: TargetStore;
   private isScraping = false;
   private currentStep: string | null = null;
   private completedPages = 0;
@@ -91,7 +94,7 @@ export class ScrapeRunner {
   private scrapeHistory: ScrapeHistoryItem[] = [];
   private onScrapeCompleteListeners: Array<(statuses: PageDealStatus[], meta?: { scheduleId?: string }) => void> = [];
 
-  constructor(pageStore: PageStore) {
+  constructor(pageStore: TargetStore) {
     this.pageStore = pageStore;
     for (const st of this.pageStore.loadLatestStatuses()) {
       this.setStatus(st);
@@ -286,23 +289,39 @@ export class ScrapeRunner {
 
   getLatestScrapeTime(scheduleId?: string): Date | null {
     const timestamps: number[] = [];
+    const statuses = this.getLatestStatuses();
 
-    if (this.lastCompletedAt && !scheduleId) {
+    if (scheduleId) {
+      const assignedMap = this.pageStore.getAssignedTargetsMap();
+      const normSchedId = isDefaultSchedulerId(scheduleId)
+        ? DEFAULT_SCHEDULER_ID
+        : scheduleId;
+      const targetPageIds = assignedMap[normSchedId] || [];
+      if (targetPageIds.length === 0) {
+        return null;
+      }
+
+      for (const s of statuses) {
+        const sId = (s.scrapeTargetId || s.targetId || "").trim();
+        if (sId && targetPageIds.includes(sId) && s.scrapedAt) {
+          const t = new Date(s.scrapedAt).getTime();
+          if (!isNaN(t)) timestamps.push(t);
+        }
+      }
+
+      if (!timestamps.length) return null;
+      return new Date(Math.max(...timestamps));
+    }
+
+    if (this.lastCompletedAt) {
       const dt = new Date(this.lastCompletedAt);
       if (!isNaN(dt.getTime())) timestamps.push(dt.getTime());
     }
 
-    const statuses = this.getLatestStatuses();
-    const assignedMap = this.pageStore.getAssignedPagesMap();
-    const targetPageIds = scheduleId ? assignedMap[scheduleId] : null;
-
     for (const s of statuses) {
-      const sId = (s.scrapeTargetId || s.targetId || "").trim();
-      if (!targetPageIds || targetPageIds.includes(sId) || scheduleId === "default") {
-        if (s.scrapedAt) {
-          const t = new Date(s.scrapedAt).getTime();
-          if (!isNaN(t)) timestamps.push(t);
-        }
+      if (s.scrapedAt) {
+        const t = new Date(s.scrapedAt).getTime();
+        if (!isNaN(t)) timestamps.push(t);
       }
     }
 
@@ -311,11 +330,6 @@ export class ScrapeRunner {
         const t = new Date(h.timestamp).getTime();
         if (!isNaN(t)) timestamps.push(t);
       }
-    }
-
-    if (this.lastCompletedAt) {
-      const dt = new Date(this.lastCompletedAt);
-      if (!isNaN(dt.getTime())) timestamps.push(dt.getTime());
     }
 
     if (!timestamps.length) return null;
@@ -342,7 +356,7 @@ export class ScrapeRunner {
   }
 
   /**
-   * Runs a scrape job for a single page ID or all enabled pages.
+   * Runs a scrape job for a single target ID or all enabled targets.
    */
   async runScrape(options: {
     pageId?: string;
@@ -355,8 +369,8 @@ export class ScrapeRunner {
       throw new Error("A scrape job is already running.");
     }
 
-    const allPages = this.pageStore.listPages();
-    let targetPages: ScrapePageConfig[];
+    const allPages = this.pageStore.listTargets();
+    let targetPages: ScrapeTargetConfig[];
 
     if (options.pageId) {
       targetPages = allPages.filter((p) => p.id === options.pageId);
@@ -364,9 +378,14 @@ export class ScrapeRunner {
       const idSet = new Set(options.pageIds);
       targetPages = allPages.filter((p) => idSet.has(p.id) && p.enabled);
     } else if (options.scheduleId) {
-      targetPages = allPages.filter(
-        (p) => (p.scheduleId || "default") === options.scheduleId && p.enabled,
-      );
+      const wantDefault = isDefaultSchedulerId(options.scheduleId);
+      targetPages = allPages.filter((p) => {
+        if (!p.enabled) return false;
+        const pSched = p.scheduleId || DEFAULT_SCHEDULER_ID;
+        return wantDefault
+          ? isDefaultSchedulerId(pSched)
+          : pSched === options.scheduleId;
+      });
     } else if (options.provider) {
       targetPages = allPages.filter(
         (p) =>
@@ -496,9 +515,11 @@ export class ScrapeRunner {
       // Evaluate and send Resend deal alert email if threshold met
       this.currentStep = `Checking deals against provider discount alert thresholds...`;
       const alertItems = statusesToAlertItems(scrapedResults);
-      const enebaThreshold = await getEnebaAlertThreshold().catch(() => 20);
+      const enebaThreshold = await getProviderAlertThreshold("eneba").catch(() => 20);
+      const g2aThreshold = await getProviderAlertThreshold("g2a").catch(() => 15);
       const providerThresholds: Record<string, number> = {
         eneba: enebaThreshold,
+        g2a: g2aThreshold,
       };
       const emailResult = await sendDealAlertEmail(alertItems, {
         providerThresholds,

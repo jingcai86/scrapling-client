@@ -773,7 +773,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       assert.ok(app.app);
       const base = `http://127.0.0.1:${app.port}`;
 
-      for (const route of ["/", "/eneba", "/scraping", "/config"]) {
+      for (const route of ["/", "/eneba", "/g2a", "/automation", "/settings", "/scraping", "/config"]) {
         const res = await fetch(`${base}${route}`);
         assert.equal(res.status, 200);
         assert.ok(
@@ -812,7 +812,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
       const base = `http://127.0.0.1:${app.port}`;
 
       // Check all UI routes
-      for (const route of ["/", "/eneba", "/scraping", "/config"]) {
+      for (const route of ["/", "/eneba", "/g2a", "/automation", "/settings", "/scraping", "/config"]) {
         const res = await fetch(`${base}${route}`);
         assert.equal(res.status, 200);
         assert.ok(
