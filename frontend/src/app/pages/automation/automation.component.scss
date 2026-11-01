@@ -17,17 +17,20 @@
   flex-direction: column;
   gap: 1rem;
   padding: 1.125rem 1.25rem;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--ui-border);
+  border-left: 3px solid var(--accent-indigo);
   background: var(--surface-subtle);
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease;
 
   &:hover {
-    border-color: var(--ui-border-strong);
+    border-color: var(--mat-sys-primary);
+    transform: translateY(-1px);
   }
 
   &.is-disabled {
     opacity: 0.72;
+    border-left-color: var(--ui-border-strong);
   }
 }
 
@@ -54,6 +57,7 @@
 
     &.active {
       background: var(--status-success);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--status-success) 60%, transparent);
       opacity: 1;
     }
   }
@@ -66,14 +70,14 @@
 
   .badge-tag {
     font-size: 0.68rem;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
-    border: 1px solid var(--ui-border);
-    background: var(--surface-card);
-    color: var(--mat-sys-on-surface-variant);
+    padding: 0.12rem 0.45rem;
+    border-radius: 5px;
+    border: 1px solid color-mix(in srgb, var(--accent-indigo) 32%, transparent);
+    background: color-mix(in srgb, var(--accent-indigo) 12%, transparent);
+    color: var(--accent-indigo);
   }
 }
 

@@ -6,12 +6,12 @@
 
   .marketplace-pill {
     font-size: 0.75rem;
-    font-weight: 500;
-    padding: 0.15rem 0.6rem;
+    font-weight: 600;
+    padding: 0.18rem 0.65rem;
     border-radius: 999px;
-    border: 1px solid var(--ui-border);
-    background: var(--surface-subtle);
-    color: var(--mat-sys-on-surface-variant);
+    border: 1px solid color-mix(in srgb, var(--accent-indigo) 32%, transparent);
+    background: color-mix(in srgb, var(--accent-indigo) 12%, transparent);
+    color: var(--accent-indigo);
   }
 }
 
@@ -48,9 +48,17 @@
 }
 
 .rank-index {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--mat-sys-on-surface-variant);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--accent-indigo);
+  background: color-mix(in srgb, var(--accent-indigo) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-indigo) 22%, transparent);
 }
 
 .deal-title-cell {
@@ -83,13 +91,13 @@
 
 .target-tag {
   display: inline-block;
-  font-size: 0.76rem;
-  font-weight: 500;
-  padding: 0.15rem 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
   border-radius: 6px;
-  border: 1px solid var(--ui-border);
-  background: var(--surface-subtle);
-  color: var(--mat-sys-on-surface-variant);
+  border: 1px solid color-mix(in srgb, var(--accent-sky) 28%, transparent);
+  background: color-mix(in srgb, var(--accent-sky) 10%, transparent);
+  color: var(--accent-sky);
 }
 
 .price-stack {

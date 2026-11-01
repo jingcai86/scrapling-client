@@ -48,10 +48,11 @@
   letter-spacing: -0.02em;
 
   .brand-mark {
-    width: 28px;
-    height: 28px;
-    border-radius: 7px;
-    background: var(--mat-sys-primary);
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
     color: #ffffff;
     display: grid;
     place-items: center;
@@ -109,9 +110,9 @@
   }
 
   &.active-link {
-    color: var(--mat-sys-on-surface);
-    background: var(--surface-subtle);
-    border-color: var(--ui-border);
+    color: var(--mat-sys-primary);
+    background: color-mix(in srgb, var(--mat-sys-primary) 12%, transparent);
+    border-color: color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
     font-weight: 600;
 
     .nav-icon {
@@ -134,11 +135,11 @@
   height: 28px;
   padding-inline: 0.65rem;
   border-radius: 999px;
-  border: 1px solid var(--ui-border);
-  background: var(--surface-subtle);
+  border: 1px solid color-mix(in srgb, var(--status-success) 30%, transparent);
+  background: color-mix(in srgb, var(--status-success) 10%, transparent);
   font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--mat-sys-on-surface-variant);
+  font-weight: 600;
+  color: var(--status-success);
 
   .status-dot {
     width: 7px;
