@@ -355,7 +355,7 @@ export class SettingsComponent {
       next: (res) => {
         this.dialog.open(EmailPreviewDialogComponent, {
           data: res,
-          width: '780px',
+          width: '860px',
           maxWidth: '95vw',
         });
       },

@@ -5,7 +5,7 @@ import {
   sendDealAlertEmail,
   type DealAlertItem,
 } from "../../core/index.js";
-import { getEnebaAlertThreshold } from "../../eneba/db.js";
+import { getProviderAlertThreshold } from "../../eneba/db.js";
 import { statusesToAlertItems } from "../services/scrapeRunner.js";
 import type { ServerContext } from "../types.js";
 
@@ -44,6 +44,23 @@ const SAMPLE_PREVIEW_DEALS: DealAlertItem[] = [
     lowestSellerName: "KeyVaultUS",
     lowestSellerRating: 99.52,
   },
+  {
+    provider: "g2a",
+    category: "Google Play Gift Cards",
+    title: "Google Play Gift Card 100 USD Key UNITED STATES",
+    url: "https://www.g2a.com/google-play-gift-card-100-usd-android-united-states-i10000001432018",
+    region: "United States",
+    sellingPrice: 79.5,
+    originalPrice: 100,
+    faceValue: 100,
+    discountPct: 20.5,
+    cashbackPct: 0,
+    effectiveDiscountPct: 20.5,
+    effectivePrice: 79.5,
+    savingsAmount: 20.5,
+    lowestSellerName: "DigitalKeysDirect",
+    lowestSellerRating: 99.1,
+  },
 ];
 
 export function createEmailRouter(ctx: ServerContext): Router {
@@ -51,11 +68,17 @@ export function createEmailRouter(ctx: ServerContext): Router {
 
   router.get("/preview", async (_req, res, next) => {
     try {
-      const thresholdPct = await getEnebaAlertThreshold({
-        pool: ctx.pool,
-      });
+      const [enebaThreshold, g2aThreshold] = await Promise.all([
+        getProviderAlertThreshold("eneba", { pool: ctx.pool }),
+        getProviderAlertThreshold("g2a", { pool: ctx.pool }),
+      ]);
+      const providerThresholds = {
+        eneba: enebaThreshold,
+        g2a: g2aThreshold,
+      };
+      const thresholdPct = Math.min(enebaThreshold, g2aThreshold);
       const liveItems = statusesToAlertItems(ctx.runner.getLatestStatuses());
-      const matchingLive = filterAlertableDeals(liveItems, thresholdPct);
+      const matchingLive = filterAlertableDeals(liveItems, providerThresholds);
       const dealsForPreview =
         matchingLive.length > 0 ? matchingLive : SAMPLE_PREVIEW_DEALS;
 
@@ -73,11 +96,17 @@ export function createEmailRouter(ctx: ServerContext): Router {
 
   router.post("/test", async (req, res, next) => {
     try {
-      const thresholdPct = await getEnebaAlertThreshold({
-        pool: ctx.pool,
-      });
+      const [enebaThreshold, g2aThreshold] = await Promise.all([
+        getProviderAlertThreshold("eneba", { pool: ctx.pool }),
+        getProviderAlertThreshold("g2a", { pool: ctx.pool }),
+      ]);
+      const providerThresholds = {
+        eneba: enebaThreshold,
+        g2a: g2aThreshold,
+      };
+      const thresholdPct = Math.min(enebaThreshold, g2aThreshold);
       const liveItems = statusesToAlertItems(ctx.runner.getLatestStatuses());
-      const matchingLive = filterAlertableDeals(liveItems, thresholdPct);
+      const matchingLive = filterAlertableDeals(liveItems, providerThresholds);
       const dealsToSend =
         matchingLive.length > 0 ? matchingLive : SAMPLE_PREVIEW_DEALS;
 
@@ -89,6 +118,7 @@ export function createEmailRouter(ctx: ServerContext): Router {
       const result = await sendDealAlertEmail(dealsToSend, {
         force: true,
         thresholdPct,
+        providerThresholds,
         customTo,
       });
       res.json(result);

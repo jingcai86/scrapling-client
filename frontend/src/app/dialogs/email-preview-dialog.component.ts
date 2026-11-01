@@ -10,17 +10,31 @@ import { MatIconModule } from '@angular/material/icon';
   imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule],
   template: `
     <div class="dialog-header">
-      <div class="header-titles">
-        <h2 mat-dialog-title class="dialog-title">Resend Email Alert Template Preview</h2>
-        <div class="subject-box">
-          <span class="subject-label">Subject:</span>
-          <span class="subject-text">{{ data.subject }}</span>
-          <span *ngIf="data.isSampleData" class="sample-tag">Sample Data</span>
+      <div class="header-top">
+        <div class="title-group">
+          <div class="title-icon">
+            <mat-icon>mark_email_read</mat-icon>
+          </div>
+          <div>
+            <h2 mat-dialog-title class="dialog-title">Email Alert Template Preview</h2>
+            <p class="dialog-subtitle">Rendered HTML dispatch via Resend API</p>
+          </div>
+        </div>
+        <div class="header-right">
+          <span *ngIf="data.isSampleData" class="status-pill sample">Sample Preview Data</span>
+          <span *ngIf="!data.isSampleData" class="status-pill live">Live Scraped Deals</span>
+          <button mat-icon-button mat-dialog-close aria-label="Close dialog" class="close-btn">
+            <mat-icon>close</mat-icon>
+          </button>
         </div>
       </div>
-      <button mat-icon-button mat-dialog-close aria-label="Close dialog" class="close-btn">
-        <mat-icon>close</mat-icon>
-      </button>
+
+      <div class="envelope-meta">
+        <div class="meta-row">
+          <span class="meta-label">Subject</span>
+          <span class="meta-value">{{ data.subject }}</span>
+        </div>
+      </div>
     </div>
 
     <div mat-dialog-content class="preview-content">
@@ -32,7 +46,7 @@ import { MatIconModule } from '@angular/material/icon';
     </div>
 
     <div mat-dialog-actions align="end" class="dialog-actions">
-      <button mat-flat-button color="primary" mat-dialog-close>
+      <button class="btn-close-action" mat-dialog-close>
         Close Preview
       </button>
     </div>
@@ -41,99 +55,163 @@ import { MatIconModule } from '@angular/material/icon';
     :host {
       display: flex;
       flex-direction: column;
-      max-height: 90vh;
+      max-height: 92vh;
       overflow: hidden;
+      background: var(--bg-surface, #11131a);
+      color: var(--text-primary, #f8fafc);
     }
     .dialog-header {
       display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      padding: 1.25rem 1.5rem 0.85rem;
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
-      background: var(--mat-sys-surface-container);
-    }
-    .header-titles {
-      flex: 1;
-      display: flex;
       flex-direction: column;
-      gap: 0.45rem;
+      gap: 0.875rem;
+      padding: 1.125rem 1.5rem 1rem;
+      border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+      background: var(--bg-elevated, #161922);
+    }
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
       min-width: 0;
-      margin-right: 0.75rem;
+    }
+    .title-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #818cf8;
+      flex-shrink: 0;
+      mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
     }
     .dialog-title {
       margin: 0 !important;
       padding: 0 !important;
-      font-size: 1.15rem !important;
-      font-weight: 700 !important;
-      color: var(--mat-sys-on-surface) !important;
-      letter-spacing: -0.01em;
-      line-height: 1.2;
+      font-size: 1rem !important;
+      font-weight: 600 !important;
+      color: var(--text-primary, #f8fafc) !important;
+      letter-spacing: -0.015em;
+      line-height: 1.25;
     }
-    .subject-box {
+    .dialog-subtitle {
+      margin: 0.15rem 0 0;
+      font-size: 0.75rem;
+      color: var(--text-muted, #94a3b8);
+    }
+    .header-right {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-size: 0.84rem;
-      background: var(--mat-sys-surface-container-high);
-      border: 1px solid var(--mat-sys-outline-variant);
-      padding: 0.35rem 0.75rem;
-      border-radius: 6px;
-      overflow: hidden;
-    }
-    .subject-label {
-      font-weight: 700;
-      color: var(--mat-sys-on-surface);
+      gap: 0.625rem;
       flex-shrink: 0;
     }
-    .subject-text {
-      color: var(--mat-sys-on-surface-variant);
+    .status-pill {
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      &.sample {
+        background: rgba(245, 158, 11, 0.12);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.28);
+      }
+      &.live {
+        background: rgba(16, 185, 129, 0.12);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.28);
+      }
+    }
+    .envelope-meta {
+      display: flex;
+      flex-direction: column;
+      background: rgba(15, 23, 42, 0.45);
+      border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+      border-radius: 8px;
+      padding: 0.5rem 0.875rem;
+    }
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      font-size: 0.8125rem;
+      min-width: 0;
+    }
+    .meta-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted, #94a3b8);
+      flex-shrink: 0;
+    }
+    .meta-value {
+      color: var(--text-primary, #f8fafc);
+      font-weight: 500;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .sample-tag {
-      background: rgba(245, 158, 11, 0.15);
-      color: #f59e0b;
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      padding: 0.1rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
     .close-btn {
-      color: var(--mat-sys-on-surface-variant);
+      color: var(--text-muted, #94a3b8);
       flex-shrink: 0;
     }
     .preview-content {
-      padding: 1rem 1.5rem !important;
+      padding: 1rem 1.25rem !important;
       margin: 0 !important;
       overflow: hidden !important;
       max-height: none !important;
       flex: 1 1 auto;
       display: flex;
       flex-direction: column;
+      background: #0b0d13;
     }
     ::ng-deep .preview-content.mat-mdc-dialog-content {
       overflow: hidden !important;
       max-height: none !important;
-      padding: 1rem 1.5rem !important;
+      padding: 1rem 1.25rem !important;
     }
     .preview-frame {
       width: 100%;
-      height: 560px;
-      max-height: calc(85vh - 160px);
-      border: 1px solid var(--mat-sys-outline-variant);
-      border-radius: 8px;
-      background: #f1f5f9;
+      height: 620px;
+      max-height: calc(88vh - 185px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      background: #f8fafc;
       display: block;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
     }
     .dialog-actions {
-      padding: 0.6rem 1.5rem 1rem !important;
+      padding: 0.75rem 1.5rem !important;
       margin: 0 !important;
-      border-top: 1px solid var(--mat-sys-outline-variant);
-      background: var(--mat-sys-surface-container);
+      border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+      background: var(--bg-elevated, #161922);
+    }
+    .btn-close-action {
+      background: var(--accent-primary, #6366f1);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 7px;
+      padding: 0.45rem 1rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      &:hover {
+        background: #4f46e5;
+      }
     }
   `],
 })
