@@ -368,7 +368,7 @@ describe("Server, Randomized Cron, Email Template & Page Store API", () => {
     });
     assert.match(template.subject, /Over 20% Off/);
     assert.match(template.html, /Nintendo eShop Card 50 USD/);
-    assert.match(template.html, /-24\.00%/);
+    assert.match(template.html, /24\.00%/);
   });
 
   it("fails to start createDashboardServer if DATABASE_URL is missing or PostgreSQL is unreachable", async () => {

@@ -186,33 +186,36 @@ export function renderDealAlertEmailTemplate(
         : 0))
     : 0;
 
+  const fontStack =
+    "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
   const spotlightHtml = topDeal
     ? `
-      <div style="margin:0 0 22px;padding:18px 20px;background:linear-gradient(180deg,#f8fafc 0%,#ffffff 100%);border:1px solid #cbd5e1;border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,0.04);">
-        <table role="presentation" style="width:100%;border-collapse:collapse;">
+      <div style="margin:0 0 24px;padding:20px 22px;background:linear-gradient(135deg,#ecfdf5 0%,#eef2ff 100%);border:1px solid #a7f3d0;border-radius:14px;font-family:${fontStack};">
+        <table role="presentation" style="width:100%;border-collapse:collapse;font-family:${fontStack};">
           <tr>
-            <td style="vertical-align:top;padding-right:16px;">
-              <div style="margin-bottom:8px;">
-                <span style="display:inline-block;padding:3px 8px;border-radius:5px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">
-                  Top Deal #1
+            <td style="vertical-align:middle;padding-right:16px;">
+              <div style="margin-bottom:10px;">
+                <span style="display:inline-block;padding:4px 10px;border-radius:9999px;background:#059669;color:#ffffff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">
+                  &#9733; Top Deal #1
                 </span>
-                <span style="display:inline-block;margin-left:6px;padding:3px 8px;border-radius:5px;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">
+                <span style="display:inline-block;margin-left:6px;padding:3px 9px;border-radius:6px;background:#ffffff;color:#4338ca;border:1px solid #c7d2fe;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">
                   ${escapeHtml(topDeal.provider)}
                 </span>
-                <span style="display:inline-block;margin-left:6px;font-size:11.5px;color:#64748b;font-weight:500;">
-                  ${escapeHtml(topDeal.category)}${topDeal.region ? ` · ${escapeHtml(topDeal.region)}` : ""}
+                <span style="display:inline-block;margin-left:6px;font-size:12px;color:#475569;font-weight:600;">
+                  ${escapeHtml(topDeal.category)}${topDeal.region ? ` &middot; ${escapeHtml(topDeal.region)}` : ""}
                 </span>
               </div>
-              <a href="${escapeHtml(topDeal.url)}" target="_blank" style="color:#0f172a;font-weight:700;text-decoration:none;font-size:15.5px;line-height:1.4;display:block;letter-spacing:-0.01em;">
+              <a href="${escapeHtml(topDeal.url)}" target="_blank" style="color:#0f172a;font-weight:800;text-decoration:none;font-size:16.5px;line-height:1.35;display:block;letter-spacing:-0.015em;">
                 ${escapeHtml(topDeal.title)}
               </a>
               ${
                 topDeal.lowestSellerName
-                  ? `<div style="font-size:12px;color:#64748b;margin-top:6px;">
-                      Lowest Seller: <strong style="color:#334155;font-weight:600;">${escapeHtml(topDeal.lowestSellerName)}</strong>
+                  ? `<div style="font-size:12px;color:#475569;margin-top:8px;">
+                      Merchant: <strong style="color:#0f172a;font-weight:700;">${escapeHtml(topDeal.lowestSellerName)}</strong>
                       ${
                         topDeal.lowestSellerRating
-                          ? `<span style="display:inline-block;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:4px;">${topDeal.lowestSellerRating.toFixed(2)}% positive</span>`
+                          ? `<span style="display:inline-block;background:#ffffff;color:#059669;border:1px solid #a7f3d0;font-size:11px;font-weight:700;padding:1px 7px;border-radius:9999px;margin-left:6px;">${topDeal.lowestSellerRating.toFixed(2)}% positive</span>`
                           : ""
                       }
                     </div>`
@@ -220,23 +223,26 @@ export function renderDealAlertEmailTemplate(
               }
             </td>
             <td style="vertical-align:middle;text-align:right;white-space:nowrap;">
-              <div style="font-size:20px;font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;">
+              <div style="display:inline-block;padding:4px 10px;border-radius:9999px;background:#059669;color:#ffffff;font-weight:800;font-size:12px;margin-bottom:6px;">
+                ${topDeal.discountPct.toFixed(2)}% OFF
+              </div>
+              <div style="font-size:24px;font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums;letter-spacing:-0.03em;line-height:1.1;">
                 ${topDeal.sellingPrice !== null ? `$${topDeal.sellingPrice.toFixed(2)}` : "N/A"}
               </div>
-              <div style="font-size:11.5px;color:#64748b;margin-top:2px;font-variant-numeric:tabular-nums;">
+              <div style="font-size:12px;color:#64748b;margin-top:4px;font-variant-numeric:tabular-nums;">
                 ${
                   topDealBaseline !== null && topDealBaseline !== undefined
-                    ? `<span style="text-decoration:line-through;color:#94a3b8;">$${topDealBaseline.toFixed(2)}</span>`
+                    ? `<span style="text-decoration:line-through;color:#64748b;">$${topDealBaseline.toFixed(2)}</span>`
                     : ""
                 }
                 ${
                   topDealSavings > 0
-                    ? `<span style="color:#059669;font-weight:600;margin-left:4px;">Save $${topDealSavings.toFixed(2)}</span>`
+                    ? `<span style="color:#047857;font-weight:700;margin-left:5px;">Save $${topDealSavings.toFixed(2)}</span>`
                     : ""
                 }
               </div>
-              <div style="margin-top:10px;">
-                <a href="${escapeHtml(topDeal.url)}" target="_blank" style="display:inline-block;padding:8px 14px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:7px;font-size:12px;font-weight:600;letter-spacing:0.01em;">
+              <div style="margin-top:12px;">
+                <a href="${escapeHtml(topDeal.url)}" target="_blank" style="display:inline-block;padding:9px 16px;background:linear-gradient(135deg,#4f46e5 0%,#6366f1 100%);color:#ffffff;text-decoration:none;border-radius:8px;font-size:12.5px;font-weight:700;letter-spacing:0.01em;box-shadow:0 2px 6px rgba(79,70,229,0.28);">
                   Claim Deal &rarr;
                 </a>
               </div>
@@ -265,11 +271,11 @@ export function renderDealAlertEmailTemplate(
           : 0);
       const savingsStr =
         savings > 0
-          ? `<div style="font-size:11px;color:#059669;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;">Save $${savings.toFixed(2)}</div>`
+          ? `<div style="font-size:11px;color:#059669;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums;">Save $${savings.toFixed(2)}</div>`
           : "";
 
       const sellerLine = deal.lowestSellerName
-        ? `<div style="font-size:11.5px;color:#64748b;margin-top:4px;">Seller: <strong style="color:#334155;font-weight:600;">${escapeHtml(deal.lowestSellerName)}</strong>${deal.lowestSellerRating ? ` <span style="display:inline-block;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;font-size:10.5px;font-weight:600;padding:0px 5px;border-radius:4px;margin-left:4px;">${deal.lowestSellerRating.toFixed(2)}%</span>` : ""}</div>`
+        ? `<div style="font-size:11.5px;color:#64748b;margin-top:4px;">Merchant: <strong style="color:#334155;font-weight:600;">${escapeHtml(deal.lowestSellerName)}</strong>${deal.lowestSellerRating ? ` <span style="display:inline-block;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-size:10.5px;font-weight:600;padding:0px 6px;border-radius:9999px;margin-left:4px;">${deal.lowestSellerRating.toFixed(2)}%</span>` : ""}</div>`
         : "";
 
       const isG2a = (deal.provider || "").toLowerCase() === "g2a";
@@ -277,11 +283,11 @@ export function renderDealAlertEmailTemplate(
         ? "background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;"
         : "background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;";
 
-      const rowBg = idx % 2 === 0 ? "#ffffff" : "#fcfcfd";
+      const rowBg = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
       const rankBadge =
         idx === 0
-          ? `<span style="display:inline-block;min-width:26px;padding:3px 7px;border-radius:6px;background:#fef3c7;color:#b45309;font-weight:700;font-size:11px;border:1px solid #fde68a;font-variant-numeric:tabular-nums;">#1</span>`
-          : `<span style="display:inline-block;min-width:26px;padding:3px 7px;border-radius:6px;background:#f1f5f9;color:#475569;font-weight:600;font-size:11px;border:1px solid #e2e8f0;font-variant-numeric:tabular-nums;">#${idx + 1}</span>`;
+          ? `<span style="display:inline-block;min-width:28px;padding:4px 8px;border-radius:7px;background:#fef3c7;color:#b45309;font-weight:800;font-size:11.5px;border:1px solid #fde68a;font-variant-numeric:tabular-nums;">#1</span>`
+          : `<span style="display:inline-block;min-width:28px;padding:4px 8px;border-radius:7px;background:#eef2ff;color:#4338ca;font-weight:700;font-size:11.5px;border:1px solid #c7d2fe;font-variant-numeric:tabular-nums;">#${idx + 1}</span>`;
 
       return `
         <tr style="background:${rowBg};">
@@ -290,30 +296,30 @@ export function renderDealAlertEmailTemplate(
           </td>
           <td style="padding:14px 12px;border-top:1px solid #e2e8f0;vertical-align:middle;">
             <div style="margin-bottom:5px;">
-              <span style="display:inline-block;padding:1.5px 7px;border-radius:4px;${providerBadgeStyle}font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">
+              <span style="display:inline-block;padding:2px 7px;border-radius:5px;${providerBadgeStyle}font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">
                 ${escapeHtml(deal.provider)}
               </span>
-              <span style="display:inline-block;margin-left:5px;font-size:11px;color:#64748b;font-weight:500;">
-                ${escapeHtml(deal.category)}${deal.region ? ` · ${escapeHtml(deal.region)}` : ""}
+              <span style="display:inline-block;margin-left:6px;font-size:11.5px;color:#64748b;font-weight:500;">
+                ${escapeHtml(deal.category)}${deal.region ? ` &middot; ${escapeHtml(deal.region)}` : ""}
               </span>
             </div>
-            <a href="${escapeHtml(deal.url)}" target="_blank" style="color:#0f172a;font-weight:600;text-decoration:none;font-size:13.5px;line-height:1.35;display:block;">
+            <a href="${escapeHtml(deal.url)}" target="_blank" style="color:#0f172a;font-weight:700;text-decoration:none;font-size:13.5px;line-height:1.35;display:block;">
               ${escapeHtml(deal.title)}
             </a>
             ${sellerLine}
           </td>
           <td style="padding:14px 12px;border-top:1px solid #e2e8f0;text-align:right;white-space:nowrap;vertical-align:middle;font-variant-numeric:tabular-nums;">
-            <div style="font-size:14.5px;font-weight:700;color:#0f172a;">${priceStr}</div>
-            <div style="font-size:11px;color:#94a3b8;text-decoration:line-through;margin-top:1px;">${baselineStr}</div>
+            <div style="font-size:15px;font-weight:800;color:#0f172a;">${priceStr}</div>
+            <div style="font-size:11.5px;color:#94a3b8;text-decoration:line-through;margin-top:1px;">${baselineStr}</div>
             ${savingsStr}
           </td>
           <td style="padding:14px 12px;border-top:1px solid #e2e8f0;text-align:right;white-space:nowrap;vertical-align:middle;font-variant-numeric:tabular-nums;">
-            <span style="display:inline-block;padding:4px 9px;border-radius:9999px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-weight:700;font-size:12px;">
-              -${deal.discountPct.toFixed(2)}%
+            <span style="display:inline-block;padding:5px 10px;border-radius:9999px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-weight:800;font-size:12px;">
+              ${deal.discountPct.toFixed(2)}% OFF
             </span>
           </td>
           <td style="padding:14px 14px 14px 10px;border-top:1px solid #e2e8f0;text-align:right;white-space:nowrap;vertical-align:middle;">
-            <a href="${escapeHtml(deal.url)}" target="_blank" style="display:inline-block;padding:7px 12px;background:#0f172a;color:#ffffff;text-decoration:none;border-radius:6px;font-size:11.5px;font-weight:600;">
+            <a href="${escapeHtml(deal.url)}" target="_blank" style="display:inline-block;padding:7px 13px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:7px;font-size:11.5px;font-weight:700;">
               Open &nearr;
             </a>
           </td>
@@ -329,85 +335,88 @@ export function renderDealAlertEmailTemplate(
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(subject)}</title>
 </head>
-<body style="margin:0;padding:24px 16px;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;box-sizing:border-box;">
-  <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:14px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 4px 24px -4px rgba(15,23,42,0.06);">
-    <div style="height:4px;background:linear-gradient(90deg,#4f46e5 0%,#6366f1 50%,#10b981 100%);"></div>
+<body style="margin:0;padding:0;background-color:#eef2ff;font-family:${fontStack};color:#0f172a;-webkit-font-smoothing:antialiased;">
+  <div style="margin:0;padding:28px 16px;background:linear-gradient(180deg,#e0e7ff 0%,#f1f5f9 100%);font-family:${fontStack};color:#0f172a;box-sizing:border-box;">
+    <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #c7d2fe;overflow:hidden;box-shadow:0 10px 30px -6px rgba(79,70,229,0.14);font-family:${fontStack};">
 
-    <div style="padding:24px 28px 20px;border-bottom:1px solid #f1f5f9;">
-      <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:12px;">
-        <tr>
-          <td style="vertical-align:middle;">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:#4f46e5;margin-right:6px;vertical-align:middle;"></span>
-            <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#4f46e5;font-weight:700;vertical-align:middle;">
-              Scrapling Monitor Alert
-            </span>
-          </td>
-          <td style="vertical-align:middle;text-align:right;">
-            <span style="display:inline-block;padding:3px 9px;border-radius:9999px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;font-size:11px;font-weight:600;">
-              Rule: Discount &ge; ${thresholdPct}%
-            </span>
-          </td>
-        </tr>
-      </table>
+      <!-- Vibrant Gradient Hero Banner -->
+      <div style="padding:26px 28px 24px;background:linear-gradient(135deg,#1e1b4b 0%,#3730a3 52%,#4f46e5 100%);color:#ffffff;">
+        <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:14px;font-family:${fontStack};">
+          <tr>
+            <td style="vertical-align:middle;">
+              <span style="display:inline-block;padding:4px 10px;border-radius:9999px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.24);color:#e0e7ff;font-size:10.5px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">
+                Scrapling Monitor Alert
+              </span>
+            </td>
+            <td style="vertical-align:middle;text-align:right;">
+              <span style="display:inline-block;padding:4px 11px;border-radius:9999px;background:rgba(16,185,129,0.22);border:1px solid rgba(52,211,153,0.45);color:#6ee7b7;font-size:11px;font-weight:700;">
+                Threshold &ge; ${thresholdPct}% Off
+              </span>
+            </td>
+          </tr>
+        </table>
 
-      <h1 style="margin:0 0 6px;font-size:21px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;line-height:1.3;">
-        ${deals.length} Gift Card Deal${deals.length === 1 ? "" : "s"} Exceeded Your ${thresholdPct}% Alert Threshold
-      </h1>
-      <p style="margin:0;font-size:12.5px;color:#64748b;">
-        Evaluated at ${escapeHtml(formattedGeneratedAt)} &middot; Ranked by highest discount
-      </p>
-    </div>
-
-    <div style="padding:22px 28px 26px;">
-      <table role="presentation" style="width:100%;border-collapse:separate;border-spacing:10px 0;margin:0 -10px 22px;width:calc(100% + 20px);">
-        <tr>
-          <td style="width:33.33%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;vertical-align:top;">
-            <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:600;">Matching Deals</div>
-            <div style="font-size:20px;font-weight:700;color:#0f172a;margin-top:4px;font-variant-numeric:tabular-nums;">${deals.length}</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px;">${escapeHtml(providersLabel)}</div>
-          </td>
-          <td style="width:33.33%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;vertical-align:top;">
-            <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:600;">Peak Discount</div>
-            <div style="font-size:20px;font-weight:700;color:#059669;margin-top:4px;font-variant-numeric:tabular-nums;">-${bestDiscount.toFixed(2)}%</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px;">Threshold &ge; ${thresholdPct}%</div>
-          </td>
-          <td style="width:33.33%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;vertical-align:top;">
-            <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;font-weight:600;">Max Savings</div>
-            <div style="font-size:20px;font-weight:700;color:#0f172a;margin-top:4px;font-variant-numeric:tabular-nums;">$${maxSavings.toFixed(2)}</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px;">Off retail face value</div>
-          </td>
-        </tr>
-      </table>
-
-      ${spotlightHtml}
-
-      <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#475569;margin:0 0 10px;">
-        All Qualifying Listings (${deals.length})
+        <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.025em;line-height:1.25;">
+          ${deals.length} Gift Card Deal${deals.length === 1 ? "" : "s"} Over ${thresholdPct}% Off
+        </h1>
+        <p style="margin:0;font-size:12.5px;color:#c7d2fe;font-weight:500;">
+          Evaluated at ${escapeHtml(formattedGeneratedAt)} &middot; Marketplaces: ${escapeHtml(providersLabel)}
+        </p>
       </div>
 
-      <table style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#ffffff;text-align:left;">
-        <thead>
-          <tr style="background:#f8fafc;color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;">
-            <th style="padding:10px 12px;font-weight:600;text-align:center;width:48px;">Rank</th>
-            <th style="padding:10px 12px;font-weight:600;">Listing &amp; Seller</th>
-            <th style="padding:10px 12px;font-weight:600;text-align:right;">Price</th>
-            <th style="padding:10px 12px;font-weight:600;text-align:right;">Discount</th>
-            <th style="padding:10px 14px 10px 10px;font-weight:600;text-align:right;">Offer</th>
+      <!-- Main Body -->
+      <div style="padding:24px 28px 28px;font-family:${fontStack};">
+        <!-- 3 Color-Tinted KPI Cards -->
+        <table role="presentation" style="width:100%;border-collapse:separate;border-spacing:10px 0;margin:0 -10px 22px;width:calc(100% + 20px);font-family:${fontStack};">
+          <tr>
+            <td style="width:33.33%;background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:13px 15px;vertical-align:top;">
+              <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:#4338ca;font-weight:700;">Matching Deals</div>
+              <div style="font-size:22px;font-weight:800;color:#312e81;margin-top:4px;font-variant-numeric:tabular-nums;">${deals.length}</div>
+              <div style="font-size:11px;color:#4f46e5;margin-top:2px;font-weight:600;">${escapeHtml(providersLabel)}</div>
+            </td>
+            <td style="width:33.33%;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:13px 15px;vertical-align:top;">
+              <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:#047857;font-weight:700;">Peak Discount</div>
+              <div style="font-size:22px;font-weight:800;color:#059669;margin-top:4px;font-variant-numeric:tabular-nums;">${bestDiscount.toFixed(2)}%</div>
+              <div style="font-size:11px;color:#059669;margin-top:2px;font-weight:600;">Rule &ge; ${thresholdPct}% Off</div>
+            </td>
+            <td style="width:33.33%;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:13px 15px;vertical-align:top;">
+              <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:#0369a1;font-weight:700;">Max Savings</div>
+              <div style="font-size:22px;font-weight:800;color:#0c4a6e;margin-top:4px;font-variant-numeric:tabular-nums;">$${maxSavings.toFixed(2)}</div>
+              <div style="font-size:11px;color:#0284c7;margin-top:2px;font-weight:600;">Below retail face value</div>
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml}
-        </tbody>
-      </table>
-    </div>
+        </table>
 
-    <div style="padding:14px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:11.5px;color:#64748b;">
-      <table role="presentation" style="width:100%;border-collapse:collapse;">
-        <tr>
-          <td>Scrapling Deal Monitor &middot; Automated Price Surveillance</td>
-          <td style="text-align:right;color:#94a3b8;">Thresholds evaluated per marketplace</td>
-        </tr>
-      </table>
+        ${spotlightHtml}
+
+        <div style="font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:#4338ca;margin:0 0 10px;">
+          All Qualifying Listings (${deals.length})
+        </div>
+
+        <table style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;background:#ffffff;text-align:left;font-family:${fontStack};">
+          <thead>
+            <tr style="background:#eef2ff;color:#3730a3;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;">
+              <th style="padding:11px 12px;font-weight:700;text-align:center;width:48px;">Rank</th>
+              <th style="padding:11px 12px;font-weight:700;">Listing &amp; Merchant</th>
+              <th style="padding:11px 12px;font-weight:700;text-align:right;">Price</th>
+              <th style="padding:11px 12px;font-weight:700;text-align:right;">Discount</th>
+              <th style="padding:11px 14px 11px 10px;font-weight:700;text-align:right;">Store</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="padding:14px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:11.5px;color:#64748b;font-family:${fontStack};">
+        <table role="presentation" style="width:100%;border-collapse:collapse;font-family:${fontStack};">
+          <tr>
+            <td style="font-weight:600;color:#475569;">Scrapling Deal Monitor &middot; Automated Price Surveillance</td>
+            <td style="text-align:right;color:#64748b;">Thresholds evaluated per marketplace</td>
+          </tr>
+        </table>
+      </div>
     </div>
   </div>
 </body>

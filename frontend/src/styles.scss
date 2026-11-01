@@ -202,13 +202,19 @@ body {
       text-wrap: pretty;
     }
   }
+}
 
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
-    flex-wrap: wrap;
-  }
+.header-actions,
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+/* Prevent Angular Material's empty projected .mat-mdc-card-header-text from centering custom header divs */
+.mat-mdc-card-header-text:empty {
+  display: none !important;
 }
 
 /* Clean SaaS KPI Cards */
@@ -607,6 +613,12 @@ a[mat-stroked-button] {
   border-bottom: 1px solid var(--ui-border);
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent-indigo) 7%, var(--surface-card)) 0%, var(--surface-card) 100%);
   flex-wrap: wrap;
+  text-align: start;
+
+  > div:first-of-type {
+    margin-inline-end: auto;
+    text-align: start;
+  }
 
   .mat-mdc-card-title {
     margin: 0 !important;
@@ -614,12 +626,14 @@ a[mat-stroked-button] {
     font-weight: 700 !important;
     letter-spacing: -0.015em;
     color: var(--mat-sys-on-surface);
+    text-align: start;
   }
 
   .mat-mdc-card-subtitle {
     margin: 0.2rem 0 0 !important;
     font-size: 0.8125rem !important;
     color: var(--mat-sys-on-surface-variant);
+    text-align: start;
   }
 }
 

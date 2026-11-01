@@ -1,52 +1,12 @@
-.schedules-card-body {
-  padding: 1.25rem 1.5rem !important;
-}
-
-.schedules-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 1rem;
-
-  @media (max-width: 500px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.schedule-card {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1.125rem 1.25rem;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--accent-indigo) 28%, var(--ui-border));
-  border-left: 4px solid var(--accent-indigo);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-indigo) 9%, var(--surface-card)) 0%, var(--surface-subtle) 100%);
-  transition: border-color 0.15s ease, transform 0.15s ease;
-
-  &:hover {
-    border-color: var(--mat-sys-primary);
-    transform: translateY(-1px);
-  }
-
-  &.is-disabled {
-    opacity: 0.72;
-    border-left-color: var(--ui-border-strong);
-  }
-}
-
-.sched-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
 .sched-title-group {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   min-inline-size: 0;
+
+  &.is-disabled {
+    opacity: 0.72;
+  }
 
   .status-dot {
     width: 8px;
@@ -54,6 +14,7 @@
     border-radius: 50%;
     background: var(--mat-sys-on-surface-variant);
     opacity: 0.45;
+    flex-shrink: 0;
 
     &.active {
       background: var(--status-success);
@@ -63,7 +24,7 @@
   }
 
   .sched-name {
-    font-size: 0.925rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--mat-sys-on-surface);
   }
@@ -79,112 +40,104 @@
     background: color-mix(in srgb, var(--accent-indigo) 12%, transparent);
     color: var(--accent-indigo);
   }
+
+  .badge-paused {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.12rem 0.45rem;
+    border-radius: 5px;
+    border: 1px solid var(--ui-border);
+    background: var(--surface-subtle);
+    color: var(--mat-sys-on-surface-variant);
+  }
 }
 
-.sched-actions {
-  display: flex;
+.window-cell {
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-}
+  gap: 0.5rem;
+  flex-wrap: wrap;
 
-.sched-metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-  padding: 0.75rem 0.875rem;
-  border-radius: 8px;
-  border: 1px solid var(--ui-border);
-  background: var(--surface-card);
-
-  @media (max-width: 540px) {
-    grid-template-columns: 1fr;
+  .window-base {
+    font-weight: 600;
+    color: var(--mat-sys-on-surface);
   }
 
-  .sched-metric {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-
-    .metric-label {
-      font-size: 0.68rem;
-      font-weight: 500;
-      color: var(--mat-sys-on-surface-variant);
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-    }
-
-    .metric-val {
-      font-size: 0.82rem;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-      color: var(--mat-sys-on-surface);
-
-      &.accent-primary {
-        color: var(--mat-sys-primary);
-      }
-
-      &.metric-muted {
-        color: var(--mat-sys-on-surface-variant);
-      }
-    }
-
-    .metric-muted {
-      font-weight: 400;
-      color: var(--mat-sys-on-surface-variant);
-    }
-  }
-}
-
-.sched-targets-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-
-  .targets-count-label {
+  .jitter-pill {
     font-size: 0.72rem;
     font-weight: 600;
-    color: var(--mat-sys-on-surface-variant);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-
-  .assigned-chips {
-    display: flex;
-    flex-wrap: wrap;
-    flex-wrap: balance;
-    gap: 0.375rem;
-  }
-
-  .target-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.2rem 0.5rem;
-    border-radius: 6px;
+    padding: 0.1rem 0.45rem;
+    border-radius: 5px;
     border: 1px solid var(--ui-border);
-    background: var(--surface-card);
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--mat-sys-on-surface);
-
-    .chip-prov {
-      font-size: 0.66rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      color: var(--mat-sys-primary);
-    }
-
-    &.chip-disabled {
-      opacity: 0.5;
-      text-decoration: line-through;
-    }
-  }
-
-  .no-targets-hint {
-    font-size: 0.78rem;
+    background: var(--surface-subtle);
     color: var(--mat-sys-on-surface-variant);
-    font-style: italic;
   }
+}
+
+.next-run-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+
+  .next-run-time {
+    font-weight: 600;
+    color: var(--accent-indigo);
+  }
+
+  .countdown-pill {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.1rem 0.48rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--accent-sky) 32%, transparent);
+    background: color-mix(in srgb, var(--accent-sky) 12%, transparent);
+    color: var(--accent-sky);
+  }
+}
+
+.assigned-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding-block: 0.15rem;
+}
+
+.target-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--ui-border);
+  background: var(--surface-subtle);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--mat-sys-on-surface);
+
+  .chip-prov {
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--accent-indigo);
+
+    &[data-provider='g2a'] {
+      color: var(--status-warning);
+    }
+  }
+
+  &.chip-disabled {
+    opacity: 0.5;
+    text-decoration: line-through;
+  }
+}
+
+.no-targets-hint {
+  font-size: 0.78rem;
+  color: var(--mat-sys-on-surface-variant);
+  font-style: italic;
 }
 
 .target-name-cell {

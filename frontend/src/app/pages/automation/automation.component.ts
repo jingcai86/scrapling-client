@@ -142,7 +142,7 @@ import {
         </mat-card>
       </div>
 
-      <!-- Section 1: Daily Randomized Schedules -->
+      <!-- Section 1: Daily Randomized Schedules Table -->
       <mat-card class="main-card" appearance="outlined">
         <mat-card-header class="table-header">
           <div>
@@ -151,109 +151,144 @@ import {
               Each schedule rolls a fresh randomized trigger timestamp every day inside its configured window.
             </mat-card-subtitle>
           </div>
-          <button mat-stroked-button color="primary" (click)="openAddScheduleModal()">
-            <mat-icon>add</mat-icon>
-            <span>New Schedule</span>
-          </button>
+          <div class="header-actions">
+            <button mat-stroked-button color="primary" (click)="openAddScheduleModal()">
+              <mat-icon>add</mat-icon>
+              <span>New Schedule</span>
+            </button>
+          </div>
         </mat-card-header>
 
-        <mat-card-content class="schedules-card-body">
-          <div class="schedules-grid">
-            <div
-              *ngFor="let s of schedulers(); trackBy: trackByScheduleId"
-              class="schedule-card"
-              [class.is-disabled]="!s.enabled"
+        <mat-card-content class="card-table-content">
+          <div class="table-wrapper">
+            <table
+              mat-table
+              [dataSource]="schedulers()"
+              [trackBy]="trackByScheduleId"
+              class="data-table schedules-table"
             >
-              <div class="sched-card-header">
-                <div class="sched-title-group">
-                  <span class="status-dot" [class.active]="s.enabled"></span>
-                  <span class="sched-name">{{ s.name || 'Primary Schedule' }}</span>
-                  <span class="badge-tag" *ngIf="isDefaultSchedule(s)">Default</span>
-                </div>
+              <!-- Schedule Name & Status -->
+              <ng-container matColumnDef="schedule">
+                <th mat-header-cell *matHeaderCellDef>Schedule</th>
+                <td mat-cell *matCellDef="let s">
+                  <div class="sched-title-group" [class.is-disabled]="!s.enabled">
+                    <span class="status-dot" [class.active]="s.enabled"></span>
+                    <span class="sched-name">{{ s.name || 'Primary Schedule' }}</span>
+                    <span class="badge-tag" *ngIf="isDefaultSchedule(s)">Default</span>
+                    <span class="badge-paused" *ngIf="!s.enabled">Paused</span>
+                  </div>
+                </td>
+              </ng-container>
 
-                <div class="sched-actions">
-                  <button
-                    mat-stroked-button
-                    color="primary"
-                    class="btn-compact"
-                    (click)="runScheduleNow(s)"
-                    [disabled]="apiService.dashboardData()?.runner?.isScraping"
-                    matTooltip="Run all enabled targets in this schedule now"
-                  >
-                    <mat-icon>play_arrow</mat-icon>
-                    <span>Run</span>
-                  </button>
-                  <button
-                    mat-icon-button
-                    class="icon-btn-sm"
-                    (click)="rerollSchedule(s)"
-                    matTooltip="Re-roll randomized next run time"
-                  >
-                    <mat-icon>casino</mat-icon>
-                  </button>
-                  <button
-                    mat-icon-button
-                    class="icon-btn-sm"
-                    (click)="openEditScheduleModal(s)"
-                    matTooltip="Edit schedule window"
-                  >
-                    <mat-icon>edit</mat-icon>
-                  </button>
-                  <button
-                    *ngIf="!isDefaultSchedule(s)"
-                    mat-icon-button
-                    color="warn"
-                    class="icon-btn-sm"
-                    (click)="deleteSchedule(s)"
-                    matTooltip="Delete schedule"
-                  >
-                    <mat-icon>delete_outline</mat-icon>
-                  </button>
-                </div>
-              </div>
+              <!-- Daily Window -->
+              <ng-container matColumnDef="window">
+                <th mat-header-cell *matHeaderCellDef>Daily Window ({{ apiService.getTimeZone() }})</th>
+                <td mat-cell *matCellDef="let s" class="num-cell">
+                  <div class="window-cell">
+                    <strong class="window-base">{{ formatLocalBaseTime(s.baseTime) }}</strong>
+                    <span class="jitter-pill">+0..{{ s.jitterMinutes }}m jitter</span>
+                  </div>
+                </td>
+              </ng-container>
 
-              <div class="sched-metrics-grid">
-                <div class="sched-metric">
-                  <span class="metric-label">Daily Window ({{ apiService.getTimeZone() }})</span>
-                  <span class="metric-val">
-                    {{ formatLocalBaseTime(s.baseTime) }}
-                    <span class="metric-muted">+ 0..{{ s.jitterMinutes }}m</span>
-                  </span>
-                </div>
-                <div class="sched-metric">
-                  <span class="metric-label">Next Scheduled Run</span>
-                  <span class="metric-val accent-primary" *ngIf="s.enabled; else disabledTpl">
-                    {{ formatNextRun(s.nextRunAt) }}
-                  </span>
-                  <ng-template #disabledTpl>
-                    <span class="metric-val metric-muted">Paused</span>
+              <!-- Next Scheduled Run -->
+              <ng-container matColumnDef="nextRun">
+                <th mat-header-cell *matHeaderCellDef>Next Scheduled Run</th>
+                <td mat-cell *matCellDef="let s" class="num-cell">
+                  <div class="next-run-cell" *ngIf="s.enabled; else disabledRunTpl">
+                    <span class="next-run-time">{{ formatNextRun(s.nextRunAt) }}</span>
+                    <span class="countdown-pill" *ngIf="getScheduleCountdown(s)">
+                      {{ getScheduleCountdown(s) }}
+                    </span>
+                  </div>
+                  <ng-template #disabledRunTpl>
+                    <span class="muted-text">Paused</span>
                   </ng-template>
-                </div>
-                <div class="sched-metric">
-                  <span class="metric-label">Last Execution</span>
-                  <span class="metric-val">{{ formatLastRun(s) }}</span>
-                </div>
-              </div>
+                </td>
+              </ng-container>
 
-              <div class="sched-targets-footer">
-                <span class="targets-count-label">
-                  Assigned Targets ({{ getPagesForSchedule(s.id).length }})
-                </span>
-                <div class="assigned-chips" *ngIf="getPagesForSchedule(s.id).length > 0; else noAssignedTpl">
-                  <span
-                    class="target-chip"
-                    *ngFor="let p of getPagesForSchedule(s.id)"
-                    [class.chip-disabled]="!p.enabled"
-                  >
-                    <span class="chip-prov">{{ getProviderDisplayName(p.provider || p.category) }}</span>
-                    <span>{{ p.categoryName || p.name }}</span>
-                  </span>
-                </div>
-                <ng-template #noAssignedTpl>
-                  <span class="no-targets-hint">No targets assigned to this schedule.</span>
-                </ng-template>
-              </div>
-            </div>
+              <!-- Last Execution -->
+              <ng-container matColumnDef="lastRun">
+                <th mat-header-cell *matHeaderCellDef>Last Execution</th>
+                <td mat-cell *matCellDef="let s" class="num-cell muted-text">
+                  {{ formatLastRun(s) }}
+                </td>
+              </ng-container>
+
+              <!-- Assigned Targets -->
+              <ng-container matColumnDef="targets">
+                <th mat-header-cell *matHeaderCellDef>Assigned Targets</th>
+                <td mat-cell *matCellDef="let s">
+                  <div class="assigned-chips" *ngIf="getPagesForSchedule(s.id).length > 0; else noAssignedTpl">
+                    <span
+                      class="target-chip"
+                      *ngFor="let p of getPagesForSchedule(s.id)"
+                      [class.chip-disabled]="!p.enabled"
+                    >
+                      <span
+                        class="chip-prov"
+                        [attr.data-provider]="(p.provider || p.category || 'eneba').toLowerCase()"
+                      >
+                        {{ getProviderDisplayName(p.provider || p.category) }}
+                      </span>
+                      <span>{{ p.categoryName || p.name }}</span>
+                    </span>
+                  </div>
+                  <ng-template #noAssignedTpl>
+                    <span class="no-targets-hint">No targets assigned</span>
+                  </ng-template>
+                </td>
+              </ng-container>
+
+              <!-- Actions -->
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef class="col-actions">Actions</th>
+                <td mat-cell *matCellDef="let s" class="col-actions">
+                  <div class="row-actions">
+                    <button
+                      mat-stroked-button
+                      color="primary"
+                      class="btn-compact"
+                      (click)="runScheduleNow(s)"
+                      [disabled]="apiService.dashboardData()?.runner?.isScraping"
+                      matTooltip="Run all enabled targets in this schedule now"
+                    >
+                      <mat-icon>play_arrow</mat-icon>
+                      <span>Run</span>
+                    </button>
+                    <button
+                      mat-icon-button
+                      class="icon-btn-sm"
+                      (click)="rerollSchedule(s)"
+                      matTooltip="Re-roll randomized next run time"
+                    >
+                      <mat-icon>casino</mat-icon>
+                    </button>
+                    <button
+                      mat-icon-button
+                      class="icon-btn-sm"
+                      (click)="openEditScheduleModal(s)"
+                      matTooltip="Edit schedule window"
+                    >
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button
+                      *ngIf="!isDefaultSchedule(s)"
+                      mat-icon-button
+                      color="warn"
+                      class="icon-btn-sm"
+                      (click)="deleteSchedule(s)"
+                      matTooltip="Delete schedule"
+                    >
+                      <mat-icon>delete_outline</mat-icon>
+                    </button>
+                  </div>
+                </td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="scheduleColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: scheduleColumns;"></tr>
+            </table>
           </div>
         </mat-card-content>
       </mat-card>
@@ -413,6 +448,15 @@ import {
   styleUrl: './automation.component.scss',
 })
 export class AutomationComponent {
+  scheduleColumns: string[] = [
+    'schedule',
+    'window',
+    'nextRun',
+    'lastRun',
+    'targets',
+    'actions',
+  ];
+
   displayedColumns: string[] = [
     'enabled',
     'provider',
@@ -540,7 +584,11 @@ export class AutomationComponent {
 
   earliestCountdown(): string {
     const s = this.getEarliestActiveSchedule();
-    if (!s?.nextRunAt) return '';
+    return this.getScheduleCountdown(s);
+  }
+
+  getScheduleCountdown(s?: SchedulerState): string {
+    if (!s?.enabled || !s?.nextRunAt) return '';
     const diffMs = new Date(s.nextRunAt).getTime() - Date.now();
     if (diffMs <= 0) return 'Soon';
     const mins = Math.floor(diffMs / 60000);

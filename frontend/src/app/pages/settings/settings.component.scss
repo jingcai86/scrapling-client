@@ -14,24 +14,27 @@
 
 .card-header-clean {
   display: flex !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   justify-content: space-between !important;
   gap: 1rem;
   padding: 1.25rem 1.5rem !important;
   border-bottom: 1px solid var(--ui-border);
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent-indigo) 7%, var(--surface-card)) 0%, var(--surface-card) 100%);
   flex-wrap: wrap;
+  text-align: start;
 
   .header-text {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
+    margin-inline-end: auto;
+    text-align: start;
   }
 
   .card-header-actions {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.625rem;
     flex-wrap: wrap;
   }
 }

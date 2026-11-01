@@ -146,7 +146,7 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
               <span class="deal-rank">#{{ i + 1 }}</span>
               <span class="deal-name">{{ deal.title }}</span>
               <span class="deal-price" *ngIf="deal.sellingPrice > 0">\${{ deal.sellingPrice.toFixed(2) }}</span>
-              <span class="deal-pct" *ngIf="deal.discountPct > 0">-{{ deal.discountPct.toFixed(1) }}%</span>
+              <span class="deal-pct" *ngIf="deal.discountPct > 0">{{ deal.discountPct.toFixed(1) }}%</span>
             </a>
           </div>
           <ng-template #noBestTpl>
@@ -338,7 +338,7 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Discount</th>
                 <td mat-cell *matCellDef="let deal" class="num-cell">
                   <span *ngIf="deal.discountPct > 0" class="discount-pill">
-                    -{{ deal.discountPct.toFixed(1) }}%
+                    {{ deal.discountPct.toFixed(1) }}%
                   </span>
                   <span *ngIf="!deal.discountPct" class="muted-text">0.0%</span>
                 </td>
@@ -479,7 +479,7 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                   <ng-container *ngIf="getPeakFace(s) as peak">
                     <div class="face-summary-cell" *ngIf="peak.faceValue !== '—'; else noFaceTpl">
                       <span class="face-tag">\${{ peak.faceValue }} Face</span>
-                      <span class="face-sub">\${{ peak.minPrice }} (-{{ peak.peakPct }}%)</span>
+                      <span class="face-sub">\${{ peak.minPrice }} ({{ peak.peakPct }}% off)</span>
                     </div>
                     <ng-template #noFaceTpl>
                       <span class="muted-text">—</span>
@@ -506,7 +506,7 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                   <ng-container *ngIf="getLatestDealDisplay(s) as dealDisp">
                     <div class="best-deal-cell" *ngIf="dealDisp.hasDeal; else noDealCellTpl">
                       <span class="discount-pill" *ngIf="dealDisp.discountPct > 0">
-                        -{{ dealDisp.discountPct.toFixed(1) }}%
+                        {{ dealDisp.discountPct.toFixed(1) }}%
                       </span>
                       <span class="best-price-text" *ngIf="dealDisp.price">
                         \${{ dealDisp.price }}
@@ -537,7 +537,7 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                         <span class="detail-box-label">Most Frequent Discounted Denomination</span>
                         <div class="detail-box-main" *ngIf="mf.faceValue !== '—'; else noMfTpl">
                           <span class="denom-badge">\${{ mf.faceValue }} Face</span>
-                          <span class="denom-stat">Avg -{{ mf.avgPct }}% ({{ mf.timesText }})</span>
+                          <span class="denom-stat">Avg {{ mf.avgPct }}% ({{ mf.timesText }})</span>
                         </div>
                         <a
                           *ngIf="mf.url"
@@ -560,7 +560,7 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                         <div class="detail-box-main" *ngIf="pf.faceValue !== '—'; else noPfTpl">
                           <span class="denom-badge">\${{ pf.faceValue }} Face</span>
                           <span class="denom-stat accent-emerald-text">
-                            -{{ pf.peakPct }}% (\${{ pf.minPrice }} · Save \${{ pf.savings }})
+                            {{ pf.peakPct }}% (\${{ pf.minPrice }} · Save \${{ pf.savings }})
                           </span>
                         </div>
                         <a
@@ -594,7 +594,7 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                           <strong>\${{ face.faceValue }}</strong>
                           <span class="denom-price">\${{ face.sellingPrice.toFixed(2) }}</span>
                           <span class="denom-disc" *ngIf="face.discountPct > 0">
-                            -{{ face.discountPct.toFixed(1) }}%
+                            {{ face.discountPct.toFixed(1) }}%
                           </span>
                         </a>
                       </div>
@@ -877,7 +877,7 @@ export class MarketplaceComponent implements OnInit, AfterViewInit, OnDestroy {
     const pct = this.getAvgDiscountPct(s);
     if (pct > 0) {
       return {
-        text: `-${pct.toFixed(1)}%`,
+        text: `${pct.toFixed(1)}%`,
         hasDiscount: true,
         isMuted: false,
         tooltip:
@@ -1308,10 +1308,10 @@ export class MarketplaceComponent implements OnInit, AfterViewInit, OnDestroy {
   bestDealPct(): string {
     const top = this.topBestDeals;
     if (top.length > 0 && top[0].discountPct > 0) {
-      return `-${top[0].discountPct.toFixed(1)}%`;
+      return `${top[0].discountPct.toFixed(1)}%`;
     }
     const maxDisc = Math.max(...this.sortedCategories.map((s) => s.maxDiscountPct || 0), 0);
-    return maxDisc > 0 ? `-${maxDisc.toFixed(1)}%` : '—';
+    return maxDisc > 0 ? `${maxDisc.toFixed(1)}%` : '—';
   }
 
   get schedulersList(): SchedulerState[] {
@@ -1479,7 +1479,7 @@ export class MarketplaceComponent implements OnInit, AfterViewInit, OnDestroy {
       const d = s.bestDeal || s.bestEffectiveDeal;
       if (d && (d.discountPct || 0) > maxPct) maxPct = d.discountPct;
     }
-    return maxPct > 0 ? `-${maxPct.toFixed(1)}%` : '—';
+    return maxPct > 0 ? `${maxPct.toFixed(1)}%` : '—';
   }
 
   private renderBestDiscountChart(): void {
@@ -1555,7 +1555,7 @@ export class MarketplaceComponent implements OnInit, AfterViewInit, OnDestroy {
           if (!p) return '';
           return `
             <div style="font-weight:600;margin-bottom:4px;">${p.deal.title}</div>
-            <div>Discount: <strong style="color:#10b981;">-${p.pct}%</strong></div>
+            <div>Discount: <strong style="color:#10b981;">${p.pct}%</strong></div>
             <div>Price: <strong>$${Number(p.deal.cost || 0).toFixed(2)}</strong></div>
           `;
         },

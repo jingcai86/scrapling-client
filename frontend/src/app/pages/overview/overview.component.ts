@@ -96,7 +96,7 @@ import { getCanonicalProvider } from '../../core/utils/target.utils';
               <span class="deal-rank">#{{ i + 1 }}</span>
               <span class="deal-name">{{ deal.title }}</span>
               <span class="deal-price">\${{ deal.sellingPrice.toFixed(2) }}</span>
-              <span class="deal-pct">-{{ deal.discountPct.toFixed(1) }}%</span>
+              <span class="deal-pct">{{ deal.discountPct.toFixed(1) }}%</span>
             </a>
           </div>
           <ng-template #noDealsTpl>
@@ -399,7 +399,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
       const d = s.bestDeal?.discountPct || s.maxDiscountPct || 0;
       if (d > max) max = d;
     }
-    return max > 0 ? `-${max.toFixed(1)}%` : '—';
+    return max > 0 ? `${max.toFixed(1)}%` : '—';
   }
 
   totalPagesCount(): number {
@@ -448,7 +448,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   bestGlobalDiscount(): string {
     const top = this.topBestDeals;
     if (top.length > 0 && top[0].discountPct > 0) {
-      return `-${top[0].discountPct.toFixed(1)}%`;
+      return `${top[0].discountPct.toFixed(1)}%`;
     }
     return '—';
   }
@@ -530,7 +530,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
         maxPct = d.discountPct;
       }
     }
-    return maxPct > 0 ? `-${maxPct.toFixed(1)}%` : '—';
+    return maxPct > 0 ? `${maxPct.toFixed(1)}%` : '—';
   }
 
   triggerAllScrape(): void {
@@ -655,7 +655,7 @@ export class OverviewComponent implements OnInit, AfterViewInit, OnDestroy {
           if (!deal) return '';
           return `
             <div style="font-weight:600;margin-bottom:4px;">${deal.title}</div>
-            <div>Discount: <strong style="color:#10b981;">-${deal.discountPct.toFixed(1)}%</strong></div>
+            <div>Discount: <strong style="color:#10b981;">${deal.discountPct.toFixed(1)}%</strong></div>
             <div>Price: <strong>$${(deal.cost || 0).toFixed(2)}</strong> (Face $${(deal.faceValue || 0).toFixed(2)})</div>
             <div style="opacity:0.75;font-size:11px;margin-top:2px;">Seller: ${deal.sellerName || 'Top Merchant'}</div>
           `;
