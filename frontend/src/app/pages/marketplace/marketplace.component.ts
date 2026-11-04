@@ -444,10 +444,22 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                     </mat-icon>
                     <span class="status-dot" [attr.data-status]="s.runStatus || 'success'"></span>
                     <div class="page-title-stack">
-                      <span class="page-name">{{ s.targetName || s.name || s.category }}</span>
-                      <span class="page-sub-meta">
-                        {{ s.inStockCount }}/{{ s.totalListings }} in stock · {{ getScrapeCount(s) }} runs
-                      </span>
+                      <div class="page-name-row">
+                        <span class="page-name">{{ s.targetName || s.name || s.category }}</span>
+                        <span class="page-sub-meta">
+                          {{ s.inStockCount }}/{{ s.totalListings }} in stock · {{ getScrapeCount(s) }} runs
+                        </span>
+                      </div>
+                      <a
+                        [href]="getStorePageUrl(s)"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="page-url-link"
+                        (click)="$event.stopPropagation()"
+                      >
+                        <span>{{ getStorePageUrl(s) }}</span>
+                        <mat-icon class="url-ext-icon">open_in_new</mat-icon>
+                      </a>
                     </div>
                   </div>
                 </td>
@@ -508,7 +520,18 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                       <span class="discount-pill" *ngIf="dealDisp.discountPct > 0">
                         {{ dealDisp.discountPct.toFixed(1) }}%
                       </span>
-                      <span class="best-price-text" *ngIf="dealDisp.price">
+                      <a
+                        *ngIf="dealDisp.price && (dealDisp.url || getStorePageUrl(s))"
+                        [href]="dealDisp.url || getStorePageUrl(s)"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="best-price-link"
+                        [matTooltip]="dealDisp.title || 'Open best deal listing'"
+                        (click)="$event.stopPropagation()"
+                      >
+                        \${{ dealDisp.price }} ↗
+                      </a>
+                      <span class="best-price-text" *ngIf="dealDisp.price && !dealDisp.url && !getStorePageUrl(s)">
                         \${{ dealDisp.price }}
                       </span>
                       <button
@@ -519,9 +542,31 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                       >
                         {{ s.bestDealOffers.length }} offers
                       </button>
+                      <a
+                        [href]="getStorePageUrl(s)"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        mat-stroked-button
+                        class="btn-xs"
+                        (click)="$event.stopPropagation()"
+                        matTooltip="Open target category page"
+                      >
+                        <span>Page</span>
+                        <mat-icon class="ext-icon">open_in_new</mat-icon>
+                      </a>
                     </div>
                     <ng-template #noDealCellTpl>
-                      <span class="muted-text">—</span>
+                      <a
+                        [href]="getStorePageUrl(s)"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        mat-stroked-button
+                        class="btn-xs"
+                        (click)="$event.stopPropagation()"
+                      >
+                        <span>Open Page</span>
+                        <mat-icon class="ext-icon">open_in_new</mat-icon>
+                      </a>
                     </ng-template>
                   </ng-container>
                 </td>
@@ -610,7 +655,7 @@ function compare(a: number | string, b: number | string, isAsc: boolean): number
                         class="store-ext-link"
                         (click)="$event.stopPropagation()"
                       >
-                        Open {{ providerDisplayName }} Target Page ↗
+                        {{ s.targetName || s.name || s.category }} ({{ getStorePageUrl(s) }}) ↗
                       </a>
                     </div>
                   </div>
